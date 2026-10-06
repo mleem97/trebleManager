@@ -1,0 +1,48 @@
+name: New device support
+description: Request another Huawei/Kirin profile (model, partitions, firmware)
+title: "[device]: "
+labels: ["new-device"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New profiles need real device data — never guessed. Attach a diagnostic ZIP
+        (`diagnostic --anonymize`) or the outputs below.
+  - type: input
+    id: model
+    attributes:
+      label: Marketing + model + region
+      placeholder: "Huawei P10 Lite WAS-LX1 (C432)"
+    validations:
+      required: true
+  - type: textarea
+    id: byname
+    attributes:
+      label: "adb shell ls -l /dev/block/by-name/ (filtered: boot|recovery|ramdisk|system|vendor)"
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: getprop
+    attributes:
+      label: Key getprops (model, name, release, display.id, ro.boot.*, treble)
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: getvar
+    attributes:
+      label: fastboot getvar results (FAILED lines are data, not failure)
+      render: text
+  - type: input
+    id: firmware
+    attributes:
+      label: Stock firmware baseline (model + EMUI + CUST)
+      placeholder: "WAS-LX1 8.0.0.xxx(C432...)"
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmations
+      options:
+        - label: I understand a profile is only added after the target partition + Magisk path are verified, never assumed
+          required: true

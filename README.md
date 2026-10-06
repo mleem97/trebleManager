@@ -211,6 +211,8 @@ Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md).
 ├── TROUBLESHOOTING.md
 ├── CONTRIBUTING.md
 ├── CODE_OF_CONDUCT.md
+├── SUPPORT.md
+├── .github/                # FUNDING, issue templates, PR template, CODEOWNERS
 ├── CHANGELOG.md
 ├── VERSION                 # Single source of truth for version
 └── LICENSE                 # Apache-2.0

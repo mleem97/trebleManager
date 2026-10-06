@@ -1,0 +1,82 @@
+name: Bug report
+description: Something broke (flash blocked, wrong detection, crash)
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Fill in what you can — logs beat guesses.
+        Never paste full `getvar all` with serials; use `--anonymize`.
+  - type: input
+    id: version
+    attributes:
+      label: Tool version
+      description: From README badge, VERSION file, or TUI header
+      placeholder: "2.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows PowerShell 5.1
+        - Windows PowerShell 7+
+        - Linux bash
+        - Direct-from-internet run
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: Marketing + model, e.g. Huawei P10 VTR-L29
+      placeholder: "Huawei P10 VTR-L29"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Device OS
+      description: From analysis screen, e.g. TrebleDroid-GSI Android 13
+      placeholder: "TrebleDroid-GSI / lineage_arm64_bgN / Android 13"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Device mode when it failed
+      options: ["Android (ADB)", "Fastboot", "No device detected", "Not sure"]
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps (wizard step or CLI command)
+      description: "Exact step, e.g. Step 7 flash, or CLI: flash --image ..."
+      placeholder: "1. ... 2. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      placeholder: "Expected PASS on safety gate, got DO NOT FLASH on ..."
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant lines from logs/ or the diagnostic ZIP file list (redact serials)
+      render: text
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checklist
+      options:
+        - label: I did not edit/patch around the safety gate, I report what it showed
+          required: true
+        - label: No userdata was wiped by the tool (it never does that automatically)
+          required: false

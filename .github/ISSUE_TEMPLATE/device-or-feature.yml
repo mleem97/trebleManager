@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a device, source, check, or workflow improvement
+title: "[feat]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem (what/why)
+      placeholder: "Flashing needs ... because ..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal (what should happen, incl. safety impact)
+      placeholder: "Add ... behind explicit confirmation, never automatic because ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: ["New device profile", "Firmware source", "Magisk flow", "Backup/restore", "Verify", "Diagnostics/logs", "Docs", "Linux/macOS port", "Other"]
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Ground rules
+      options:
+        - label: "Nothing destructive without explicit confirmation (never auto erase/format/unlock)"
+          required: true
+        - label: "No fake success paths — impossible operations must error honestly"
+          required: true
