@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## v2.4.0
+
+- TWRP path: guide (device-exact builds, XDA/wiki rules) + guided flash with slot backup, shared-slot warning, Vol-Up boot, CLI `twrp`
+- Root methods by priority (Magisk preferred): recovery patch → via-TWRP → phh-su → KernelSU, selectable in TUI, `root-methods` CLI
+- Generic device support: verified vs unverified profiles (flash blocked unless verified), `devices` CLI, Kirin 960 family (VTR-AL00, VKY-L09) + GENERIC-TREBLE fallback
+- LineageOS as starting point (version detection, assisted baseline, export from Lineage zips)
+
+## v2.3.0
+
+- Full guidance: root wizard + ROM/GSI install (`flash-system`, TUI menu) + custom ROM flows
+- Bootloader unlock + kernel/fix guides from the P10 wiki; Android 13 instability warning on P10/Plus
+- LineageOS as starting point (version detection, assisted baseline, export from Lineage zips)
+- Generic device support: verified vs unverified profiles (flash blocked unless verified), `devices` CLI, Kirin 960 family (VTR-AL00, VKY-L09) + GENERIC-TREBLE fallback
+
 ## v2.2.0
 
 - Linux bash port (`scripts/treble-toolkit.sh`): same wizard/CLI logic, zero extra

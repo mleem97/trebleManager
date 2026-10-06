@@ -69,11 +69,11 @@ CLI examples (append after `& $f` for remote runs):
 
 ## C. As release ZIP (GitHub blocked / manual upload)
 
-1. Copy `trebleManager-v2.1.0.zip` + `trebleManager-v2.1.0.zip.sha256` from any source
+1. Copy `trebleManager-v2.4.0.zip` + `trebleManager-v2.4.0.zip.sha256` from any source
    (USB stick) — no git, no GitHub needed.
 2. Verify (PowerShell):
    ```powershell
-   (Get-FileHash .\trebleManager-v2.1.0.zip -Algorithm SHA256).Hash -eq (Get-Content .\trebleManager-v2.1.0.zip.sha256)
+   (Get-FileHash .\trebleManager-v2.4.0.zip -Algorithm SHA256).Hash -eq (Get-Content .\trebleManager-v2.4.0.zip.sha256)
    ```
    Must be `True`, otherwise transfer again.
 3. Extract (path without spaces preferred, e.g. `C:\trebleManager\`),
@@ -88,11 +88,15 @@ CLI examples (append after `& $f` for remote runs):
 ## Manual release upload (for whoever cuts the release)
 
 1. Build ZIP + `.sha256` as above (content = repo root without `.git`, without `logs/*`, without `backups/*`).
-2. On GitHub: Releases → Draft new release → tag `v2.1.0` → attach both files → Publish.
+2. On GitHub: Releases → Draft new release → tag `v2.4.0` → attach both files → Publish.
 3. Blocked users download both files from the release page directly (or via stick).
 
 ## Device order (short)
 
 1. Check via A, evaluate TXT (`recovery_ramdisk` in by-name/fastboot?).
-2. TUI wizard steps 1–9: Detect → Analyze → Firmware → Extract → Patch → Backup → Flash (`FLASH`+`YES`) → reboot with `Vol-Up + Power until logo` → Verify (`uid=0`).
-3. On problems: Restore (original from `backups\`) instead of experiments.
+2. Optional: unlock status (TUI unlock guide), ROM install first if no GSI yet
+   (`Install ROM / GSI`, verified profiles only, eRecovery wipe after).
+3. TUI wizard steps 1–9: Detect → Analyze → Firmware → Extract → Patch → Backup → Flash (`FLASH`+`YES`) → reboot with `Vol-Up + Power until logo` → Verify (`uid=0`).
+   Alternatives in the same menu: root-method priority (Magisk preferred), TWRP path (shared slot warning), ROM/GSI install (verified profiles only).
+4. LineageOS running? Valid start — version is detected, stock source still needed for Magisk.
+5. On problems: Restore (original from `backups\`) instead of experiments.

@@ -25,7 +25,7 @@ $line"
   done < "$SRC"
   eval "$block" || { bad "load: $name"; return; }
 }
-for fn in valid_url boot_magic_ver firmware_compat os_classify; do import_fn "$fn"; done
+for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name; do import_fn "$fn"; done
 
 # Need TTLANG + PROFILE_ID + stubs used by imported funcs
 TTLANG="en"
@@ -61,6 +61,21 @@ os_classify
 MODEL="VTR-L29"; PNAME="VTR-L29"; DISPLAY="VTR-L29 9.1.0.297(C432E5R1P9)"; EMUI="EmotionUI_9.1.0"
 os_classify
 [ "$OS_KIND" = "Stock-EMUI-9.1" ] && ok "os stock" || bad "os stock ($OS_KIND)"
+
+# 5. Profile verified gate
+PROFILE_ID="VTR-L29"; [ "$(profile_verified)" = "1" ] && ok "verified VTR-L29" || bad "verified VTR-L29"
+PROFILE_ID="VTR-AL00"; [ "$(profile_verified)" = "0" ] && ok "unverified VTR-AL00 blocks" || bad "unverified VTR-AL00"
+PROFILE_ID="VTR-L29"
+
+# 5b. Root methods: Magisk preferred first
+first="$(root_method_ids | head -1)"
+[ "$first" = "magisk-recovery" ] && ok "magisk preferred first" || bad "magisk order ($first)"
+[ "$(root_method_ids | wc -l)" -eq 4 ] && ok "4 root methods" || bad "root method count"
+
+# 6. System image gate (small/foreign names refused)
+printf 'tiny' > "$TMP/small.img"
+t="$(test_system_image "$TMP/small.img" 2>/dev/null || printf 'FAIL|small')"
+[ "${t%%|*}" = "FAIL" ] && ok "system small refused" || bad "system small ($t)"
 
 # 5. Huawei getvar tolerance (FAILED is data, not lock)
 printf 'getvar:unlocked FAILED (remote: Command not allowed)\nfinished.\n' > "$TMP/fb.txt"

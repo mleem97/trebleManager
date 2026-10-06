@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.2.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.4.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -36,9 +36,14 @@ from Huawei fastboot is treated as a Huawei quirk, never as proof of lock.
 
 | Device | Model | Arch | State |
 |---|---|---|---|
-| Huawei P10 | VTR-L29 (primary) | arm64 | Supported |
-| Huawei P10 | VTR-L09 | arm64 | Supported |
-| Huawei P10 Plus | VKY-L29 | arm64 | Supported |
+| Huawei P10 | VTR-L29 (primary, verified) | arm64 | Supported |
+| Huawei P10 | VTR-L09 (verified) | arm64 | Supported |
+| Huawei P10 Plus | VKY-L29 (verified) | arm64 | Supported |
+| Huawei P10 | VTR-AL00 (unverified) | arm64 | Analyze + export only (flash blocked) |
+| Huawei P10 Plus | VKY-L09 (unverified) | arm64 | Analyze + export only (flash blocked) |
+
+Unverified = same Kirin 960 hypothesis, but flash stays blocked until device data
+is submitted (see `device-support` issue template). `devices` CLI lists all profiles.
 
 | Host | Shell | State |
 |---|---|---|
@@ -63,6 +68,10 @@ UI language: English by default, German if the system language is German.
 - Stock firmware downloader with progress (BITS resume + WebClient fallback) and mandatory `YES` confirmation
 - `UPDATE.APP` analysis + `RECOVERY_RAMDIS(K).img` validation (size, SHA-256/512, header magic, exact filename kept)
 - **Recovery export from compatible custom ROMs** (direct `.img`, ROM `.zip` with `boot/recovery.img`, `payload.bin` via payload-dumper-go; GSI system images honestly refused)
+- **Guided ROM/GSI install** (`flash-system`, TUI menu): image checks (size, arm64, A-only), double confirmation, `fastboot flash system`, eRecovery wipe guidance — never auto-wipes userdata
+- **TWRP path** (guide + guided flash): device-exact builds, image validation, automatic slot backup, explicit shared-slot warning (TWRP ↔ Magisk overwrite each other), Vol-Up boot, never TWRP userdata wipe
+- **Root methods by priority** (Magisk preferred): patched recovery_ramdisk → Magisk-via-TWRP → phh-su → KernelSU (v0.9.2 only), selectable in TUI / `root-methods` CLI
+- **Bootloader unlock + kernel/fix guides** straight from the P10 wiki (PotatoNV USER/BL LOCK flow, permissive kernels, speaker/APTouch fixes, TWRP rules)
 - Real on-device Magisk patch flow (never copy-and-claim, patched `!=` stock enforced by hash)
 - Backup before every flash (`backups/<MODEL>/recovery_ramdisk/<stamp>/` + `metadata.json` + hashes)
 - 9-point safety gate with `DO NOT FLASH`, derived flash command, double confirmation
@@ -112,8 +121,8 @@ on Debian/Ubuntu). Optional: `unzip`, `curl`, `zip` (or `python3` as fallback ea
 
 ### Option C — Offline release ZIP (GitHub blocked)
 
-1. Copy `trebleManager-v2.2.0.zip` + `.sha256` via USB stick.
-2. Verify: `(Get-FileHash .\trebleManager-v2.2.0.zip -Algorithm SHA256).Hash -eq (Get-Content .\trebleManager-v2.2.0.zip.sha256)` must be `True` (Linux: `sha256sum -c trebleManager-v2.2.0.zip.sha256`).
+1. Copy `trebleManager-v2.4.0.zip` + `.sha256` via USB stick.
+2. Verify: `(Get-FileHash .\trebleManager-v2.4.0.zip -Algorithm SHA256).Hash -eq (Get-Content .\trebleManager-v2.4.0.zip.sha256)` must be `True` (Linux: `sha256sum -c trebleManager-v2.4.0.zip.sha256`).
 3. Extract (path without spaces preferred), keep layout (`scripts\`, `data\`, `logs\`, `backups\`).
 4. Optionally pre-place full firmware ZIP in `data\firmware\` and Magisk APK in `data\magisk\` — then no internet is needed at all.
 
@@ -180,11 +189,12 @@ curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/
 TUI without args. CLI:
 
 ```
-Treble-Toolkit.ps1 detect|analyze|firmware|download|extract|export|patch|backup|flash|verify|restore|diagnostic|wizard|help [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]
+Treble-Toolkit.ps1 detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|verify|restore|diagnostic|wizard|help [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]
 ```
 
 Wizard order: Detect → Analyze → Firmware → Extract → Patch → Backup → Flash → Reboot+Verify.
-Flash/restore need double confirmation (`FLASH`+`YES` / `RESTORE`+`YES`, CLI: `--yes`).
+ROM path additionally: `export` → `flash-system` (guided, verified profiles only).
+Flash/restore/system-flash need double confirmation (`FLASH`+`YES` / `RESTORE`+`YES`, CLI: `--yes`).
 Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md), [FAQ.md](FAQ.md).
 
 ## Repository Layout

@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.2.0"
+TTVERSION="2.4.0"
 TTLANG="en"
 case "${LANG:-en}" in de*) TTLANG="de" ;; esac
 
@@ -61,12 +61,40 @@ log() { # level message
 }
 
 # ---------------------------------------------------------------- profiles (mac-bash3 safe: case, no assoc arrays)
+# Verified = proven via Discussion #2542 + P10 wiki (flash allowed).
+# Unverified = hypothesis only (analyze + export allowed, flash BLOCKED).
+# LineageOS is a valid STARTING point (hides Huawei base -> assisted baseline),
+# but the Magisk SOURCE stays the stock RECOVERY_RAMDISK.img.
 target_partition() {
-  case "$PROFILE_ID" in VTR-L29|VTR-L09|VKY-L29) printf 'recovery_ramdisk' ;; *) printf 'recovery_ramdisk' ;; esac
+  case "$PROFILE_ID" in VTR-L29|VTR-L09|VKY-L29|VTR-AL00|VKY-L09) printf 'recovery_ramdisk' ;; *) printf '' ;; esac
 }
 marketing_name() {
-  case "$PROFILE_ID" in VKY-L29) printf 'Huawei P10 Plus' ;; *) printf 'Huawei P10' ;; esac
+  case "$PROFILE_ID" in VKY-L29|VKY-L09) printf 'Huawei P10 Plus' ;; GENERIC-TREBLE) printf 'Generic Treble device' ;; *) printf 'Huawei P10' ;; esac
 }
+profile_verified() {
+  case "$PROFILE_ID" in VTR-L29|VTR-L09|VKY-L29) printf '1' ;; *) printf '0' ;; esac
+}
+profile_variant() {
+  case "$PROFILE_ID" in
+    VTR-L29) printf 'Global market (UFS storage)' ;;
+    VTR-L09) printf 'Europe (UFS storage)' ;;
+    VKY-L29) printf 'Global market Plus (UFS storage)' ;;
+    VTR-AL00) printf 'China, no SIM restriction (eMMC or UFS - check!)' ;;
+    VKY-L09) printf 'Europe Plus (UFS storage)' ;;
+    *) printf 'Fallback (analyze only)' ;;
+  esac
+}
+profile_gsi_advice() {
+  case "$PROFILE_ID" in
+    VTR-AL00) printf 'arm64 A-only; CN units with eMMC behave differently - see wiki storage note' ;;
+    GENERIC-TREBLE) printf 'No verified method - analysis and recovery export only' ;;
+    VTR-*|VKY-*) printf 'arm64 A-only images; slim builds if system partition is small' ;;
+    *) printf '' ;;
+  esac
+}
+
+# Wiki knowledge (P10 page, short form; full text in TUI screens).
+WIKI_ANDROID13_WARN="Android 13 on P10/P10 Plus is unstable per wiki: no SIM/signal possible, hardware may fail. Android 10 (Q) GSIs are the recommended daily drivers on Kirin 960."
 
 # ---------------------------------------------------------------- tools (with timeouts + tty reads)
 # adb_run/fb_run guard every device call with `timeout` (e.g. su prompts must
@@ -149,7 +177,7 @@ os_classify() { # sets OS_KIND (pure logic on globals MODEL PNAME DISPLAY RELEAS
 android_analysis() {
   log INFO "$(L 'Android analysis (read-only, OS-independent) ...' 'Android-Analyse (read-only, OS-unabhaengig) ...')"
   : > "$PROPS_FILE"
-  for p in ro.product.model ro.product.name ro.product.device ro.build.version.release ro.build.display.id ro.build.type ro.product.cpu.abi ro.hardware ro.treble.enabled ro.vndk.version ro.boot.slot_suffix ro.boot.verifiedbootstate ro.boot.flash.locked ro.boot.vbmeta.device_state ro.secure ro.debuggable ro.build.version.emui ro.emui.version; do
+  for p in ro.product.model ro.product.name ro.product.device ro.build.version.release ro.build.display.id ro.build.type ro.product.cpu.abi ro.hardware ro.treble.enabled ro.vndk.version ro.boot.slot_suffix ro.boot.verifiedbootstate ro.boot.flash.locked ro.boot.vbmeta.device_state ro.secure ro.debuggable ro.build.version.emui ro.emui.version ro.lineage.version ro.lineageos.version; do
     printf '%s=%s\n' "$p" "$(adb_prop "$p")" >> "$PROPS_FILE"
   done
   MODEL="$(grep '^ro.product.model=' "$PROPS_FILE" | cut -d= -f2-)"
@@ -164,7 +192,7 @@ android_analysis() {
   CMDLINE="$(adb_run shell cat /proc/cmdline 2>&1 | tr -d '\r')"
   WHICHSU="$(adb_run shell 'which su; ls -l /system/xbin/su 2>&1; ls -l /system/bin/su 2>&1' 2>&1)"
   MAGISKV="$(adb_run shell 'magisk -v 2>&1; su -c id 2>&1' 2>&1)"
-  case "$MODEL" in *VTR-L29*) PROFILE_ID="VTR-L29" ;; *VTR-L09*) PROFILE_ID="VTR-L09" ;; *VKY-L29*) PROFILE_ID="VKY-L29" ;;
+  case "$MODEL" in *VTR-L29*) PROFILE_ID="VTR-L29" ;; *VTR-L09*) PROFILE_ID="VTR-L09" ;; *VKY-L29*) PROFILE_ID="VKY-L29" ;; *VTR-AL00*) PROFILE_ID="VTR-AL00" ;; *VKY-L09*) PROFILE_ID="VKY-L09" ;;
     *) PROFILE_ID="VTR-L29"; log WARNING "$(L "Model string is GSI ('$MODEL'). Profile default VTR-L29, verification before flash mandatory." "Modellstring ist GSI. Profil-Default VTR-L29, Verifikation vor Flash Pflicht.")" ;; esac
   log SUCCESS "OS: $OS_KIND | $OS_DETAIL"
 }
@@ -409,8 +437,9 @@ do_backup() { # stock_image -> dir or fail
 check_readiness() { # patched_image -> 0 = GO else 1 (prints table)
   local img="$1" part fail=0
   part="$(target_partition)"
-  local p_ok=0 h_ok=0 s_ok=0 fw_ok=0 b_ok=0 fb_ok=0 d_ok=0 m_ok=0
+  local p_ok=0 h_ok=0 s_ok=0 fw_ok=0 b_ok=0 fb_ok=0 d_ok=0 m_ok=0 v_ok=0
   case "$PROFILE_ID" in VTR-*|VKY-*) m_ok=1 ;; esac
+  [ "$(profile_verified)" = "1" ] && v_ok=1
   if [ "$MODE" = "android" ] && printf '%s' "$BYNAME_RAW" | grep -q "$part"; then p_ok=1; fi
   if [ "$p_ok" = 0 ] && [ -f "$FBRAW_FILE" ] && grep -q "partition-size:$part" "$FBRAW_FILE" && ! grep -q "Command not allowed" "$FBRAW_FILE"; then p_ok=1; fi
   [ -f "$img" ] && h_ok=1
@@ -425,7 +454,7 @@ check_readiness() { # patched_image -> 0 = GO else 1 (prints table)
   [ -n "$FW_BASELINE" ] && [ "$FW_STATUS" != "FAIL" ] && fw_ok=1
   [ -n "$BACKUP_DIR" ] && [ -f "$BACKUP_DIR/original.img" ] && b_ok=1
   if [ -n "$FB_BIN" ] && "$FB_BIN" devices 2>/dev/null | grep -q fastboot; then fb_ok=1; MODE="fastboot"; fi
-  for row in "Model matches|$m_ok" "Partition exists ($part)|$p_ok" "Image exists|$h_ok" "Image size plausible|$s_ok" "Firmware compat|$fw_ok" "Backup available|$b_ok" "Fastboot connected|$fb_ok" "Patched != stock|$d_ok"; do
+  for row in "Model matches|$m_ok" "Profile verified (flash allowed)|$v_ok" "Partition exists ($part)|$p_ok" "Image exists|$h_ok" "Image size plausible|$s_ok" "Firmware compat|$fw_ok" "Backup available|$b_ok" "Fastboot connected|$fb_ok" "Patched != stock|$d_ok"; do
     local n="${row%%|*}" v="${row##*|}"
     if [ "$v" = 1 ]; then printf ' [OK]   %s\n' "$n"; else printf ' [FAIL] %s\n' "$n"; fail=1; fi
   done
@@ -572,7 +601,14 @@ screen_analyze() {
   detect_mode
   if [ "$MODE" = "android" ]; then
     android_analysis
-    printf '\nOS class: %s\nDetail: %s\n\n--- Partitions ---\n' "$OS_KIND" "$OS_DETAIL"
+    printf '\nOS class: %s\nDetail: %s\n' "$OS_KIND" "$OS_DETAIL"
+    linver="$(grep '^ro.lineage.version=' "$PROPS_FILE" | cut -d= -f2-)"
+    [ -z "$linver" ] && linver="$(grep '^ro.lineageos.version=' "$PROPS_FILE" | cut -d= -f2-)"
+    [ -n "$linver" ] && printf 'LineageOS: %s (%s)\n' "$linver" "$(L 'valid starting point - stock source still needed for Magisk' 'gueltiger Startpunkt - Stock-Quelle weiter noetig fuer Magisk')"
+    case "$OS_KIND:$OS_RELEASE" in *GSI*:13*|*GSI*:14*)
+      case "$PROFILE_ID" in VTR-*|VKY-*) printf 'WARN: %s\n' "$WIKI_ANDROID13_WARN" ;; esac ;;
+    esac
+    printf '\n--- Partitions ---\n'
     printf '%s\n' "$BYNAME_RAW" | grep -E 'boot|recovery|ramdisk|system|vendor|vbmeta' || printf '%s\n' "$BYNAME_RAW"
     if printf '%s' "$BYNAME_RAW" | grep -q recovery_ramdisk; then printf 'recovery_ramdisk: DETECTED\n'; else printf '%s\n' "$(L 'recovery_ramdisk NOT in by-name -> fastboot analysis + firmware path needed.' 'recovery_ramdisk NICHT in by-name -> Fastboot + Firmware-Weg noetig.')"; fi
   elif [ "$MODE" = "fastboot" ]; then
@@ -688,6 +724,127 @@ screen_verify() {
   local r; if r="$(verify_root)"; then printf 'Result: %s\n' "$r"; else printf 'Result: %s (see above)\n' "$r"; fi
   pause_tt
 }
+screen_unlock() {
+  header "$(L 'Bootloader unlock (PotatoNV, wiki method - guided only)' 'Bootloader-Unlock (PotatoNV, nur Anleitung)')"; printf '\n'
+  printf '%s\n' "$(L 'The tool NEVER unlocks anything itself.' 'Das Tool unlockt NIEMALS selbst.')"
+  printf '%s\n' "- Huawei locks TWO levels: USER LOCK and BL LOCK." \
+    "- 1. PotatoNV testpoint method: https://github.com/mashed-potatoes/PotatoNV" \
+    "- 2. Engineering fastboot -> 'Disable FBLock' (unlocks USER LOCK)." \
+    "- 3. Normal fastboot shows unlocked (not fully). PotatoNV shows a 16-digit code." \
+    "- 4. fastboot oem unlock XXXXXXXXXXXXXXXX (your code)."
+  printf '\n%s\n' "$(L 'GSI already booting? Unlock is done - continue with step 2.' 'GSI bootet bereits? Unlock erledigt - weiter mit Step 2.')"
+  pause_tt
+}
+screen_kernelfixes() {
+  header "$(L 'Kernels + known fixes (P10 wiki)' 'Kernel + bekannte Fixes (Wiki)')"; printf '\n'
+  printf '%s\n' "Kernels: Proto8/HyperPlus (EMUI8), Pangu (EMUI9 CN), KernelSU v0.9.2 only."
+  printf '%s\n' "Fixes (need root): stop aptouch (touchscreen edges); chown root:audio + chmod 0660 /dev/nxp_smartpa_dev (speakers)."
+  printf '%s\n' "$(L 'TWRP rule: factory reset ONLY via stock recovery.' 'TWRP-Regel: Reset NUR via Stock-Recovery.')"
+  pause_tt
+}
+test_system_image() { # path -> PASS|FAIL|notes on stdout
+  [ -f "$1" ] || { printf 'FAIL|missing'; return; }
+  local sz; sz="$(stat -c%s "$1" 2>/dev/null || stat -f%z "$1")"
+  [ "$sz" -ge 524288000 ] || { printf 'FAIL|too small (< 500 MB), full GSI expected'; return; }
+  local magic; magic="$(od -An -tx1 -N4 "$1" 2>/dev/null | tr -d ' \n' | tr '[:lower:]' '[:upper:]')"
+  local fn; fn="$(basename "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$fn" in *arm64*) ;; *) printf 'FAIL|filename not arm64 (P10 needs arm64 A-only)'; return ;; esac
+  case "$fn" in *_ab*|*a/b*) printf 'FAIL|A/B image (P10 needs A-only)'; return ;; esac
+  printf 'PASS|header=%s' "$magic"
+}
+system_flash() { # image [--yes]
+  local img="$1" yes="${2:-}" t
+  t="$(test_system_image "$img")"
+  printf '%s\n' "$(L '=== System image check (ROM install) ===' '=== System-Image-Pruefung ===')"
+  printf 'Result: %s\n' "$t"
+  if [ "${t%%|*}" != "PASS" ] || [ "$(profile_verified)" != "1" ]; then
+    printf 'DO NOT FLASH\n'; log ERROR "$(L 'System flash blocked.' 'System-Flash blockiert.')"; return 1
+  fi
+  printf 'WARNING\n%s\n%s\n' "$(L 'You are about to REPLACE the Android system (fastboot flash system).' 'Du ersetzt das Android-System.')" "$(L 'Back up storage first. Afterwards: eRecovery wipe + first boot.' 'Speicher sichern. Danach: eRecovery Wipe + Erstboot.')"
+  if [ -z "$yes" ]; then
+    printf '%s' "$(L "Type 'FLASH' (1/2): " "'FLASHEN' (1/2): ")"; iread -r a
+    { [ "$a" = "FLASH" ] || [ "$a" = "FLASHEN" ]; } || return 1
+    printf '%s' "$(L "Type 'YES' (2/2): " "'JA' (2/2): ")"; iread -r b
+    { [ "$b" = "YES" ] || [ "$b" = "JA" ]; } || return 1
+  fi
+  detect_mode
+  if [ "$MODE" != "fastboot" ]; then log ERROR "$(L 'Not in fastboot mode, aborting.' 'Nicht im Fastboot-Modus, Abbruch.')"; return 1; fi
+  log WARNING "Starting: fastboot flash system <gsi>"
+  local out; out="$(fb_flash flash system "$img" 2>&1)"
+  printf '%s\n' "$out" | tee -a "$TTLOG"
+  if printf '%s' "$out" | grep -q -i -E 'OKAY|finished|Writing'; then
+    log SUCCESS "$(L 'System flash OK. Next: fastboot reboot -> eRecovery wipe -> setup.' 'System-Flash OK. Weiter: Reboot -> eRecovery Wipe -> Setup.')"; return 0
+  fi
+  log ERROR "$(L 'System flash output unclear.' 'Ausgabe unklar.')"; return 1
+}
+screen_flashsystem() {
+  header "$(L 'Install ROM / GSI system image (fully guided)' 'ROM / GSI installieren (voll gefuehrt)')"; printf '\n'
+  printf '%s\n' "- Base EMUI 8/9/9.1. Backup storage. Reset only via stock recovery." "- fastboot flash system <gsi.img>, then eRecovery wipe. Slim builds if system is small."
+  local adv; adv="$(profile_gsi_advice)"; [ -n "$adv" ] && printf 'Profile advice: %s\n' "$adv"
+  printf '%s' "$(L 'GSI image path (*-arm64_*.img, unpacked): ' 'GSI-Image-Pfad (entpackt): ')"; iread -r img
+  if [ -z "$img" ] || [ ! -f "$img" ]; then log ERROR "$(L 'Invalid path, aborting.' 'Pfad ungueltig, Abbruch.')"; pause_tt; return; fi
+  system_flash "$img" || true
+  pause_tt
+}
+# Root methods in priority order. Magisk patched recovery_ramdisk is PREFERRED.
+# TWRP shares the SAME partition slot - slots overwrite each other; restore switches back.
+root_method_ids() { printf 'magisk-recovery\nmagisk-twrp\nphh-su\nkernelsu\n'; }
+root_method_name() {
+  case "$1" in
+    magisk-recovery) printf 'Magisk patched recovery_ramdisk (PREFERRED)' ;;
+    magisk-twrp) printf 'Magisk via TWRP zip (alternative)' ;;
+    phh-su) printf 'phh superuser (legacy, no modules)' ;;
+    kernelsu) printf 'KernelSU (experimental, v0.9.2 only)' ;;
+  esac
+}
+ROOT_METHOD="magisk-recovery"
+screen_rootmethods() {
+  header "$(L 'Root methods (Magisk preferred + alternatives)' 'Root-Methoden (Magisk bevorzugt + Alternativen)')"; printf '\n'
+  local m mark
+  while IFS= read -r m; do
+    mark=" "; [ "$m" = "$ROOT_METHOD" ] && mark="*"
+    printf ' [%s] %s: %s\n' "$mark" "$m" "$(root_method_name "$m")"
+  done <<EOF
+$(root_method_ids)
+EOF
+  printf '\nCurrent: %s\n%s' "$ROOT_METHOD" "$(L 'ID to select (Enter=keep): ' 'ID zum Waehlen (Enter=behalten): ')"; iread -r s
+  case "$s" in magisk-recovery|magisk-twrp|phh-su|kernelsu) ROOT_METHOD="$s"; log SUCCESS "Root method: $s" ;; "") ;; *) log WARNING "$(L 'Unknown method, kept.' 'Unbekannte Methode, behalten.')" ;; esac
+  printf '%s\n' "$(L 'Note: TWRP and Magisk-recovery share the recovery_ramdisk slot.' 'Hinweis: TWRP und Magisk teilen den recovery_ramdisk-Slot.')"
+  pause_tt
+}
+twrp_flash() { # image [--yes]
+  local img="$1" yes="${2:-}" t part
+  t="$(test_image "$img" 2>/dev/null || printf 'FAIL|missing')"
+  printf '%s\n' "$(L '=== TWRP image check ===' '=== TWRP-Pruefung ===')"
+  printf 'Result: %s\n' "$t"
+  if [ "${t%%|*}" != "PASS" ] || [ "$(profile_verified)" != "1" ]; then
+    printf 'DO NOT FLASH\n'; log ERROR "$(L 'TWRP flash blocked.' 'TWRP-Flash blockiert.')"; return 1
+  fi
+  part="$(target_partition)"
+  printf 'WARNING\n%s\n%s\n' "$(L 'TWRP and Magisk-recovery SHARE the recovery_ramdisk slot (mutual overwrite).' 'TWRP und Magisk TEILEN den Slot (gegenseitiges Ueberschreiben).')" "$(L 'Boot TWRP: hold Vol-Up. NEVER wipe userdata in TWRP.' 'TWRP booten: Vol-Up halten. NIEMALS userdata in TWRP wipen.')"
+  if [ -z "$yes" ]; then
+    printf '%s' "$(L "Type 'FLASH' (1/2): " "'FLASHEN' (1/2): ")"; iread -r a
+    { [ "$a" = "FLASH" ] || [ "$a" = "FLASHEN" ]; } || return 1
+    printf '%s' "$(L "Type 'YES' (2/2): " "'JA' (2/2): ")"; iread -r b
+    { [ "$b" = "YES" ] || [ "$b" = "JA" ]; } || return 1
+  fi
+  detect_mode
+  if [ "$MODE" != "fastboot" ]; then log ERROR "$(L 'Not in fastboot mode, aborting.' 'Nicht im Fastboot-Modus, Abbruch.')"; return 1; fi
+  log WARNING "Starting: fastboot flash $part <twrp>"
+  local out; out="$(fb_flash flash "$part" "$img" 2>&1)"
+  printf '%s\n' "$out" | tee -a "$TTLOG"
+  if printf '%s' "$out" | grep -q -i -E 'OKAY|finished|Writing'; then log SUCCESS "$(L 'TWRP flash OK. Boot: hold Vol-Up.' 'TWRP-Flash OK. Boot: Vol-Up halten.')"; return 0; fi
+  log ERROR "$(L 'TWRP flash output unclear.' 'Ausgabe unklar.')"; return 1
+}
+screen_twrp() {
+  header "$(L 'TWRP path (guide + guided flash)' 'TWRP-Pfad (Anleitung + Flash)')"; printf '\n'
+  printf '%s\n' "$(L 'Sources (device-exact builds only): XDA P10 Plus TWRP 3.2.1-0 (oreo).' 'Quellen (nur genaue Builds): XDA P10 Plus TWRP 3.2.1-0 (oreo).')"
+  printf '%s\n' "$(L 'Rules: shared slot with Magisk; backup first; never wipe userdata in TWRP; boot with Vol-Up.' 'Regeln: Slot mit Magisk teilen; erst Backup; nie userdata in TWRP wipen; Boot mit Vol-Up.')"
+  printf '%s' "$(L 'TWRP image path: ' 'TWRP-Image-Pfad: ')"; iread -r img
+  if [ -z "$img" ] || [ ! -f "$img" ]; then log WARNING "$(L 'Invalid path, aborting.' 'Pfad ungueltig, Abbruch.')"; pause_tt; return; fi
+  twrp_flash "$img" || true
+  pause_tt
+}
 screen_tools() {
   while true; do
     menu "$(L 'Tools (read-only where possible)' 'Tools (read-only wo moeglich)')" \
@@ -726,16 +883,19 @@ main_menu() {
       "$(L 'Status overview' 'Status-Uebersicht')" "$(L 'Wizard steps 1-9' 'Wizard Step 1-9')" \
       "Step 1 - Detect" "Step 2 - Analyze" "Step 3 - Firmware" "Step 4 - Extract" \
       "Step 5 - Magisk" "Step 6 - Backup" "Step 7 - Flash" "Step 8+9 - Verify" \
-      "$(L 'Recovery export (custom ROMs)' 'Recovery-Export (Custom-ROMs)')" "Restore / Unroot" \
-      "$(L 'Boot tricks (Huawei)' 'Boot-Tricks (Huawei)')" "$(L 'Tools + diagnostic ZIP' 'Tools + Diagnose-ZIP')" \
+      "$(L 'Recovery export (custom ROMs)' 'Recovery-Export (Custom-ROMs)')" "$(L 'Install ROM / GSI (guided)' 'ROM / GSI installieren (gefuehrt)')" \
+      "$(L 'Root methods (Magisk preferred)' 'Root-Methoden (Magisk bevorzugt)')" "$(L 'TWRP path (guide+flash)' 'TWRP-Pfad (Anleitung+Flash)')" \
+      "$(L 'Unlock guide (PotatoNV)' 'Unlock-Anleitung (PotatoNV)')" "$(L 'Kernels + fixes (wiki)' 'Kernel + Fixes (Wiki)')" \
+      "Restore / Unroot" "$(L 'Boot tricks (Huawei)' 'Boot-Tricks (Huawei)')" "$(L 'Tools + diagnostic ZIP' 'Tools + Diagnose-ZIP')" \
       "$(L 'Exit' 'Beenden')"
     c="$REPLY_MENU"
     case "$c" in
-      -1|14) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
+      -1|19) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
       0) status_screen ;; 1) wizard ;; 2) screen_detect ;; 3) screen_analyze ;;
       4) screen_firmware ;; 5) screen_extract ;; 6) screen_patch ;; 7) screen_backup ;;
-      8) screen_flash ;; 9) screen_verify ;; 10) screen_export ;;
-      11) do_restore "" "" || true; pause_tt ;; 12) screen_bootkeys ;; 13) screen_tools ;;
+      8) screen_flash ;; 9) screen_verify ;; 10) screen_export ;; 11) screen_flashsystem ;;
+      12) screen_rootmethods ;; 13) screen_twrp ;; 14) screen_unlock ;; 15) screen_kernelfixes ;;
+      16) do_restore "" "" || true; pause_tt ;; 17) screen_bootkeys ;; 18) screen_tools ;;
     esac
   done
 }
@@ -746,13 +906,13 @@ wizard() {
 # ---------------------------------------------------------------- CLI
 show_help() {
   printf 'Huawei P10 Root Manager v%s\n' "$TTVERSION"
-  printf 'Usage: treble-toolkit.sh [detect|analyze|firmware|download|extract|export|patch|backup|flash|verify|restore|diagnostic|wizard|help] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
+  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|verify|restore|diagnostic|wizard|help] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
   printf '%s\n' "$(L 'No args: TUI. Download/flash/restore need --yes.' 'Ohne Args: TUI. Download/Flash/Restore brauchen --yes.')"
 }
 CMD=""; JSON=""; YES=""; IMAGE=""; FWFILE=""; ANON=""; NOREBOOT=""
 for a in "$@"; do
   case "$a" in
-    detect|analyze|firmware|download|extract|export|patch|backup|flash|verify|restore|diagnostic|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
+    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|verify|restore|diagnostic|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
     --json) JSON=1 ;; --yes) YES=1 ;; --anonymize) ANON=1 ;; --no-reboot) NOREBOOT=1 ;;
     --image|--firmware-file) WANTVAL="$a" ;;
     *) if [ "${WANTVAL:-}" = "--image" ]; then IMAGE="$a"; WANTVAL=""; elif [ "${WANTVAL:-}" = "--firmware-file" ]; then FWFILE="$a"; WANTVAL=""; fi ;;
@@ -762,6 +922,15 @@ done
 find_tools; detect_mode
 case "$CMD" in
   help) show_help ;;
+  devices)
+    if [ -n "$JSON" ]; then
+      printf '[{"id":"VTR-L29","verified":true},{"id":"VTR-L09","verified":true},{"id":"VKY-L29","verified":true},{"id":"VTR-AL00","verified":false},{"id":"VKY-L09","verified":false},{"id":"GENERIC-TREBLE","verified":false}]\n'
+    else
+      for p in VTR-L29 VTR-L09 VKY-L29 VTR-AL00 VKY-L09 GENERIC-TREBLE; do
+        PROFILE_ID="$p"; printf ' - %s (%s) verified=%s target=%s\n' "$p" "$(marketing_name)" "$(profile_verified)" "$(target_partition)"
+      done
+      PROFILE_ID="VTR-L29"
+    fi ;;
   detect)
     if [ -n "$JSON" ]; then printf '{"mode":"%s","adb":"%s","fastboot":"%s","scrcpy":"%s"}\n' "$MODE" "$ADB_SERIAL" "$FB_SERIAL" "${SCRCPY_BIN:-}"
     else printf 'mode: %s\nadb: %s\nfastboot: %s\nscrcpy: %s\n' "$MODE" "$ADB_SERIAL" "$FB_SERIAL" "${SCRCPY_BIN:-not found (optional)}"; fi ;;
@@ -813,6 +982,15 @@ case "$CMD" in
   flash)
     [ -n "$IMAGE" ] && { PATCHED_IMAGE="$IMAGE"; t="$(test_image "$IMAGE")"; PATCHED_SHA="$(printf '%s' "$t" | cut -d'|' -f2)"; STOCK_SHA="${STOCK_SHA:-x}"; }
     if [ -n "$YES" ]; then safe_flash "$PATCHED_IMAGE" --yes || exit 1; else safe_flash "$PATCHED_IMAGE" || exit 1; fi ;;
+  flash-system)
+    [ -z "$IMAGE" ] || [ ! -f "$IMAGE" ] && { printf '%s\n' "$(L 'GSI image path missing. Use --image <path>.' 'GSI-Pfad fehlt. Nutze --image <Pfad>.')"; exit 3; }
+    if [ -n "$YES" ]; then system_flash "$IMAGE" --yes || exit 1; else system_flash "$IMAGE" || exit 1; fi ;;
+  twrp)
+    [ -z "$IMAGE" ] || [ ! -f "$IMAGE" ] && { printf '%s\n' "$(L 'TWRP image path missing. Use --image <path>.' 'TWRP-Pfad fehlt. Nutze --image <Pfad>.')"; exit 3; }
+    if [ -n "$YES" ]; then twrp_flash "$IMAGE" --yes || exit 1; else twrp_flash "$IMAGE" || exit 1; fi ;;
+  root-methods)
+    if [ -n "$JSON" ]; then printf '[{"id":"magisk-recovery","preferred":true},{"id":"magisk-twrp","preferred":false},{"id":"phh-su","preferred":false},{"id":"kernelsu","preferred":false}]\n'
+    else for m in $(root_method_ids); do printf ' - %s: %s\n' "$m" "$(root_method_name "$m")"; done; fi ;;
   verify)
     if [ -n "$NOREBOOT" ]; then verify_root --no-reboot; else verify_root; fi
     rc=$?

@@ -40,7 +40,7 @@ function Import-TTFunction {
   $block = $Src.Substring($start, ($i - $start) + 1)
   try { Invoke-Expression $block } catch { Write-Host ("Ladefehler " + $Name + ": " + $_.Exception.Message) -ForegroundColor Red; $script:Fail++ }
 }
-foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic")) {
+foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod")) {
   Import-TTFunction $fn
 }
 
@@ -139,6 +139,15 @@ $tmpTxt = $tmpImg + ".txt"
 Assert-Equal "kein magic abgelehnt" -1 (Test-BootImageMagic $tmpTxt)
 Remove-Item $tmpImg -Force -ErrorAction SilentlyContinue
 Remove-Item $tmpTxt -Force -ErrorAction SilentlyContinue
+# ---- 12. Root method priority (Magisk preferred first) ----
+$RootMethods = @(
+  @{ Id = "phh-su"; Preferred = $false },
+  @{ Id = "magisk-recovery"; Preferred = $true },
+  @{ Id = "kernelsu"; Preferred = $false }
+)
+$ordered = Get-PreferredRootMethod
+Assert-Equal "preferred first" "magisk-recovery" $ordered[0].Id
+Assert-Equal "all methods kept" 3 $ordered.Count
 
 Write-Host ""
 Write-Host ("Ergebnis: " + $Pass + " PASS, " + $Fail + " FAIL") -ForegroundColor $(if ($Fail -eq 0) { "Green" } else { "Red" })

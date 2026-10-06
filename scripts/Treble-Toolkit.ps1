@@ -48,7 +48,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.2.0"
+$TTVersion = "2.4.0"
 
 # Spec error cases (handled explicitly, SEARCHABLE):
 # ADB not found / No device detected / USB debugging authorization required (ADB unauthorized) /
@@ -114,6 +114,7 @@ $TT = @{
   StockHash   = $null
   PatchedImage = ""
   PatchedHash  = $null
+  RootMethod   = "magisk-recovery"
   MagiskApk    = ""
   MagiskInfo   = $null
   BackupDir    = ""
@@ -143,52 +144,185 @@ function Test-TTAdmin {
 
 # ============================================================ Device profiles (modular)
 # New Huawei device = add one block here, rest stays the same.
+# Verified = method proven from Discussion #2542 + P10 wiki (flash allowed).
+# Unverified = hypothesis only (analyze + export allowed, flash BLOCKED until verified).
+# LineageOS note: a running LineageOS/GSI is a valid STARTING point (it hides the
+# Huawei base, so the baseline is assisted), but the Magisk SOURCE stays the stock
+# RECOVERY_RAMDISK.img - Lineage packages contain no Huawei recovery_ramdisk.
+# Wiki: https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus
 $DeviceProfiles = @{
   "VTR-L29" = @{
     Id = "VTR-L29"; Marketing = "Huawei P10"; Arch = "arm64"; SoC = "Kirin 960"
+    Verified = $true; Variant = "Global market (UFS storage)"
     TargetPartition = "recovery_ramdisk"
     ForbiddenPartitions = @("boot","recovery","system","vendor","userdata")
     StockFileNames = @("RECOVERY_RAMDISK.img","RECOVERY_RAMDIS.img","recovery_ramdisk.img")
     EmuiRequired = "9.1"
+    GsiAdvice = "arm64 A-only images (e.g. *-arm64_bgN.img); slim builds if system partition is small"
     KnownGoodAdvisory = @(
       "VTR-L29 9.1.0.297(C432E5R1P9)",
       "VTR-L29 9.1.0.275(C432E2R1P9T8)"
     )
     Discuss = "https://github.com/phhusson/treble_experimentations/discussions/2542"
     Wiki = "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus"
-    BootKeys = "Vol-Up + Power bis Huawei-Logo, dann loslassen (Magisk boot cheat, nicht persistent)"
+    BootKeys = "Vol-Up + Power until Huawei logo, then release (Magisk boot cheat, not persistent)"
     UnlockTool = "https://github.com/mashed-potatoes/PotatoNV (USER LOCK + BL LOCK, fastboot oem unlock <code>)"
     FirmwareFinder = "https://professorjtj.github.io/v2/ (HUAWEI FIRM FINDER V2)"
     MagiskGuide = "https://topjohnwu.github.io/Magisk/install.html"
   }
   "VTR-L09" = @{
     Id = "VTR-L09"; Marketing = "Huawei P10"; Arch = "arm64"; SoC = "Kirin 960"
+    Verified = $true; Variant = "Europe (UFS storage)"
     TargetPartition = "recovery_ramdisk"
     ForbiddenPartitions = @("boot","recovery","system","vendor","userdata")
     StockFileNames = @("RECOVERY_RAMDISK.img","RECOVERY_RAMDIS.img","recovery_ramdisk.img")
     EmuiRequired = "9.1"
-    KnownGoodAdvisory = @("VTR-L09 EMUI 9.1 mit passender CUST (C432/C185/...) - Region muss zum Geraet passen")
+    GsiAdvice = "arm64 A-only images; slim builds if system partition is small"
+    KnownGoodAdvisory = @("VTR-L09 EMUI 9.1 with matching CUST (C432/C185/...) - region must match device")
     Discuss = "https://github.com/phhusson/treble_experimentations/discussions/2542"
     Wiki = "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus"
-    BootKeys = "Vol-Up + Power bis Huawei-Logo, dann loslassen"
+    BootKeys = "Vol-Up + Power until Huawei logo, then release"
     UnlockTool = "https://github.com/mashed-potatoes/PotatoNV"
     FirmwareFinder = "https://professorjtj.github.io/v2/"
     MagiskGuide = "https://topjohnwu.github.io/Magisk/install.html"
   }
   "VKY-L29" = @{
     Id = "VKY-L29"; Marketing = "Huawei P10 Plus"; Arch = "arm64"; SoC = "Kirin 960"
+    Verified = $true; Variant = "Global market (UFS storage)"
     TargetPartition = "recovery_ramdisk"
     ForbiddenPartitions = @("boot","recovery","system","vendor","userdata")
     StockFileNames = @("RECOVERY_RAMDISK.img","RECOVERY_RAMDIS.img","recovery_ramdisk.img")
     EmuiRequired = "9.1"
-    KnownGoodAdvisory = @("VKY-L29 EMUI 9.1 mit passender CUST")
+    GsiAdvice = "arm64 A-only images; slim builds if system partition is small"
+    KnownGoodAdvisory = @("VKY-L29 EMUI 9.1 with matching CUST")
     Discuss = "https://github.com/phhusson/treble_experimentations/discussions/2542"
     Wiki = "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus"
-    BootKeys = "Vol-Up + Power bis Huawei-Logo, dann loslassen"
+    BootKeys = "Vol-Up + Power until Huawei logo, then release"
     UnlockTool = "https://github.com/mashed-potatoes/PotatoNV"
     FirmwareFinder = "https://professorjtj.github.io/v2/"
     MagiskGuide = "https://topjohnwu.github.io/Magisk/install.html"
   }
+  "VTR-AL00" = @{
+    Id = "VTR-AL00"; Marketing = "Huawei P10"; Arch = "arm64"; SoC = "Kirin 960"
+    Verified = $false; Variant = "China, no SIM restriction (eMMC or UFS storage - check!)"
+    TargetPartition = "recovery_ramdisk"
+    ForbiddenPartitions = @("boot","recovery","system","vendor","userdata")
+    StockFileNames = @("RECOVERY_RAMDISK.img","RECOVERY_RAMDIS.img","recovery_ramdisk.img")
+    EmuiRequired = "9.1"
+    GsiAdvice = "arm64 A-only; CN units with eMMC behave differently - see wiki storage note"
+    KnownGoodAdvisory = @("VTR-AL00 EMUI 9.1 with matching CUST (C00/...) - UNVERIFIED, submit device data first")
+    Discuss = "https://github.com/phhusson/treble_experimentations/discussions/2542"
+    Wiki = "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus"
+    BootKeys = "Vol-Up + Power until Huawei logo, then release"
+    UnlockTool = "https://github.com/mashed-potatoes/PotatoNV"
+    FirmwareFinder = "https://professorjtj.github.io/v2/"
+    MagiskGuide = "https://topjohnwu.github.io/Magisk/install.html"
+  }
+  "VKY-L09" = @{
+    Id = "VKY-L09"; Marketing = "Huawei P10 Plus"; Arch = "arm64"; SoC = "Kirin 960"
+    Verified = $false; Variant = "Europe (UFS storage)"
+    TargetPartition = "recovery_ramdisk"
+    ForbiddenPartitions = @("boot","recovery","system","vendor","userdata")
+    StockFileNames = @("RECOVERY_RAMDISK.img","RECOVERY_RAMDIS.img","recovery_ramdisk.img")
+    EmuiRequired = "9.1"
+    GsiAdvice = "arm64 A-only images; slim builds if system partition is small"
+    KnownGoodAdvisory = @("VKY-L09 EMUI 9.1 with matching CUST - UNVERIFIED, submit device data first")
+    Discuss = "https://github.com/phhusson/treble_experimentations/discussions/2542"
+    Wiki = "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus"
+    BootKeys = "Vol-Up + Power until Huawei logo, then release"
+    UnlockTool = "https://github.com/mashed-potatoes/PotatoNV"
+    FirmwareFinder = "https://professorjtj.github.io/v2/"
+    MagiskGuide = "https://topjohnwu.github.io/Magisk/install.html"
+  }
+  "GENERIC-TREBLE" = @{
+    Id = "GENERIC-TREBLE"; Marketing = "Generic Treble device"; Arch = "arm64"; SoC = "unknown"
+    Verified = $false; Variant = "Fallback for non-Huawei Treble devices (analyze only)"
+    TargetPartition = ""
+    ForbiddenPartitions = @("boot","recovery","system","vendor","userdata")
+    StockFileNames = @()
+    EmuiRequired = ""
+    GsiAdvice = "No verified method - analysis and recovery export only"
+    KnownGoodAdvisory = @()
+    Discuss = "https://github.com/phhusson/treble_experimentations/discussions"
+    Wiki = "https://github.com/phhusson/treble_experimentations/wiki"
+    BootKeys = ""
+    UnlockTool = ""
+    FirmwareFinder = ""
+    MagiskGuide = "https://topjohnwu.github.io/Magisk/install.html"
+  }
+}
+
+# Root methods in priority order. Magisk patched recovery_ramdisk is PREFERRED.
+# TWRP shares the SAME partition slot (recovery_ramdisk) - Magisk slot and TWRP slot
+# overwrite each other; restore switches back. Never flash both without a backup.
+$RootMethods = @(
+  @{ Id = "magisk-recovery"; Name = "Magisk patched recovery_ramdisk (PREFERRED)"; Preferred = $true;
+     Needs = "Stock RECOVERY_RAMDISK.img + Magisk app (on-device patch)";
+     WorksOn = "VTR-L29/L09, VKY-L29 (verified); any OS (stock/GSI/custom)";
+     Notes = "Vol-Up + Power boot cheat. Modules + systemless hosts (AdAway) supported." }
+  @{ Id = "magisk-twrp"; Name = "Magisk via TWRP zip (alternative)"; Preferred = $false;
+     Needs = "TWRP in recovery_ramdisk slot + Magisk APK/zip flashed from TWRP";
+     WorksOn = "Same verified profiles; needs working TWRP build for the device";
+     Notes = "Overwrites the Magisk-recovery slot. Keep a backup to switch back." }
+  @{ Id = "phh-su"; Name = "phh superuser (legacy, no modules)"; Preferred = $false;
+     Needs = "phh-su capable GSI (F-Droid me.phh.superuser)";
+     WorksOn = "Treble GSIs with su support; per #2542 comments enough for AdAway";
+     Notes = "No Magisk modules, no systemless hosts. Boot scripts tricky (apTouch starts late)." }
+  @{ Id = "kernelsu"; Name = "KernelSU (experimental)"; Preferred = $false;
+     Needs = "KernelSU-patched kernel (Pangu-based for EMUI9)";
+     WorksOn = "Huawei Kirin: v0.9.2 ONLY, not v0.9.5+ (per wiki)";
+     Notes = "Kernel replacement = higher risk. Only for experts with full backup." }
+)
+
+function Get-PreferredRootMethod {
+  # Pure, unit-testable: returns methods with preferred first.
+  $p = $RootMethods | Where-Object { $_.Preferred -eq $true } | Select-Object -First 1
+  $rest = $RootMethods | Where-Object { $_.Preferred -ne $true }
+  return @($p) + @($rest)
+}
+
+# TWRP knowledge (P10 wiki + XDA). TWRP lives in the recovery_ramdisk slot on Kirin.
+$TwrpKnowledge = @{
+  Sources = @(
+    "XDA P10 Plus TWRP 3.2.1-0 (oreo): forum.xda-developers.com/p10-plus/development/recovery-twrp-3-2-1-0-oreo-t3734993",
+    "Only use a TWRP built for YOUR exact model (VTR vs VKY differ)."
+  )
+  Rules = @(
+    "TWRP and Magisk-recovery share ONE slot (recovery_ramdisk) - flashing one overwrites the other.",
+    "Back up the current slot first (tool does it automatically).",
+    "NEVER factory-reset userdata from TWRP on this device - breaks internal storage (use stock recovery).",
+    "Boot TWRP: Vol-Up held until loaded. Leave system unmodified when TWRP asks.",
+    "Magisk from TWRP: flash Magisk zip, then boot with Vol-Up + Power for rooted system."
+  )
+}
+$WikiKnowledge = @{
+  UnlockSteps = @(
+    "Huawei locks TWO levels: USER LOCK (kernel/ODM/product) and BL LOCK (system/boot/recovery/userdata).",
+    "1. PotatoNV testpoint method per its official tutorial: https://github.com/mashed-potatoes/PotatoNV",
+    "2. Boot the engineering image to special fastboot, choose 'Disable FBLock' (unlocks USER LOCK).",
+    "3. Reboot to normal fastboot (shows unlocked, but NOT fully). PotatoNV shows a random 16-digit code.",
+    "4. Run: fastboot oem unlock XXXXXXXXXXXXXXXX  (your code) - now fully unlocked.",
+    "This tool NEVER runs unlock commands itself."
+  )
+  KernelNotes = @(
+    "Some GSIs need permissive SELinux -> custom kernel required (stock kernel enforces).",
+    "EMUI 8: Proto8 (all P10) or HyperPlus (EU/Global, or CN only with UFS chip).",
+    "EMUI 9 CN: Pangu kernel (maimaiguanfan/android_kernel_huawei_hi3660).",
+    "KernelSU: Huawei supports v0.9.2 only, NOT v0.9.5+."
+  )
+  InstallRules = @(
+    "Base: stock EMUI 8.0/9.0/9.1 (GSI needs matching vendor).",
+    "Back up internal storage first. Factory reset ONLY via stock recovery (never TWRP wipe - breaks userdata).",
+    "Flash GSI: fastboot flash system <gsi.img>, then eRecovery wipe data/factory reset.",
+    "System partition can be too small: use slim GSI builds (or TWRP+Parted resize, expert only).",
+    "GApps: MindTheGapps (OpenGApps fails detection on Oreo GSIs; Pie+ OpenGApps works)."
+  )
+  Android13Warning = "Android 13 on P10/P10 Plus is unstable per wiki: no SIM/signal possible, hardware may fail or not boot. Android 10 (Q) GSIs are the recommended daily drivers on Kirin 960."
+  Fixes = @(
+    "Speakers: as root per boot: chown root:audio /dev/nxp_smartpa_dev; chmod 0660 /dev/nxp_smartpa_dev (fixed since AOSP 12 v400.e).",
+    "Touchscreen edges: as root per boot: stop aptouch (or GSI_Generic_Fix Magisk module).",
+    "Decrypt: needs EMUI 9.0 vendor fstab (9.1 is read-only erofs) - see dfe-neo-v2 tool."
+  )
 }
 
 $MagiskCompatTable = @(
@@ -756,7 +890,7 @@ $PropListAndroid = @(
   "ro.product.cpu.abi","ro.hardware",
   "ro.treble.enabled","ro.vndk.version",
   "ro.boot.slot_suffix","ro.boot.verifiedbootstate","ro.boot.flash.locked",
-  "ro.boot.vbmeta.device_state","ro.secure","ro.debuggable"
+  "ro.boot.vbmeta.device_state","ro.secure","ro.debuggable","ro.lineage.version","ro.lineageos.version"
 )
 
 function Invoke-TTAndroidAnalysis {
@@ -1004,6 +1138,9 @@ function Test-TTFlashReadiness {
 
   $c1 = ($TT.ProfileId -match "VTR|VKY")
   $checks += New-Object PSObject -Property @{ Name = "Model matches (VTR/VKY)"; Pass = [bool]$c1; Detail = "Profil: $($TT.ProfileId)" }
+
+  $profVerified = ($prof.Verified -eq $true)
+  $checks += New-Object PSObject -Property @{ Name = "Profile verified (flash allowed)"; Pass = [bool]$profVerified; Detail = $(if ($profVerified) { "verified method" } else { "UNVERIFIED - submit device data first, analyze/export only" }) }
 
   $hasPart = $false; $partDetail = "nicht gefunden"
   foreach ($n in $TT.ByName) { if ($n.Name -eq $prof.TargetPartition) { $hasPart = $true; $partDetail = "$($n.Name) -> $($n.Target)"; break } }
@@ -1320,6 +1457,15 @@ function Screen-Analyze {
     Write-Host ""
     Write-Host ((L "OS class: " "OS-Klasse: ") + $TT.OS.Kind) -ForegroundColor Cyan
     Write-Host ("Detail: " + $TT.OS.Detail) -ForegroundColor White
+    $linVer = [string]$TT.Props["ro.lineage.version"]
+    if ([string]::IsNullOrEmpty($linVer)) { $linVer = [string]$TT.Props["ro.lineageos.version"] }
+    if (-not [string]::IsNullOrEmpty($linVer)) {
+      Write-Host ("LineageOS: " + $linVer + (L " (valid starting point - stock source still needed for Magisk)" " (gueltiger Startpunkt - Stock-Quelle weiter noetig fuer Magisk)")) -ForegroundColor Green
+    }
+    $rel = [string]$TT.Props["ro.build.version.release"]
+    if (($TT.OS.Kind -like "*GSI*") -and ($rel -match "^13") -and ($TT.ProfileId -match "VTR|VKY")) {
+      Write-Host ("WARN: " + $WikiKnowledge.Android13Warning) -ForegroundColor Yellow
+    }
     Write-Host ""
     Write-Host "--- Partitions (/dev/block/by-name, filtered) ---" -ForegroundColor Cyan
     $hit = $false
@@ -1649,6 +1795,207 @@ function Screen-Restore {
   Pause-TT
 }
 
+function Screen-Unlock {
+  Show-TTHeader (L "Bootloader unlock (PotatoNV, wiki method - guided only)" "Bootloader-Unlock (PotatoNV, Wiki-Methode - nur Anleitung)")
+  Write-Host ""
+  Write-Host (L "The tool NEVER unlocks anything itself." "Das Tool unlockt NIEMALS selbst.") -ForegroundColor Red
+  foreach ($s in $WikiKnowledge.UnlockSteps) { Write-Host (" - " + $s) -ForegroundColor White }
+  Write-Host ""
+  Write-Host (L "Already booting a GSI? Then unlock is done - continue with step 2." "Bootet bereits ein GSI? Dann ist Unlock erledigt - weiter mit Step 2.") -ForegroundColor Green
+  Pause-TT
+}
+
+function Screen-KernelFixes {
+  Show-TTHeader (L "Kernels + known fixes (P10 wiki)" "Kernel + bekannte Fixes (P10-Wiki)")
+  Write-Host ""
+  Write-Host (L "Kernels (permissive SELinux for some GSIs):" "Kernel (permissive SELinux fuer manche GSIs):") -ForegroundColor Cyan
+  foreach ($s in $WikiKnowledge.KernelNotes) { Write-Host (" - " + $s) -ForegroundColor White }
+  Write-Host ""
+  Write-Host (L "Fixes (need root, verified uid=0 first):" "Fixes (brauchen Root, erst uid=0 verifizieren):") -ForegroundColor Cyan
+  foreach ($s in $WikiKnowledge.Fixes) { Write-Host (" - " + $s) -ForegroundColor White }
+  Write-Host ""
+  Write-Host (L "TWRP rule: factory reset ONLY via stock recovery - TWRP wipe breaks userdata." "TWRP-Regel: Factory-Reset NUR via Stock-Recovery - TWRP-Wipe zerstoert userdata.") -ForegroundColor Red
+  Write-Host (L "GApps: MindTheGapps (OpenGApps fails on Oreo GSIs; Pie+ works)." "GApps: MindTheGapps (OpenGApps scheitert auf Oreo-GSIs; Pie+ geht).") -ForegroundColor Gray
+  Pause-TT
+}
+
+function Test-SystemImageFile {
+  param([string]$Path)
+  $res = @{ Exists = $false; SizeOk = $false; Header = ""; Verdict = "FAIL"; Notes = @() }
+  if (-not (Test-Path $Path)) { $res.Notes += (L "File missing: " "Datei fehlt: ") + $Path; return $res }
+  $res.Exists = $true
+  $len = (Get-Item $Path).Length
+  if ($len -ge 500MB) { $res.SizeOk = $true }
+  else { $res.Notes += (L "Size implausible for a system image (< 500 MB). Full GSI expected, no delta/OTA." "Groesse unplausibel fuer System-Image (< 500 MB). Full-GSI erwartet, kein Delta/OTA.") }
+  try {
+    $fs = [System.IO.File]::OpenRead($Path)
+    $buf = New-Object byte[] 8
+    [void]$fs.Read($buf, 0, 8)
+    $fs.Close()
+    $hex = (($buf[0..3] | ForEach-Object { $_.ToString("X2") }) -join " ")
+    $res.Header = $hex
+    if ($hex -eq "3A FF 26 ED") { $res.Notes += "Android sparse image detected." }
+    elseif ($hex.StartsWith("53 EF")) { $res.Notes += "ext4 image detected." }
+    else { $res.Notes += (L "Header unspecific - verify it is a real system/GSI image." "Header unspezifisch - verifizieren dass es ein echtes System/GSI-Image ist.") }
+  } catch { $res.Notes += (L "Header unreadable: " "Header nicht lesbar: ") + $_.Exception.Message }
+  $fn = [System.IO.Path]::GetFileName($Path).ToLower()
+  if ($fn -match "arm64") { $res.Notes += "Filename suggests arm64." }
+  else { $res.Notes += (L "WARN: filename does not suggest arm64 - P10 needs arm64 A-only." "WARN: Dateiname deutet nicht auf arm64 - P10 braucht arm64 A-only.") }
+  if ($fn -match "_ab|a/b") { $res.Notes += (L "WARN: looks like an A/B image - P10 needs A-only (aonly). Do NOT flash." "WARN: sieht nach A/B-Image aus - P10 braucht A-only. NICHT flashen.") }
+  if ($res.Exists -and $res.SizeOk) { $res.Verdict = "PASS" } else { $res.Verdict = "FAIL" }
+  return $res
+}
+
+function Invoke-SystemFlash {
+  param([string]$Image, [switch]$ForceYes)
+  $chk = Test-SystemImageFile $Image
+  Write-Host ""
+  Write-Host (L "=== System image check (ROM install) ===" "=== System-Image-Pruefung (ROM-Installation) ===") -ForegroundColor Cyan
+  Write-Host ((L "Result: " "Ergebnis: ") + $chk.Verdict) -ForegroundColor $(if ($chk.Verdict -eq "PASS") { "Green" } else { "Red" })
+  foreach ($n in $chk.Notes) { Write-Host (" - " + $n) -ForegroundColor Gray }
+  $profOk = ($DeviceProfiles[$TT.ProfileId].Verified -eq $true)
+  if ($chk.Verdict -ne "PASS" -or -not $profOk) {
+    Write-Host "DO NOT FLASH" -ForegroundColor Red -BackgroundColor Black
+    if (-not $profOk) { Write-TTLog (L "System flash blocked: profile unverified." "System-Flash blockiert: Profil unverifiziert.") "ERROR" }
+    return $false
+  }
+  Write-Host ""
+  Write-Host "WARNING" -ForegroundColor Red
+  Write-Host (L "You are about to REPLACE the Android system (fastboot flash system)." "Du ersetzt gleich das Android-System (fastboot flash system).") -ForegroundColor Yellow
+  Write-Host (L "Back up internal storage first. userdata is NOT wiped automatically." "Sichere vorher den internen Speicher. userdata wird NICHT automatisch geloescht.") -ForegroundColor Yellow
+  Write-Host (L "Afterwards: eRecovery wipe data/factory reset, then first boot (takes a while)." "Danach: eRecovery Wipe data/factory reset, dann Erstboot (dauert).") -ForegroundColor Gray
+  if (-not $ForceYes) {
+    Write-Host (L "Type 'FLASH' to continue (1/2): " "Zum Fortfahren 'FLASHEN' tippen (1/2): ") -NoNewline -ForegroundColor Yellow
+    $a = Read-Host
+    if ($a -ne "FLASHEN" -and $a -ne "FLASH") { return $false }
+    Write-Host (L "Type 'YES' again (2/2): " "Nochmal 'JA' (2/2): ") -NoNewline -ForegroundColor Yellow
+    $b = Read-Host
+    if ($b -ne "JA" -and $b -ne "YES") { return $false }
+  }
+  Update-TTMode | Out-Null
+  if ($TT.Mode -ne "fastboot") {
+    Write-TTLog (L "Not in fastboot mode, aborting system flash." "Nicht im Fastboot-Modus, System-Flash abgebrochen.") "ERROR"
+    return $false
+  }
+  Write-TTLog "Starting: fastboot flash system <gsi>" "WARNING"
+  $o = Invoke-FastbootLogged @("flash","system",$Image)
+  Write-Host $o -ForegroundColor White
+  $ok = ($o -join "`n") -match "OKAY|finished|Writing"
+  if ($ok) {
+    Write-TTLog "System flash reported OK." "SUCCESS"
+    Write-Host (L "Next: fastboot reboot -> eRecovery (Vol-Up 3s) -> wipe data/factory reset -> first setup." "Weiter: fastboot reboot -> eRecovery (Vol-Up 3s) -> Wipe/Factory Reset -> Setup.") -ForegroundColor Green
+  } else { Write-TTLog "System flash output unclear/faulty." "ERROR" }
+  return [bool]$ok
+}
+
+function Screen-FlashSystem {
+  Show-TTHeader (L "Install ROM / GSI system image (fully guided)" "ROM / GSI System-Image installieren (voll gefuehrt)")
+  Write-Host ""
+  foreach ($s in $WikiKnowledge.InstallRules) { Write-Host (" - " + $s) -ForegroundColor Gray }
+  Write-Host ""
+  $prof = $DeviceProfiles[$TT.ProfileId]
+  if ($prof -ne $null -and $prof.GsiAdvice -ne "") { Write-Host ((L "Profile advice: " "Profil-Hinweis: ") + $prof.GsiAdvice) -ForegroundColor Cyan }
+  Write-Host (L "GSI image path (*-arm64_*.img, unpacked): " "GSI-Image-Pfad (*-arm64_*.img, entpackt): ") -NoNewline -ForegroundColor Yellow
+  $img = Read-Host
+  if ([string]::IsNullOrWhiteSpace($img) -or -not (Test-Path $img)) {
+    Write-TTLog (L "Invalid image path, aborting." "Image-Pfad ungueltig, Abbruch.") "ERROR"
+    Pause-TT; return
+  }
+  Invoke-SystemFlash $img | Out-Null
+  Pause-TT
+}
+
+function Screen-RootMethods {
+  Show-TTHeader (L "Root methods (Magisk preferred + compatible alternatives)" "Root-Methoden (Magisk bevorzugt + Alternativen)")
+  Write-Host ""
+  $ordered = Get-PreferredRootMethod
+  for ($i = 0; $i -lt $ordered.Count; $i++) {
+    $m = $ordered[$i]
+    $mark = " "
+    if ($m.Id -eq $TT.RootMethod) { $mark = "*" }
+    $pref = ""
+    if ($m.Preferred) { $pref = " [PREFERRED]" }
+    Write-Host (" [$mark] [" + ($i+1) + "] " + $m.Name + $pref) -ForegroundColor $(if ($m.Preferred) { "Green" } else { "White" })
+    Write-Host ("       Needs: " + $m.Needs) -ForegroundColor Gray
+    Write-Host ("       Works: " + $m.WorksOn) -ForegroundColor Gray
+    Write-Host ("       Note:  " + $m.Notes) -ForegroundColor DarkGray
+  }
+  Write-Host ""
+  Write-Host ((L "Current: " "Aktuell: ") + $TT.RootMethod) -ForegroundColor Cyan
+  Write-Host (L "Number to select (Enter=keep): " "Nummer zum Waehlen (Enter=behalten): ") -NoNewline -ForegroundColor Yellow
+  $s = Read-Host
+  if ($s -match "^[1-9]$") {
+    $idx = [int]$s - 1
+    if ($idx -ge 0 -and $idx -lt $ordered.Count) {
+      $TT.RootMethod = $ordered[$idx].Id
+      Write-TTLog ("Root method selected: " + $TT.RootMethod) "SUCCESS"
+    }
+  }
+  Pause-TT
+}
+
+function Invoke-TwrpFlash {
+  param([string]$Image, [switch]$ForceYes)
+  $chk = Test-RecoveryImageFile $Image
+  Write-Host ""
+  Write-Host (L "=== TWRP image check ===" "=== TWRP-Image-Pruefung ===") -ForegroundColor Cyan
+  Write-Host ((L "Result: " "Ergebnis: ") + $chk.Verdict + " | Size=" + $chk.Hash.Size + " | " + $chk.HeaderHex) -ForegroundColor White
+  $profOk = ($DeviceProfiles[$TT.ProfileId].Verified -eq $true)
+  if ($chk.Verdict -ne "PASS" -or -not $profOk) {
+    Write-Host "DO NOT FLASH" -ForegroundColor Red -BackgroundColor Black
+    Write-TTLog (L "TWRP flash blocked (image FAIL or profile unverified)." "TWRP-Flash blockiert (Image FAIL oder Profil unverifiziert).") "ERROR"
+    return $false
+  }
+  # Backup current slot first (Magisk slot lives here too).
+  if ($TT.StockImage -ne "" -and (Test-Path $TT.StockImage)) { New-TTBackup $TT.StockImage | Out-Null }
+  Write-Host ""
+  Write-Host "WARNING" -ForegroundColor Red
+  Write-Host (L "TWRP and Magisk-recovery SHARE the recovery_ramdisk slot." "TWRP und Magisk-Recovery TEILEN sich den recovery_ramdisk-Slot.") -ForegroundColor Yellow
+  Write-Host (L "Flashing TWRP OVERWRITES a Magisk-patched slot (and vice versa)." "TWRP-Flash UEBERSCHREIBT einen Magisk-Slot (und umgekehrt).") -ForegroundColor Yellow
+  Write-Host ((L "Backup: " "Backup: ") + $TT.BackupDir) -ForegroundColor White
+  Write-Host (L "Boot TWRP afterwards: hold Vol-Up until loaded. NEVER wipe userdata in TWRP." "Danach TWRP booten: Vol-Up halten bis geladen. NIEMALS userdata in TWRP wipen.") -ForegroundColor Gray
+  if (-not $ForceYes) {
+    Write-Host (L "Type 'FLASH' to continue (1/2): " "Zum Fortfahren 'FLASHEN' tippen (1/2): ") -NoNewline -ForegroundColor Yellow
+    $a = Read-Host
+    if ($a -ne "FLASHEN" -and $a -ne "FLASH") { return $false }
+    Write-Host (L "Type 'YES' again (2/2): " "Nochmal 'JA' (2/2): ") -NoNewline -ForegroundColor Yellow
+    $b = Read-Host
+    if ($b -ne "JA" -and $b -ne "YES") { return $false }
+  }
+  Update-TTMode | Out-Null
+  if ($TT.Mode -ne "fastboot") {
+    Write-TTLog (L "Not in fastboot mode, aborting TWRP flash." "Nicht im Fastboot-Modus, TWRP-Flash abgebrochen.") "ERROR"
+    return $false
+  }
+  $part = $DeviceProfiles[$TT.ProfileId].TargetPartition
+  Write-TTLog "Starting: fastboot flash $part <twrp>" "WARNING"
+  $o = Invoke-FastbootLogged @("flash",$part,$Image)
+  Write-Host $o -ForegroundColor White
+  $ok = ($o -join "`n") -match "OKAY|finished|Writing"
+  if ($ok) { Write-TTLog "TWRP flash reported OK. Boot: hold Vol-Up." "SUCCESS" }
+  else { Write-TTLog "TWRP flash output unclear/faulty." "ERROR" }
+  return [bool]$ok
+}
+
+function Screen-Twrp {
+  Show-TTHeader (L "TWRP path (guide + guided flash)" "TWRP-Pfad (Anleitung + gefuehrter Flash)")
+  Write-Host ""
+  Write-Host (L "Sources (device-exact builds only):" "Quellen (nur geraetegenaue Builds):") -ForegroundColor Cyan
+  foreach ($s in $TwrpKnowledge.Sources) { Write-Host (" - " + $s) -ForegroundColor White }
+  Write-Host ""
+  Write-Host (L "Rules:" "Regeln:") -ForegroundColor Cyan
+  foreach ($s in $TwrpKnowledge.Rules) { Write-Host (" - " + $s) -ForegroundColor Yellow }
+  Write-Host ""
+  Write-Host (L "TWRP image path (*twrp*.img, exact model build): " "TWRP-Image-Pfad (*twrp*.img, genauer Modell-Build): ") -NoNewline -ForegroundColor Yellow
+  $img = Read-Host
+  if ([string]::IsNullOrWhiteSpace($img) -or -not (Test-Path $img)) {
+    Write-TTLog (L "Invalid image path, aborting (guide shown above)." "Image-Pfad ungueltig, Abbruch (Anleitung oben).") "WARNING"
+    Pause-TT; return
+  }
+  Invoke-TwrpFlash $img | Out-Null
+  Pause-TT
+}
+
 function Screen-Tools {
   while ($true) {
     $c = Show-TTMenu (L "Tools (read-only where possible)" "Tools (read-only wo moeglich)") @(
@@ -1776,14 +2123,19 @@ function Start-TTTui {
       (L "Step 7 - Flash recovery_ramdisk (safety gate)" "Step 7 - Flash recovery_ramdisk (Safety-Gate)"),
       (L "Step 8+9 - Reboot + verify root" "Step 8+9 - Reboot + Root verifizieren"),
       (L "Recovery export (custom ROMs)" "Recovery-Export (Custom-ROMs)"),
+      (L "Install ROM / GSI system image (guided)" "ROM / GSI System-Image installieren (gefuehrt)"),
+      (L "Root methods (Magisk preferred)" "Root-Methoden (Magisk bevorzugt)"),
+      (L "TWRP path (guide + flash)" "TWRP-Pfad (Anleitung + Flash)"),
+      (L "Bootloader unlock guide (PotatoNV)" "Bootloader-Unlock-Anleitung (PotatoNV)"),
+      (L "Kernels + known fixes (wiki)" "Kernel + bekannte Fixes (Wiki)"),
       "Restore / Unroot",
       (L "Boot tricks (Huawei, exact)" "Boot-Tricks (Huawei, exakt)"),
       (L "Tools + diagnostic ZIP" "Tools + Diagnose-ZIP"),
       "Logs",
       (L "Admin restart" "Admin-Neustart"),
       (L "Exit" "Beenden")
-    ) (L "GSI stays intact | Never wipe userdata | Never bootloader-unlock" "GSI bleibt erhalten | Nie userdata loeschen | Nie Bootloader-Unlock")
-    if ($c -eq -1 -or $c -eq 16) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
+    ) (L "GSI stays intact on root path | Never wipe userdata | Never bootloader-unlock" "GSI bleibt erhalten auf Root-Pfad | Nie userdata loeschen | Nie Bootloader-Unlock")
+    if ($c -eq -1 -or $c -eq 21) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
     if ($c -eq 0) { Show-TTStatus }
     elseif ($c -eq 1) { Start-TTWizard }
     elseif ($c -eq 2) { Screen-Detect }
@@ -1795,11 +2147,16 @@ function Start-TTTui {
     elseif ($c -eq 8) { Screen-Flash }
     elseif ($c -eq 9) { Screen-RebootVerify }
     elseif ($c -eq 10) { Screen-ExportRecovery }
-    elseif ($c -eq 11) { Screen-Restore }
-    elseif ($c -eq 12) { Screen-Bootkeys }
-    elseif ($c -eq 13) { Screen-Tools }
-    elseif ($c -eq 14) { Screen-Logs }
-    elseif ($c -eq 15) {
+    elseif ($c -eq 11) { Screen-FlashSystem }
+    elseif ($c -eq 12) { Screen-RootMethods }
+    elseif ($c -eq 13) { Screen-Twrp }
+    elseif ($c -eq 14) { Screen-Unlock }
+    elseif ($c -eq 15) { Screen-KernelFixes }
+    elseif ($c -eq 16) { Screen-Restore }
+    elseif ($c -eq 17) { Screen-Bootkeys }
+    elseif ($c -eq 18) { Screen-Tools }
+    elseif ($c -eq 19) { Screen-Logs }
+    elseif ($c -eq 20) {
       try {
         $exe = (Get-Process -Id $PID).Path
         $sp = $MyInvocation.MyCommand.Path
@@ -1814,7 +2171,7 @@ function Start-TTTui {
 # ============================================================ CLI
 function Show-TTHelp {
   Write-Host "Huawei P10 Root Manager v$TTVersion" -ForegroundColor Cyan
-  Write-Host "Usage: Treble-Toolkit.ps1 [detect|analyze|firmware|download|extract|export|patch|backup|flash|verify|restore|diagnostic|wizard|help] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
+  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|verify|restore|diagnostic|wizard|help] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
   Write-Host (L "No args: TUI. Download/flash/restore need explicit confirmation (--yes = documented consent)." "Ohne Args: TUI. Download/Flash/Restore brauchen explizite Bestaetigung (--yes = dokumentierte Zustimmung).") -ForegroundColor Gray
 }
 
@@ -1842,6 +2199,15 @@ Update-TTMode | Out-Null
 if ($TT.ProfileId -eq "") { $TT.ProfileId = "VTR-L29" }
 
 if ($cmd -eq "help") { Show-TTHelp; exit 0 }
+elseif ($cmd -eq "devices") {
+  $list = @()
+  foreach ($k in ($DeviceProfiles.Keys | Sort-Object)) {
+    $p = $DeviceProfiles[$k]
+    $list += @{ id = $p.Id; marketing = $p.Marketing; arch = $p.Arch; soc = $p.SoC; verified = [bool]$p.Verified; variant = $p.Variant; target = $p.TargetPartition }
+  }
+  if ($Json) { ($list | ConvertTo-Json -Depth 3) | Write-Host }
+  else { foreach ($d in $list) { Write-Host (" - " + $d.id + " (" + $d.marketing + ", " + $d.arch + ") verified=" + $d.verified + " target=" + $d.target) } }
+}
 elseif ($cmd -eq "detect") {
   $o = @{ mode = $TT.Mode; adb = $TT.AdbSerial; fastboot = $TT.FbSerial; adb_path = $TT.Adb; fastboot_path = $TT.Fastboot }
   if ($Json) { ($o | ConvertTo-Json -Depth 3) | Write-Host } else { ($o.GetEnumerator() | ForEach-Object { "$($_.Key): $($_.Value)" }) | ForEach-Object { Write-Host $_ } }
@@ -1974,6 +2340,21 @@ elseif ($cmd -eq "flash") {
   if ($Image -ne "") { $TT.PatchedImage = $Image; $TT.PatchedHash = (Test-RecoveryImageFile $Image).Hash }
   $ok = Invoke-TTSafeFlash -ForceYes:$Yes
   if (-not $ok) { exit 1 }
+}
+elseif ($cmd -eq "flash-system") {
+  if ($Image -eq "" -or -not (Test-Path $Image)) { Write-Host (L "GSI image path missing. Use --image <path-to-gsi.img>." "GSI-Image-Pfad fehlt. Nutze --image <Pfad-zu-gsi.img>."); exit 3 }
+  $ok = Invoke-SystemFlash $Image -ForceYes:$Yes
+  if (-not $ok) { exit 1 }
+}
+elseif ($cmd -eq "twrp") {
+  if ($Image -eq "" -or -not (Test-Path $Image)) { Write-Host (L "TWRP image path missing. Use --image <path-to-twrp.img>." "TWRP-Image-Pfad fehlt. Nutze --image <Pfad-zu-twrp.img>."); exit 3 }
+  $ok = Invoke-TwrpFlash $Image -ForceYes:$Yes
+  if (-not $ok) { exit 1 }
+}
+elseif ($cmd -eq "root-methods") {
+  $ordered = Get-PreferredRootMethod
+  if ($Json) { ($ordered | ConvertTo-Json -Depth 3) | Write-Host }
+  else { foreach ($m in $ordered) { Write-Host (" - " + $m.Id + ": " + $m.Name + $(if ($m.Preferred) { " [PREFERRED]" } else { "" })) } }
 }
 elseif ($cmd -eq "verify") {
   $r = Invoke-TTRootVerification -NoReboot:$NoReboot

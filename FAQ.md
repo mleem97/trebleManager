@@ -1,5 +1,27 @@
 # FAQ — trebleManager
 
+## Which root method should I use? Is Magisk preferred?
+
+Yes — Magisk patched `recovery_ramdisk` is the preferred method (modules,
+systemless hosts, verified path). The tool lists all compatible methods by
+priority (TUI menu, `root-methods` CLI):
+
+1. **Magisk recovery_ramdisk** (preferred) — verified, full features.
+2. **Magisk via TWRP zip** — needs a device-exact TWRP; shares the same slot
+   (flashing one overwrites the other, restore switches back).
+3. **phh superuser** — legacy, enough for AdAway per #2542 comments, no modules.
+4. **KernelSU** — experimental, Kirin supports v0.9.2 only.
+
+## How do I get TWRP on the device?
+
+Menu **TWRP path** (or CLI `twrp --image <twrp.img> --yes`): use only a TWRP
+built for your exact model (e.g. XDA P10 Plus TWRP 3.2.1-0 oreo thread). The tool
+validates the image (size, ANDROID! magic), backs up the current slot
+automatically, warns about the shared Magisk slot, requires the double
+confirmation, then runs `fastboot flash recovery_ramdisk twrp.img`. Boot it by
+holding Vol-Up; leave system unmodified when asked; **never** factory-reset
+userdata from TWRP (use stock recovery).
+
 ## Do I need the original RECOVERY or the one from my custom ROM?
 
 The **original** one — always. Magisk is patched into the stock Huawei
@@ -11,9 +33,11 @@ The **original** one — always. Magisk is patched into the stock Huawei
 - After flashing, the phone still boots your installed GSI — only the recovery
   ramdisk carries Magisk (`fastboot flash recovery_ramdisk magisk_patched.img`).
 
-The **Recovery export** feature (`export`, TUI menu) extracts `boot`/`recovery.img`
-from custom ROM packages for reference, backup, or other devices — for the P10
-Magisk path the tool still routes you to the stock image and says so explicitly.
+A running LineageOS is a fully valid **starting point** (the tool reads its
+Lineage version and treats the hidden Huawei base as assisted baseline) — but the
+Magisk **source** stays the stock image. Lineage/zips can additionally feed the
+**Recovery export** (`boot.img` from ROM zips) for reference, backup, or other
+devices.
 
 ## Does the software guide me through the whole root process?
 
@@ -29,13 +53,14 @@ every gate, hash, and confirmation is shown. Three things stay manual by design:
 
 ## Can I install a complete custom ROM with it, with or without root?
 
-No — and that is intentional. The tool **never flashes `system`, `vendor`, or
-`userdata`**, so it cannot install a full ROM and cannot wipe your GSI.
-Install the GSI yourself per
-[Discussion #2542](https://github.com/phhusson/treble_experimentations/discussions/2542)
-and the [P10 wiki](https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus),
-then trebleManager roots the running system (or verifies it stays unrooted —
-root itself is always your choice at the confirmation prompt).
+Yes — guided, not blind. Menu **Install ROM / GSI system image** (or CLI
+`flash-system --image <gsi.img> --yes`) checks the image (size, arm64, A-only —
+A/B images are refused), requires the double confirmation, runs
+`fastboot flash system`, then walks you through eRecovery wipe + first boot.
+Rules from the P10 wiki apply: EMUI 8/9/9.1 base, back up storage first, reset
+only via stock recovery (never TWRP wipe), slim builds for small system
+partitions, MindTheGapps. Root afterwards is optional via the normal wizard
+(same confirmations). Unverified device profiles cannot flash at all.
 
 ## Can I restore my original firmware with it?
 
@@ -113,9 +138,11 @@ That is the Safe Restore Mode — one partition, nothing else.
 
 ## My GSI stays untouched, really?
 
-Yes. The only partition the tool ever writes on the P10 profile is
+On the **root path**: yes. The only partition the tool writes there is
 `recovery_ramdisk`, derived from the device profile and reconfirmed by the
-9-point safety gate (`DO NOT FLASH` on any FAIL).
+9-point safety gate (`DO NOT FLASH` on any FAIL). The **ROM install path**
+(`flash-system`) replaces `system` only after its own checks + double
+confirmation — `userdata` is never wiped automatically by either path.
 
 ## Where are logs? What do I send for help?
 
