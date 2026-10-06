@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.5.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.6.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -88,7 +88,9 @@ UI language: English by default, German if the system language is German.
 Double-click `Setup-TrebleToolkit.bat`: requests admin automatically (UAC), allows
 script execution, installs ADB/fastboot (official Google platform-tools, portable)
 and — only if you agree — scrcpy into user PATH, saves `data/config.json`.
-Afterwards all tools are globally reachable.
+Afterwards all tools are globally reachable. `Start-TrebleToolkit.bat` reopens
+itself elevated automatically and runs the setup first if tools are missing.
+Relative script calls always use `.\` prefix (some PowerShell versions require it).
 
 ### Option A — CMD (quick check)
 
@@ -123,8 +125,8 @@ on Debian/Ubuntu). Optional: `unzip`, `curl`, `zip` (or `python3` as fallback ea
 
 ### Option C — Offline release ZIP (GitHub blocked)
 
-1. Copy `trebleManager-v2.5.0.zip` + `.sha256` via USB stick.
-2. Verify: `(Get-FileHash .\trebleManager-v2.5.0.zip -Algorithm SHA256).Hash -eq (Get-Content .\trebleManager-v2.5.0.zip.sha256)` must be `True` (Linux: `sha256sum -c trebleManager-v2.5.0.zip.sha256`).
+1. Copy `trebleManager-v2.6.0.zip` + `.sha256` via USB stick.
+2. Verify: `(Get-FileHash .\trebleManager-v2.6.0.zip -Algorithm SHA256).Hash -eq (Get-Content .\trebleManager-v2.6.0.zip.sha256)` must be `True` (Linux: `sha256sum -c trebleManager-v2.6.0.zip.sha256`).
 3. Extract (path without spaces preferred), keep layout (`scripts\`, `data\`, `logs\`, `backups\`).
 4. Optionally pre-place full firmware ZIP in `data\firmware\` and Magisk APK in `data\magisk\` — then no internet is needed at all.
 
@@ -172,7 +174,7 @@ curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
-- [`release/v2.5.0`](https://github.com/mleem97/trebleManager/tree/release/v2.5.0) ([tag `v2.5.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.5.0))
+- [`release/v2.6.0`](https://github.com/mleem97/trebleManager/tree/release/v2.6.0) ([tag `v2.6.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.6.0))
 - [`release/v2.4.0`](https://github.com/mleem97/trebleManager/tree/release/v2.4.0) ([tag `v2.4.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.4.0))
 - [`release/v2.2.0`](https://github.com/mleem97/trebleManager/tree/release/v2.2.0) ([tag `v2.2.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.2.0))
 - [`release/v2.1.0`](https://github.com/mleem97/trebleManager/tree/release/v2.1.0) ([tag `v2.1.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.1.0))

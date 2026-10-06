@@ -40,7 +40,7 @@ function Import-TTFunction {
   $block = $Src.Substring($start, ($i - $start) + 1)
   try { Invoke-Expression $block } catch { Write-Host ("Ladefehler " + $Name + ": " + $_.Exception.Message) -ForegroundColor Red; $script:Fail++ }
 }
-foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode")) {
+foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode","Unquote-Path")) {
   Import-TTFunction $fn
 }
 
@@ -171,6 +171,11 @@ Assert-Equal "mode safe default" "safe" (Resolve-RunMode "")
 Assert-Equal "mode unattended" "unattended" (Resolve-RunMode "unattended")
 Assert-Equal "mode developer" "developer" (Resolve-RunMode "developer")
 Assert-Equal "mode unknown falls back" "safe" (Resolve-RunMode "yolo")
+
+# ---- 17. Path quoting (spaces + drag-drop quotes) ----
+Assert-Equal "quoted path" 'C:\my dir\img file.img' (Unquote-Path '"C:\my dir\img file.img"')
+Assert-Equal "single-quoted path" 'C:\my dir\img file.img' (Unquote-Path "'C:\my dir\img file.img'")
+Assert-Equal "plain path" 'C:\plain\a.img' (Unquote-Path 'C:\plain\a.img')
 
 # ---- 15. Immutable release: single version everywhere ----
 $TTRoot = Split-Path -Parent $PSScriptRoot

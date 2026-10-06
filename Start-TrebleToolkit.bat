@@ -3,25 +3,37 @@ setlocal EnableExtensions
 chcp 65001 >nul 2>&1
 title Huawei P10 Root Manager - Launcher
 
-REM Smart launcher: finds pwsh/powershell, requests admin if needed, starts the TUI.
+REM Usage: Start-TrebleToolkit.bat [/NOELEVATE]
+REM Always relaunches elevated (new window) unless already admin or /NOELEVATE.
+REM First run without tools/config: runs Setup-TrebleToolkit.bat first.
 set "SCRIPT=%~dp0scripts\Treble-Toolkit.ps1"
+set "SETUP=%~dp0Setup-TrebleToolkit.bat"
+set "CONFIG=%~dp0data\config.json"
 if not exist "%SCRIPT%" (
-  echo ERROR: %SCRIPT% not found.
+  echo ERROR: "%SCRIPT%" not found.
   echo Keep the extracted folder complete: Start-*.bat + scripts\ + logs\ + data\ + backups\
   pause
   exit /b 1
 )
 if not exist "%~dp0logs" mkdir "%~dp0logs" >nul 2>&1
 
-REM Admin check: net session only succeeds as admin
+if /i "%~1"=="/NOELEVATE" goto :SKIPELEV
 net session >nul 2>&1
 if errorlevel 1 (
-  echo No admin. Fastboot/USB drivers often need admin.
-  echo Restart with admin now (UAC) [Y] or continue without admin [N]?
-  set /p ELEV="Choice Y/N: "
-  if /i "%ELEV%"=="Y" (
-    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs" >nul 2>&1
-    exit /b 0
+  echo Requesting admin rights (new window, UAC) ...
+  powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -ArgumentList '/NOELEVATE %*' -Verb RunAs" >nul 2>&1
+  exit /b 0
+)
+:SKIPELEV
+
+REM First run: no tools on PATH and no saved config -> setup first.
+where adb.exe >nul 2>&1
+if errorlevel 1 (
+  if not exist "%CONFIG%" (
+    if exist "%SETUP%" (
+      echo First run: required tools missing - starting setup ...
+      call "%SETUP%"
+    )
   )
 )
 

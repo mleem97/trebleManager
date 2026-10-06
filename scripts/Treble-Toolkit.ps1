@@ -49,7 +49,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.5.0"
+$TTVersion = "2.6.0"
 
 # Spec error cases (handled explicitly, SEARCHABLE):
 # ADB not found / No device detected / USB debugging authorization required (ADB unauthorized) /
@@ -70,6 +70,17 @@ function L {
   param([string]$En, [string]$De)
   if ($TTLang -eq "de") { return $De }
   return $En
+}
+function Unquote-Path {
+  # Drag-drop paths arrive quoted/with spaces: isolate safely for every system.
+  param([string]$P)
+  $t = ([string]$P).Trim()
+  if ($t.Length -ge 2) {
+    if (($t.StartsWith('"') -and $t.EndsWith('"')) -or ($t.StartsWith("'") -and $t.EndsWith("'"))) {
+      $t = $t.Substring(1, $t.Length - 2).Trim()
+    }
+  }
+  return $t
 }
 
 # ============================================================ Paths / state
@@ -144,6 +155,40 @@ function Test-TTAdmin {
     $p = New-Object Security.Principal.WindowsPrincipal($id)
     return $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
   } catch { return $false }
+}
+
+function Invoke-TTSelfElevate {
+  # Relaunch in a NEW elevated window unless already admin, opted out
+  # (-NoElevateCheck), non-Windows, or remote (irm|iex has no file to relaunch).
+  if ($NoElevateCheck) { return }
+  if ([System.Environment]::OSVersion.Platform -ne "Win32NT") { return }
+  try { if (Test-TTAdmin) { return } } catch { return }
+  $sp = $MyInvocation.MyCommand.Path
+  if ([string]::IsNullOrEmpty($sp)) { $sp = $PSCommandPath }
+  if ([string]::IsNullOrEmpty($sp)) {
+    Write-TTLog (L "Not admin and remote session: start an elevated shell and re-run for driver/fastboot work." "Kein Admin und Remote-Sitzung: erhoehtes Fenster oeffnen und neu starten fuer Treiber/Fastboot.") "WARNING"
+    return
+  }
+  $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$sp`"")
+  if ($Command -ne "") { $argList += $Command }
+  if ($Image -ne "") { $argList += @("-Image", "`"$Image`"") }
+  if ($FirmwareFile -ne "") { $argList += @("-FirmwareFile", "`"$FirmwareFile`"") }
+  if ($Json) { $argList += "-Json" }
+  if ($Yes) { $argList += "-Yes" }
+  if ($NoReboot) { $argList += "-NoReboot" }
+  if ($Anonymize) { $argList += "-Anonymize" }
+  if ($Mode -ne "" -and $Mode -ne "safe") { $argList += @("-Mode", $Mode) }
+  foreach ($a in $args) { $argList += $a }
+  try {
+    $exe = (Get-Process -Id $PID).Path
+  } catch { $exe = "powershell.exe" }
+  Write-Host (L "Not admin - reopening elevated (UAC) ..." "Kein Admin - oeffne erhoeht neu (UAC) ...") -ForegroundColor Cyan
+  try {
+    Start-Process -FilePath $exe -ArgumentList $argList -Verb RunAs | Out-Null
+    exit 0
+  } catch {
+    Write-TTLog (L "Elevation denied, continuing without admin (fastboot drivers may fail)." "Elevation abgelehnt, weiter ohne Admin (Fastboot-Treiber koennen scheitern).") "WARNING"
+  }
 }
 
 # ============================================================ Device profiles (modular)
@@ -983,6 +1028,7 @@ function Find-TTTools {
 
   if ($TT.Adb) { Write-TTLog "ADB: $($TT.Adb)" "SUCCESS" } else { Write-TTLog (L "ADB not found (put Minimal ADB / platform-tools in PATH)." "ADB nicht gefunden (Minimal ADB / platform-tools in PATH legen).") "ERROR" }
   if ($TT.Fastboot) { Write-TTLog "Fastboot: $($TT.Fastboot)" "SUCCESS" } else { Write-TTLog (L "Fastboot not found." "Fastboot nicht gefunden.") "WARNING" }
+  if (-not $TT.Adb -and -not $Script:TTFirstRunDone) { $Script:TTFirstRunDone = $true; Invoke-TTFirstRun }
   # scrcpy is optional (screen mirror during rooting), never required
   $TT.Scrcpy = $null
   try {
@@ -1219,6 +1265,30 @@ function Invoke-TTUpdateAppAnalysis {
 }
 
 # ============================================================ Magisk (no fake patching)
+function Invoke-TTFirstRun {
+  # Very first start without tools: ask for a path OR install into user PATH
+  # (needed tools + optional scrcpy), then save data/config.json.
+  Write-Host ""
+  Write-Host (L "FIRST RUN: required tools are missing (adb/fastboot)." "ERSTER START: benoetigte Tools fehlen (adb/fastboot).") -ForegroundColor Yellow
+  $setup = Join-Path $TTRoot "scripts\Setup-Windows.ps1"
+  if (Test-Path $setup) {
+    Write-Host (L "Run the setup now? It asks for paths or installs into user PATH (scrcpy optional). [Y/n]: " "Setup jetzt starten? Fragt Pfade ab oder installiert in User-PATH (scrcpy optional). [J/n]: ") -NoNewline -ForegroundColor Cyan
+    $a = Read-Host
+    if ($a -eq "" -or $a -eq "Y" -or $a -eq "y" -or $a -eq "J" -or $a -eq "j") {
+      try {
+        $exe = (Get-Process -Id $PID).Path
+      } catch { $exe = "powershell.exe" }
+      & $exe -NoProfile -ExecutionPolicy Bypass -File "$setup"
+      Find-TTTools
+      return
+    }
+    Write-TTLog (L "Setup skipped by user - tools still missing." "Setup uebersprungen - Tools fehlen weiter.") "WARNING"
+    return
+  }
+  # Remote run (irm|iex): no local setup file - print guidance instead.
+  Write-Host (L "Remote run: run Setup-TrebleToolkit.bat from a local copy once, or place adb/fastboot on PATH." "Remote-Start: einmal Setup-TrebleToolkit.bat lokal ausfuehren oder adb/fastboot in PATH legen.") -ForegroundColor Yellow
+}
+
 function Find-TTMagiskApk {
   $hits = Get-ChildItem -Path $TTMagDir -Filter "*.apk" -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
   if ($hits -and $hits.Count -gt 0) { return $hits[0].FullName }
@@ -1806,7 +1876,7 @@ function Screen-Extract {
   } else { Write-Host (L "No UPDATE.APP in data/firmware/." "Keine UPDATE.APP in data/firmware/.") -ForegroundColor Yellow }
   Write-Host ""
   Write-Host (L "UPDATE.APP path (Enter = skip, only search existing images): " "UPDATE.APP-Pfad (Enter = ueberspringen, nur vorhandene Images suchen): ") -NoNewline -ForegroundColor Yellow
-  $p = Read-Host
+  $p = Unquote-Path (Read-Host)
   if ($p -eq "" -and $apps -and $apps.Count -ge 1) { $p = $apps[0].FullName }
   if ($p -ne "" -and (Test-Path $p)) {
     $info = Invoke-TTUpdateAppAnalysis $p
@@ -1852,7 +1922,7 @@ function Screen-ExportRecovery {
     Write-Host (L "ROM path (Enter=abort): " "ROM-Pfad (Enter=Abbruch): ") -NoNewline -ForegroundColor Yellow
     $p = Read-Host
     if ([string]::IsNullOrWhiteSpace($p)) { Pause-TT; return }
-    $roms = @($p.Trim())
+    $roms = @(Unquote-Path $p)
   } else {
     Write-Host (L "Found:" "Gefunden:") -ForegroundColor Cyan
     for ($i = 0; $i -lt $roms.Count; $i++) { Write-Host (" [" + ($i+1) + "] " + $roms[$i]) -ForegroundColor White }
@@ -1888,7 +1958,7 @@ function Screen-Patch {
   if ($apk -eq "") {
     Write-Host (L "No Magisk APK in data/magisk/. Place APK there (official GitHub)." "Keine Magisk-APK in data/magisk/. APK dort ablegen (offizielles GitHub).") -ForegroundColor Yellow
     Write-Host (L "APK path (Enter=later): " "APK-Pfad (Enter=spaeter): ") -NoNewline -ForegroundColor Yellow
-    $p = Read-Host
+    $p = Unquote-Path (Read-Host)
     if ($p -ne "" -and (Test-Path $p)) {
       $dst = Join-Path $TTMagDir ([System.IO.Path]::GetFileName($p))
       Copy-Item $p $dst -Force
@@ -1927,7 +1997,7 @@ function Screen-Patch {
       Write-Host $lst -ForegroundColor White
     } catch {}
     Write-Host (L "Path to patched file (data/magisk/*.img): " "Pfad zur gepatchten Datei (data/magisk/*.img): ") -NoNewline -ForegroundColor Yellow
-    $pp = Read-Host
+    $pp = Unquote-Path (Read-Host)
     if ($pp -ne "" -and (Test-Path $pp)) {
       $chk = Test-RecoveryImageFile $pp
       if ($chk.Hash.SHA256 -eq $TT.StockHash.SHA256) {
@@ -2096,7 +2166,7 @@ function Screen-FlashSystem {
   $prof = $DeviceProfiles[$TT.ProfileId]
   if ($prof -ne $null -and $prof.GsiAdvice -ne "") { Write-Host ((L "Profile advice: " "Profil-Hinweis: ") + $prof.GsiAdvice) -ForegroundColor Cyan }
   Write-Host (L "GSI image path (*-arm64_*.img, unpacked): " "GSI-Image-Pfad (*-arm64_*.img, entpackt): ") -NoNewline -ForegroundColor Yellow
-  $img = Read-Host
+  $img = Unquote-Path (Read-Host)
   if ([string]::IsNullOrWhiteSpace($img) -or -not (Test-Path $img)) {
     Write-TTLog (L "Invalid image path, aborting." "Image-Pfad ungueltig, Abbruch.") "ERROR"
     Pause-TT; return
@@ -2187,7 +2257,7 @@ function Screen-Twrp {
   foreach ($s in $TwrpKnowledge.Rules) { Write-Host (" - " + $s) -ForegroundColor Yellow }
   Write-Host ""
   Write-Host (L "TWRP image path (*twrp*.img, exact model build): " "TWRP-Image-Pfad (*twrp*.img, genauer Modell-Build): ") -NoNewline -ForegroundColor Yellow
-  $img = Read-Host
+  $img = Unquote-Path (Read-Host)
   if ([string]::IsNullOrWhiteSpace($img) -or -not (Test-Path $img)) {
     Write-TTLog (L "Invalid image path, aborting (guide shown above)." "Image-Pfad ungueltig, Abbruch (Anleitung oben).") "WARNING"
     Pause-TT; return
@@ -2369,6 +2439,7 @@ function Start-TTWizard {
 }
 
 function Start-TTTui {
+  Invoke-TTSelfElevate
   Find-TTTools
   Update-TTMode | Out-Null
   # Defaults for target device (example values from order, overridable by analysis)
@@ -2462,6 +2533,7 @@ if ($cmd -eq "") {
   exit 0
 }
 
+Invoke-TTSelfElevate
 Find-TTTools
 Update-TTMode | Out-Null
 if ($TT.ProfileId -eq "") { $TT.ProfileId = "VTR-L29" }

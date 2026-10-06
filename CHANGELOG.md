@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-## v2.5.0
+## v2.6.0
+
+- Auto-elevation: script reopens itself in a new admin window (UAC) unless already admin (`-NoElevateCheck` or remote session opts out)
+- First-run setup: missing adb/fastboot triggers path question or PATH install (tools + optional scrcpy) with saved `data/config.json`; launcher runs setup automatically
+- Path quoting hardened (`Unquote-Path` for drag-drop/quoted paths with spaces, quoted `-File` invocations)
 
 - Run modes: `--mode safe|unattended|developer` (unattended still enforces all safety gates; developer unlocks dump commands)
 - Post-flash validation: `validate` (TUI Tools + CLI) with system/hardware checks + `validation-<stamp>.json` report
