@@ -15,6 +15,13 @@ cd "C:\path\to\trebleManager"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Treble-Toolkit.ps1
 ```
 
+Linux:
+
+```bash
+cd /path/to/trebleManager
+./scripts/treble-toolkit.sh
+```
+
 Follow the wizard: **Detect → Analyze → Firmware → Extract → Patch → Backup →
 Flash → Reboot+Verify**.
 
@@ -34,6 +41,10 @@ backed-up original back. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Parsers.ps1
+```
+
+```bash
+bash tests/test-parsers.sh
 ```
 
 Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [CONTRIBUTING.md](CONTRIBUTING.md).

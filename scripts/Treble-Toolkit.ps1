@@ -48,7 +48,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.0.0"
+$TTVersion = "2.2.0"
 
 # Spec error cases (handled explicitly, SEARCHABLE):
 # ADB not found / No device detected / USB debugging authorization required (ADB unauthorized) /

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v2.2.0
+
+- Linux bash port (`scripts/treble-toolkit.sh`): same wizard/CLI logic, zero extra
+  dependencies (only adb, fastboot, coreutils; optional unzip/curl/zip/python3),
+  bilingual UI (EN default, DE if `$LANG` starts with `de`), `tests/test-parsers.sh`
+- macOS bash port planned next (same script, kept mac-bash3 compatible: no assoc arrays)
+
 ## v2.1.0
 
 - Bilingual TUI (English default, German if system language is German)

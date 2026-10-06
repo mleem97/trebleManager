@@ -20,7 +20,7 @@ needed afterwards for optional firmware/Magisk downloads.
    `%USERPROFILE%\Desktop\Huawei-P10-Magisk-Check.txt`.
 4. Evaluate/upload that TXT first — only then continue towards root.
 
-## B. Via PowerShell (full TUI + CLI)
+## B. Via PowerShell (full TUI + CLI, Windows)
 
 Interactive TUI (recommended):
 
@@ -30,6 +30,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Treble-Toolkit.ps1
 ```
 
 Or double-click starter: `Start-TrebleToolkit.bat` (asks for elevation if needed).
+
+## B2. Via bash (Linux, same logic)
+
+```bash
+cd /path/to/trebleManager
+chmod +x scripts/treble-toolkit.sh
+./scripts/treble-toolkit.sh                 # TUI
+./scripts/treble-toolkit.sh detect --json   # CLI
+./scripts/treble-toolkit.sh diagnostic --anonymize
+```
+
+Install: `sudo apt install android-tools-adb android-tools-fastboot`
+(Debian/Ubuntu) or your distro's platform-tools. udev rules for Huawei
+(`12d1`) may be needed for non-root USB access.
 
 Straight from GitHub (only if GitHub is reachable):
 

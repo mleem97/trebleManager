@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.1.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.2.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -44,7 +44,8 @@ from Huawei fastboot is treated as a Huawei quirk, never as proof of lock.
 |---|---|---|
 | Windows 10/11 | PowerShell 5.1 | Supported |
 | Windows 10/11 | PowerShell 7+ | Supported |
-| Linux / macOS (bash port) | bash | Planned (after Windows release) |
+| Linux x64 | bash 4+ (`scripts/treble-toolkit.sh`) | Supported |
+| macOS (bash port) | bash | Planned (after Windows release) |
 
 | Device OS | Detection | State |
 |---|---|---|
@@ -79,20 +80,33 @@ UI language: English by default, German if the system language is German.
 3. It auto-detects Android vs. fastboot and writes
    `%USERPROFILE%\Desktop\Huawei-P10-Magisk-Check.txt`.
 
-### Option B — PowerShell TUI/CLI
+### Option B — PowerShell TUI/CLI (Windows)
 
 ```powershell
 cd "C:\path\to\trebleManager"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Treble-Toolkit.ps1
 ```
 
-Or double-click `Start-TrebleToolkit.bat` (asks for elevation if needed), or run straight
+Or double-click starter: `Start-TrebleToolkit.bat` (asks for elevation if needed), or run straight
 from GitHub (see [INSTRUCTIONS.md](INSTRUCTIONS.md)).
+
+### Option B2 — Linux bash (same logic, no extras)
+
+```bash
+cd /path/to/trebleManager
+chmod +x scripts/treble-toolkit.sh
+./scripts/treble-toolkit.sh
+./scripts/treble-toolkit.sh detect --json
+./scripts/treble-toolkit.sh diagnostic --anonymize
+```
+
+Needs only `adb`, `fastboot` (`sudo apt install android-tools-adb android-tools-fastboot`
+on Debian/Ubuntu). Optional: `unzip`, `curl`, `zip` (or `python3` as fallback each).
 
 ### Option C — Offline release ZIP (GitHub blocked)
 
-1. Copy `trebleManager-v2.1.0.zip` + `.sha256` via USB stick.
-2. Verify: `(Get-FileHash .\trebleManager-v2.1.0.zip -Algorithm SHA256).Hash -eq (Get-Content .\trebleManager-v2.1.0.zip.sha256)` must be `True`.
+1. Copy `trebleManager-v2.2.0.zip` + `.sha256` via USB stick.
+2. Verify: `(Get-FileHash .\trebleManager-v2.2.0.zip -Algorithm SHA256).Hash -eq (Get-Content .\trebleManager-v2.2.0.zip.sha256)` must be `True` (Linux: `sha256sum -c trebleManager-v2.2.0.zip.sha256`).
 3. Extract (path without spaces preferred), keep layout (`scripts\`, `data\`, `logs\`, `backups\`).
 4. Optionally pre-place full firmware ZIP in `data\firmware\` and Magisk APK in `data\magisk\` — then no internet is needed at all.
 
@@ -129,8 +143,8 @@ Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md).
 ## Repository Layout
 
 ```
-├── scripts/                # Treble-Toolkit.ps1 (self-contained TUI + CLI, PS 5.1/7)
-├── tests/                  # Test-Parsers.ps1 (parser/firmware/OS/hash/root/URL/magic tests)
+├── scripts/                # Treble-Toolkit.ps1 (Windows TUI+CLI, PS 5.1/7) + treble-toolkit.sh (Linux bash port)
+├── tests/                  # Test-Parsers.ps1 + test-parsers.sh (parser/firmware/OS/hash/root/URL/magic tests)
 ├── data/firmware/          # Full firmware drops (UPDATE.APP source, offline cache)
 ├── data/magisk/            # Magisk APK + to-patch staging + pulled patched images
 ├── data/roms/              # Custom ROM packages for recovery export
