@@ -174,6 +174,7 @@ curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
+- [`release/v2.7.0`](https://github.com/mleem97/trebleManager/tree/release/v2.7.0) ([tag `v2.7.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.7.0))
 - [`release/v2.6.0`](https://github.com/mleem97/trebleManager/tree/release/v2.6.0) ([tag `v2.6.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.6.0))
 - [`release/v2.4.0`](https://github.com/mleem97/trebleManager/tree/release/v2.4.0) ([tag `v2.4.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.4.0))
 - [`release/v2.2.0`](https://github.com/mleem97/trebleManager/tree/release/v2.2.0) ([tag `v2.2.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.2.0))
