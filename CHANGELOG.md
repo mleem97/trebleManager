@@ -2,14 +2,18 @@
 
 ## Unreleased
 
+## v2.8.0
+
+- Root persistence: service.d boot scripts (aptouch + speaker, reboot-proof) via menu/CLI `persist` (needs live root once); persisted boot-mode state (cheat/persistent)
+- Persistent Magisk boot guidance for no-ramdisk devices (discussion steps 13/14: set/clear + verify), double-confirmed, reversible
+- Audio debugging after Magisk modules (Viper4Android): remove-modules rescue, check chain, prevention (wiki + FAQ)
+
 ## v2.7.0
 
 - Orchestrator P0: tool registry, startup preflight gate (blocks menu, never silent), explicit ADB/Fastboot states (unauthorized/offline/multiple), multi-device target selection, per-step requirement gates
 - Orchestrator P1: 8 workflow goals + planner with live gates, persistent state + resume, controlled failure flow (diagnostic/restore/abort), JSON status API
 - CLI: `preflight|recon|status|workflow|resume|root` (+ `--goal`, `--mode`)
 - Fixed bash value/command arg collision (`--goal root` etc.)
-
-## v2.6.0
 
 ## v2.6.0
 

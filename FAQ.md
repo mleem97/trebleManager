@@ -123,6 +123,28 @@ documented Magisk-recovery behavior on this device, not a bug. No persistent
 switch exists; the eRecovery byte tricks from #2542 are shown in the tool under
 boot tricks.
 
+## Can root persist across normal reboots (no-ramdisk devices like P10)?
+
+Partly — honestly split in two:
+
+- **Rooted boot itself**: no safe bypass exists. Magisk lives in
+  `recovery_ramdisk`, so a normal power-on boot is always unrooted. The tool
+  documents the community **persistent-boot** option (discussion step 13: set a
+  persistent recovery-boot byte via the eRecovery wipe trick, cleared again via
+  step 14) under Boot tricks → persistent boot, with double confirmation,
+  reversibility, and a verify step (normal reboot → `uid=0` check). It changes
+  *every* boot by design — decide consciously.
+- **What the tool does persist**: aptouch + speaker fixes as Magisk
+  `service.d` boot scripts (menu Persist, needs live root once — no more manual
+  adb after reboot), plus the verified root/boot-mode state across runs.
+
+## No sound after Viper4Android / Magisk modules?
+
+Audio mods can silence the whole GSI even after app uninstall (module stays
+active). Boot rooted, run `adb shell su -c "magisk --remove-modules"`,
+reboot, reinstall working modules one by one. Debug chain + prevention:
+wiki Troubleshooting → No sound. Last resort: tool Restore.
+
 ## Will I lose data?
 
 The tool itself never wipes (`erase`/`format`/`userdata` appear nowhere in its

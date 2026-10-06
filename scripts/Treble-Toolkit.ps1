@@ -50,7 +50,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.7.0"
+$TTVersion = "2.8.0"
 
 # Spec error cases (handled explicitly, SEARCHABLE):
 # ADB not found / No device detected / USB debugging authorization required (ADB unauthorized) /
@@ -2176,6 +2176,7 @@ function Screen-Flash {
 function Screen-RebootVerify {
   Show-TTHeader (L "Step 8+9 - Reboot (Huawei procedure) + verify (real)" "Step 8+9 - Reboot (Huawei-Prozedur) + Verify (echt)")
   $r = Invoke-TTRootVerification
+  Save-RootState $r.Root
   Write-Host ""
   Write-Host ((L "Result: " "Ergebnis: ") + $r.Root) -ForegroundColor $(if ($r.Root -eq "ROOTED") { "Green" } else { "Yellow" })
   if ($r.Root -ne "ROOTED") {
@@ -2526,6 +2527,70 @@ function Screen-Bootkeys {
   Write-Host (L "  -> EMUI 'OS Upgrade not successful' -> reboot -> clean." "  -> EMUI 'OS Upgrade not successful' -> Reboot -> clean.") -ForegroundColor White
   Write-Host (L "- /dload must NOT be on storage, else EMUI updater instead of recovery." "- /dload darf NICHT auf Speicher liegen, sonst EMUI-Updater statt Recovery.") -ForegroundColor Red
   Write-Host (L "- Never use Pixel/A-B guides." "- Keine Pixel-/A-B-Anleitung verwenden.") -ForegroundColor Yellow
+  $bm = ""
+  try {
+    $st0 = Read-WorkflowState
+    if ($st0 -ne $null -and $st0.last_root -ne $null -and $st0.last_root.boot_mode -ne $null) { $bm = [string]$st0.last_root.boot_mode }
+  } catch {}
+  if ($bm -ne "") { Write-Host ((L "Persisted boot mode: " "Persistierter Boot-Modus: ") + $bm) -ForegroundColor Cyan }
+  Write-Host ""
+  Write-Host (L "[1] Guide: SET persistent Magisk boot (discussion step 13)  [2] Guide: CLEAR it again (step 14)  [3] Verify persistence (normal reboot, then check)" "[1] Anleitung: persistenten Magisk-Boot SETZEN (Discussion-Schritt 13)  [2] Anleitung: wieder LOESCHEN (Schritt 14)  [3] Persistenz pruefen (normal rebooten, dann checken)") -ForegroundColor DarkGray
+  $k = [Console]::ReadKey($true)
+  if ($k.KeyChar -eq "1") {
+    Show-TTHeader (L "SET persistent boot (manual on-device steps)" "Persistenten Boot SETZEN (manuelle Handy-Schritte)")
+    Write-Host ""
+    foreach ($l in @(
+      (L "1. Boot the phone normally into the Magisk system once (Vol-Up + Power)." "1. Handy einmal normal ins Magisk-System booten (Vol-Up + Power)."),
+      (L "2. At the yellow-text-on-black screen choose eRecovery (hold Vol-Up ~3s)." "2. Am Gelb-auf-Schwarz-Screen eRecovery waehlen (Vol-Up ~3s halten)."),
+      (L "3. In eRecovery confirm Wipe data / Factory reset + reboot." "3. In eRecovery Wipe data / Factory reset bestaetigen + Reboot."),
+      (L "4. The phone now boots the Magisk system on EVERY power-on (wipe is NOT executed)." "4. Handy bootet jetzt bei JEDEM Einschalten ins Magisk-System (Wipe wird NICHT ausgefuehrt).")
+    )) { Write-Host (" " + $l) -ForegroundColor White }
+    Write-Host ""
+    Write-Host (L "Double confirmation (this changes every boot - reversible via CLEAR): type 'SET' then 'YES': " "Doppel-Bestaetigung (aendert jeden Boot - reversibel via CLEAR): 'SET' dann 'YES' tippen: ") -NoNewline -ForegroundColor Yellow
+    $a = Read-Host
+    if ($a -ne "SET") { Pause-TT; return }
+    Write-Host (L "Type 'YES': " "'YES' tippen: ") -NoNewline -ForegroundColor Yellow
+    $b = Read-Host
+    if ($b -ne "YES" -and $b -ne "JA") { Pause-TT; return }
+    Write-TTLog "User confirmed persistent-boot SET guide (manual steps shown)." "WARNING"
+    Save-RootState "ROOTED" "persistent-pending"
+    Write-Host (L "Do the 4 steps on the phone now, then use [3] to verify." "Jetzt die 4 Schritte am Handy ausfuehren, dann mit [3] verifizieren.") -ForegroundColor Green
+  }
+  elseif ($k.KeyChar -eq "2") {
+    Show-TTHeader (L "CLEAR persistent boot (manual on-device steps)" "Persistenten Boot LOESCHEN (manuelle Handy-Schritte)")
+    Write-Host ""
+    foreach ($l in @(
+      (L "1. Remove any /dload directory from phone storage (else EMUI updater starts)!" "1. /dload-Verzeichnis vom Speicher entfernen (sonst EMUI-Updater)!"),
+      (L "2. Power off completely." "2. Komplett ausschalten."),
+      (L "3. Hold Vol-Up + Vol-Down + Power until the Huawei logo, then release." "3. Vol-Up + Vol-Down + Power bis Huawei-Logo halten, dann loslassen."),
+      (L "4. EMUI shows 'OS Upgrade not successful' -> reboot -> byte is clean, normal boots are unrooted again." "4. EMUI zeigt 'OS Upgrade not successful' -> Reboot -> Byte clean, normale Boots wieder ungerootet.")
+    )) { Write-Host (" " + $l) -ForegroundColor White }
+    Write-Host ""
+    Write-Host (L "Confirm you did it on the phone [Y/n]: " "Am Handy erledigt bestaetigen [J/n]: ") -NoNewline -ForegroundColor Yellow
+    $c = Read-Host
+    if ($c -eq "" -or $c -eq "Y" -or $c -eq "y" -or $c -eq "J" -or $c -eq "j") {
+      Save-RootState "UNKNOWN" "cheat"
+      Write-TTLog "Persistent boot cleared by user." "SUCCESS"
+    }
+  }
+  elseif ($k.KeyChar -eq "3") {
+    Write-Host ""
+    Write-Host (L "Reboot the phone NORMALLY now (no keys), wait for Android, then press Enter here." "Handy jetzt NORMAL rebooten (keine Tasten), Android abwarten, dann hier Enter.") -ForegroundColor Cyan
+    Pause-TT
+    Update-TTMode | Out-Null
+    if ($TT.Mode -ne "android") {
+      Write-Host (L "No Android/ADB - cannot verify yet." "Kein Android/ADB - noch nicht verifizierbar.") -ForegroundColor Yellow
+      Pause-TT; return
+    }
+    $idOut = (Invoke-TTAdb @("shell","su -c id 2>&1") -join "").Trim()
+    if ($idOut -match "uid=0") {
+      Save-RootState "ROOTED" "persistent"
+      Write-Host (L "PERSISTENT ROOT CONFIRMED (uid=0 without boot cheat)." "PERSISTENTER ROOT BESTAETIGT (uid=0 ohne Boot-Cheat).") -ForegroundColor Green
+    } else {
+      Save-RootState "NOT_ROOTED" "cheat"
+      Write-Host (L "Not persistent: normal boot is unrooted (cheat still needed, or SET not active)." "Nicht persistent: normaler Boot ungerootet (Cheat weiter noetig oder SET nicht aktiv).") -ForegroundColor Yellow
+    }
+  }
   Pause-TT
 }
 
@@ -2603,6 +2668,70 @@ function Write-WorkflowState {
   param($State)
   $State.updated = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
   ($State | ConvertTo-Json -Depth 6) | Out-File (Get-WorkflowStateFile) -Encoding utf8
+}
+
+function Save-RootState {
+  # Persists last verified root state across runs (honest: re-verified on demand,
+  # P10 recovery Magisk always needs the Vol-Up+Power boot for a rooted boot).
+  param([string]$Root, [string]$BootMode = "")
+  $f = Get-WorkflowStateFile
+  $st = Read-WorkflowState
+  if ($st -eq $null) { $st = @{ version = $TTVersion; goal = ""; steps = @() } }
+  $lr = @{ state = $Root; timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss") }
+  if ($BootMode -ne "") { $lr.boot_mode = $BootMode }
+  elseif ($st.last_root -ne $null -and $st.last_root.boot_mode -ne $null) { $lr.boot_mode = [string]$st.last_root.boot_mode }
+  $st | Add-Member -NotePropertyName "last_root" -NotePropertyValue $lr -Force
+  $st.updated = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+  ($st | ConvertTo-Json -Depth 6) | Out-File $f -Encoding utf8
+  Write-TTLog ("Root state persisted: " + $Root) "INFO"
+}
+
+$PersistScripts = @{
+  "000-treblemanager-aptouch.sh" = "#!/system/bin/sh`n# trebleManager: stop aptouch (touchscreen edges) - runs every boot via Magisk service.d`nstop aptouch`n"
+  "000-treblemanager-smartpa.sh" = "#!/system/bin/sh`n# trebleManager: smartpa speaker fix - runs every boot via Magisk service.d`nchown root:audio /dev/nxp_smartpa_dev`nchmod 0660 /dev/nxp_smartpa_dev`n"
+}
+
+function Install-PersistFixes {
+  # Installs Magisk service.d boot scripts so aptouch/speaker fixes survive
+  # reboots (no more manual adb after every boot). Needs live root (uid=0).
+  $idOut = (Invoke-TTAdb @("shell","su -c id 2>&1") -join "").Trim()
+  if ($idOut -notmatch "uid=0") {
+    Write-TTLog (L "No live root (need uid=0). Boot rooted first (Vol-Up + Power), grant Magisk, retry." "Kein live Root (brauche uid=0). Erst gerootet booten (Vol-Up + Power), Magisk freigeben, erneut.") "ERROR"
+    return $false
+  }
+  $okAll = $true
+  foreach ($name in $PersistScripts.Keys) {
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) $name
+    $PersistScripts[$name] | Out-File -FilePath $tmp -Encoding ascii -NoNewline
+    Invoke-TTAdb @("push",$tmp,"/sdcard/Download/" + $name) | Out-Null
+    $cmd = "su -c 'cp /sdcard/Download/" + $name + " /data/adb/service.d/" + $name + " && chmod 755 /data/adb/service.d/" + $name + "' 2>&1"
+    $o = (Invoke-TTAdb @("shell",$cmd) -join "`n").Trim()
+    $chk = (Invoke-TTAdb @("shell","su -c 'ls -l /data/adb/service.d/" + $name + "' 2>&1") -join "`n").Trim()
+    if ($chk -match $name.Replace(".","\.") -and $chk -match "rwx") {
+      Write-TTLog ("Persisted: /data/adb/service.d/" + $name) "SUCCESS"
+    } else {
+      Write-TTLog (("FAILED: " + $name + " -- " + $o + " / " + $chk)) "ERROR"
+      $okAll = $false
+    }
+  }
+  if ($okAll) { Save-RootState "ROOTED+persisted-fixes" }
+  return $okAll
+}
+
+function Screen-PersistFixes {
+  Show-TTHeader (L "Persist root fixes (service.d, survives reboot)" "Root-Fixes persistieren (service.d, rebootfest)")
+  Write-Host ""
+  Write-Host (L "Honest scope: on P10, Magisk lives in recovery_ramdisk - every ROOTED boot needs Vol-Up + Power. There is no safe way around that." "Ehrlich: auf P10 lebt Magisk in recovery_ramdisk - jeder ROOT-Boot braucht Vol-Up + Power. Daran fuehrt kein sicherer Weg vorbei.") -ForegroundColor Yellow
+  Write-Host (L "What persists instead: aptouch + speaker fixes as Magisk service.d boot scripts (no manual adb after reboot), plus the verified root state in the tool." "Was stattdessen persistiert: aptouch- + Speaker-Fixes als Magisk-service.d-Bootskripte (kein manuelles adb nach Reboot), plus verifizierter Root-Status im Tool.") -ForegroundColor White
+  Write-Host ""
+  Write-Host (L "Install now? Needs live root (uid=0). [Y/n]: " "Jetzt installieren? Braucht live Root (uid=0). [J/n]: ") -NoNewline -ForegroundColor Cyan
+  $a = Read-Host
+  if ($a -eq "" -or $a -eq "Y" -or $a -eq "y" -or $a -eq "J" -or $a -eq "j") {
+    if (Install-PersistFixes) {
+      Write-Host (L "Fixes will now apply on every (rooted) boot automatically." "Fixes greifen ab jetzt bei jedem (gerooteten) Boot automatisch.") -ForegroundColor Green
+    }
+  }
+  Pause-TT
 }
 
 function New-WorkflowPlan {
@@ -2770,6 +2899,7 @@ function Start-TTTui {
       (L "Root methods (Magisk preferred)" "Root-Methoden (Magisk bevorzugt)"),
       (L "TWRP path (guide + flash)" "TWRP-Pfad (Anleitung + Flash)"),
       (L "Compatibility registry" "Kompatibilitaets-Registry"),
+      (L "Persist root fixes (service.d)" "Root-Fixes persistieren (service.d)"),
       (L "Bootloader unlock guide (PotatoNV)" "Bootloader-Unlock-Anleitung (PotatoNV)"),
       (L "Kernels + known fixes (wiki)" "Kernel + bekannte Fixes (Wiki)"),
       "Restore / Unroot",
@@ -2779,7 +2909,7 @@ function Start-TTTui {
       (L "Admin restart" "Admin-Neustart"),
       (L "Exit" "Beenden")
     ) (L "GSI stays intact on root path | Never wipe userdata | Never bootloader-unlock" "GSI bleibt erhalten auf Root-Pfad | Nie userdata loeschen | Nie Bootloader-Unlock")
-    if ($c -eq -1 -or $c -eq 24) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
+    if ($c -eq -1 -or $c -eq 25) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
     if ($c -eq 0) { Show-TTStatus }
     elseif ($c -eq 1) { Start-TTWizard }
     elseif ($c -eq 2) { Screen-GoalSelect }
@@ -2797,13 +2927,14 @@ function Start-TTTui {
     elseif ($c -eq 14) { Screen-RootMethods }
     elseif ($c -eq 15) { Screen-Twrp }
     elseif ($c -eq 16) { Screen-Compatibility }
-    elseif ($c -eq 17) { Screen-Unlock }
-    elseif ($c -eq 18) { Screen-KernelFixes }
-    elseif ($c -eq 19) { Screen-Restore }
-    elseif ($c -eq 20) { Screen-Bootkeys }
-    elseif ($c -eq 21) { Screen-Tools }
-    elseif ($c -eq 22) { Screen-Logs }
-    elseif ($c -eq 23) {
+    elseif ($c -eq 17) { Screen-PersistFixes }
+    elseif ($c -eq 18) { Screen-Unlock }
+    elseif ($c -eq 19) { Screen-KernelFixes }
+    elseif ($c -eq 20) { Screen-Restore }
+    elseif ($c -eq 21) { Screen-Bootkeys }
+    elseif ($c -eq 22) { Screen-Tools }
+    elseif ($c -eq 23) { Screen-Logs }
+    elseif ($c -eq 24) {
       try {
         $exe = (Get-Process -Id $PID).Path
         $sp = $MyInvocation.MyCommand.Path
@@ -2818,7 +2949,7 @@ function Start-TTTui {
 # ============================================================ CLI
 function Show-TTHelp {
   Write-Host "Huawei P10 Root Manager v$TTVersion" -ForegroundColor Cyan
-  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
+  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
   Write-Host (L "No args: TUI. Download/flash/restore need explicit confirmation (--yes = documented consent)." "Ohne Args: TUI. Download/Flash/Restore brauchen explizite Bestaetigung (--yes = dokumentierte Zustimmung).") -ForegroundColor Gray
 }
 
@@ -3069,8 +3200,13 @@ elseif ($cmd -eq "compat") {
 }
 elseif ($cmd -eq "verify") {
   $r = Invoke-TTRootVerification -NoReboot:$NoReboot
+  Save-RootState $r.Root
   if ($Json) { ($r | ConvertTo-Json -Depth 4) | Write-Host }
   if ($r.Root -ne "ROOTED") { exit 2 }
+}
+elseif ($cmd -eq "persist") {
+  if (-not $Yes) { Write-Host (L "Needs live root + --yes (writes service.d scripts)." "Braucht live Root + --yes (schreibt service.d-Skripte)."); exit 4 }
+  if (-not (Install-PersistFixes)) { exit 1 }
 }
 elseif ($cmd -eq "validate") {
   $rep = Invoke-TTValidate

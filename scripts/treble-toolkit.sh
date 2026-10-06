@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.7.0"
+TTVERSION="2.8.0"
 # Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
 # still enforced), developer (unlocks dump-* commands).
 RUNMODE_REQ=""
@@ -516,9 +516,9 @@ verify_root() { # [--no-reboot]
   id="$(adb_run shell su -c id 2>&1 | tr -d '\r')"
   mv="$(adb_run shell magisk -v 2>&1 | tr -d '\r')"
   printf '%s\n' "which su: $w" "su -c id: $id" "magisk -v: $mv" | tee -a "$TTLOG"
-  case "$id" in *uid=0*) log SUCCESS "ROOT DETECTED (uid=0)."; printf 'ROOTED\n'; return 0 ;; esac
-  if [ -n "$w" ] && [[ "$w" != *"not found"* ]]; then log WARNING "INCONCLUSIVE (su present, no uid=0)."; printf 'INCONCLUSIVE\n'; return 2; fi
-  log WARNING "$(L 'No root verifiable.' 'Kein Root nachweisbar.')"; printf 'NOT_ROOTED\n'; return 2
+  case "$id" in *uid=0*) log SUCCESS "ROOT DETECTED (uid=0)."; save_root_state "ROOTED"; printf 'ROOTED\n'; return 0 ;; esac
+  if [ -n "$w" ] && [[ "$w" != *"not found"* ]]; then log WARNING "INCONCLUSIVE (su present, no uid=0)."; save_root_state "INCONCLUSIVE"; printf 'INCONCLUSIVE\n'; return 2; fi
+  log WARNING "$(L 'No root verifiable.' 'Kein Root nachweisbar.')"; save_root_state "NOT_ROOTED"; printf 'NOT_ROOTED\n'; return 2
 }
 do_restore() { # [backupdir] [--yes]
   local pick="${1:-}" yes="${2:-}" part
@@ -1164,11 +1164,91 @@ EOF
     esac
   done
 }
+save_root_state() { # ROOT [BOOTMODE] -> merges last_root into state file
+  local root="$1" bmode="${2:-}" f
+  f="$(state_file)"
+  if command -v python3 >/dev/null 2>&1; then
+    ST_ROOT="$root" ST_BMODE="$bmode" ST_FILE="$f" python3 - <<'PYEOF' 2>/dev/null || true
+import json,os,datetime
+f=os.environ['ST_FILE']
+try: st=json.load(open(f))
+except Exception: st={"goal":"","steps":[]}
+lr={"state":os.environ['ST_ROOT'],"timestamp":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+if os.environ['ST_BMODE']: lr["boot_mode"]=os.environ['ST_BMODE']
+elif isinstance(st.get("last_root"),dict) and st["last_root"].get("boot_mode"): lr["boot_mode"]=st["last_root"]["boot_mode"]
+st["last_root"]=lr
+st["updated"]=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+json.dump(st,open(f,"w"),indent=2)
+PYEOF
+  fi
+  log INFO "Root state persisted: $root"
+}
+install_persist_fixes() { # service.d boot scripts (aptouch+smartpa); needs uid=0
+  local id
+  id="$(adb_run shell su -c id 2>&1 | tr -d '\r\n')"
+  case "$id" in *uid=0*) ;; *) log ERROR "$(L 'No live root (need uid=0). Boot rooted first, grant Magisk, retry.' 'Kein live Root (uid=0 noetig). Erst gerootet booten, freigeben, erneut.')"; return 1 ;; esac
+  local ok=1 name tmp
+  for name in 000-treblemanager-aptouch.sh 000-treblemanager-smartpa.sh; do
+    tmp="/tmp/$name"
+    if [ "$name" = "000-treblemanager-aptouch.sh" ]; then
+      printf '#!/system/bin/sh\n# trebleManager: stop aptouch (touchscreen edges)\nstop aptouch\n' > "$tmp"
+    else
+      printf '#!/system/bin/sh\n# trebleManager: smartpa speaker fix\nchown root:audio /dev/nxp_smartpa_dev\nchmod 0660 /dev/nxp_smartpa_dev\n' > "$tmp"
+    fi
+    adb_run push "$tmp" "/sdcard/Download/$name" >/dev/null 2>&1
+    adb_run shell "su -c 'cp /sdcard/Download/$name /data/adb/service.d/$name && chmod 755 /data/adb/service.d/$name' 2>&1" >/dev/null 2>&1
+    if adb_run shell "su -c 'ls -l /data/adb/service.d/$name' 2>&1" | grep -q "$name"; then
+      log SUCCESS "Persisted: /data/adb/service.d/$name"
+    else
+      log ERROR "FAILED: $name"; ok=0
+    fi
+    rm -f "$tmp"
+  done
+  [ "$ok" = 1 ] && save_root_state "ROOTED+persisted-fixes"
+  [ "$ok" = 1 ]
+}
+screen_persist() {
+  header "$(L 'Persist root fixes (service.d, survives reboot)' 'Root-Fixes persistieren (service.d, rebootfest)')"; printf '\n'
+  printf '%s\n' "$(L 'Honest scope: P10 Magisk lives in recovery_ramdisk - every ROOTED boot needs Vol-Up + Power. No safe way around that.' 'Ehrlich: P10-Magisk lebt in recovery_ramdisk - jeder ROOT-Boot braucht Vol-Up + Power. Kein sicherer Weg daran vorbei.')"
+  printf '%s\n' "$(L 'What persists: aptouch + speaker fixes as service.d scripts, plus verified root state.' 'Was persistiert: aptouch + Speaker als service.d, plus Root-Status.')"
+  printf '%s' "$(L 'Install now? Needs live root. [Y/n]: ' 'Jetzt installieren? Braucht live Root. [J/n]: ')"; iread -r a
+  case "$a" in ""|y|Y|j|J)
+    if install_persist_fixes; then printf '%s\n' "$(L 'Fixes apply on every rooted boot automatically.' 'Fixes greifen bei jedem gerooteten Boot automatisch.')"; fi ;;
+  esac
+  pause_tt
+}
 screen_bootkeys() {
   header "$(L 'Huawei boot mechanism (from #2542, exact)' 'Huawei Boot-Mechanismus (aus #2542, exakt)')"; printf '\n'
   printf '%s\n' "$(L '- Magisk boot: Vol-Up + Power until Huawei logo, then release (boot cheat).' '- Magisk-Boot: Vol-Up + Power bis Logo, dann loslassen.')"
   printf '%s\n' "$(L '- Without trick: stock boot (no root). NOT persistent.' '- Ohne Trick: Stock-Boot (kein Root). NICHT persistent.')"
+  printf '%s\n' "$(L '- Persistent Magisk boot (no-ramdisk devices like P10): SET via eRecovery wipe trick (discussion step 13) -> every power-on boots Magisk; CLEAR via Vol-Up+Vol-Down+Power with NO /dload present (step 14).' '- Persistenter Magisk-Boot (Geraete ohne Ramdisk wie P10): SETZEN via eRecovery-Wipe-Trick (Schritt 13) -> jeder Boot mit Magisk; LOESCHEN via Vol-Up+Vol-Down+Power OHNE /dload (Schritt 14).')"
   printf '%s\n' "$(L '- /dload must NOT be on storage, else EMUI updater instead of recovery.' '- /dload darf NICHT vorhanden sein, sonst EMUI-Updater.')"
+  local bm=""
+  if command -v python3 >/dev/null 2>&1 && [ -f "$(state_file)" ]; then
+    bm="$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('last_root',{}).get('boot_mode',''))" "$(state_file)" 2>/dev/null)"
+  fi
+  [ -n "$bm" ] && printf 'Persisted boot mode: %s\n' "$bm"
+  printf '\n%s' "$(L '[1] Guide: SET persistent boot  [2] Guide: CLEAR it  [3] Verify (normal reboot, then check)  [Enter] back: ' '[1] SET anleiten  [2] CLEAR anleiten  [3] Verifizieren (normal rebooten, dann check)  [Enter] zurueck: ')"; iread -r k
+  case "$k" in
+    1) printf '%s\n' "$(L '1. Boot once into Magisk (Vol-Up + Power). 2. Yellow-text screen -> eRecovery (Vol-Up 3s). 3. Confirm wipe + reboot. 4. Every power-on now boots Magisk (wipe NOT executed).' '1. Einmal ins Magisk-System (Vol-Up + Power). 2. Gelb-Text -> eRecovery (Vol-Up 3s). 3. Wipe bestaetigen + Reboot. 4. Jeder Boot jetzt Magisk (Wipe NICHT ausgefuehrt).')"
+       printf '%s' "$(L "Type 'SET' then 'YES' (changes every boot, reversible): " "'SET' dann 'YES' (aendert jeden Boot, reversibel): ")"; iread -r a
+       [ "$a" = "SET" ] || { pause_tt; return; }
+       printf '%s' "Type 'YES': "; iread -r b
+       if [ "$b" = "YES" ] || [ "$b" = "JA" ]; then save_root_state "ROOTED" "persistent-pending"; printf '%s\n' "$(L 'Do the steps on the phone now, then use [3].' 'Jetzt Schritte am Handy, dann [3].')"; fi ;;
+    2) printf '%s\n' "$(L '1. Remove /dload! 2. Power off. 3. Vol-Up+Vol-Down+Power until logo. 4. EMUI upgrade-fail screen -> reboot -> clean.' '1. /dload entfernen! 2. Ausschalten. 3. Vol-Up+Vol-Down+Power bis Logo. 4. EMUI-Fehler -> Reboot -> clean.')"
+       printf '%s' "$(L 'Done on phone? [Y/n]: ' 'Am Handy erledigt? [J/n]: ')"; iread -r c
+       case "$c" in ""|y|Y|j|J) save_root_state "UNKNOWN" "cheat" ;; esac ;;
+    3) printf '%s\n' "$(L 'Reboot NORMALLY now (no keys), wait for Android, then Enter here.' 'Jetzt NORMAL rebooten (keine Tasten), Android abwarten, dann Enter.')"
+       pause_tt; detect_mode
+       if [ "$MODE" != "android" ]; then printf '%s\n' "$(L 'No Android yet.' 'Noch kein Android.')"; pause_tt; return; fi
+       if adb_run shell su -c id 2>&1 | grep -q 'uid=0'; then
+         save_root_state "ROOTED" "persistent"
+         printf '%s\n' "$(L 'PERSISTENT ROOT CONFIRMED (uid=0, no cheat).' 'PERSISTENTER ROOT BESTAETIGT (uid=0, kein Cheat).')"
+       else
+         save_root_state "NOT_ROOTED" "cheat"
+         printf '%s\n' "$(L 'Not persistent: normal boot unrooted.' 'Nicht persistent: normaler Boot ungerootet.')"
+       fi ;;
+  esac
   pause_tt
 }
 main_menu() {
@@ -1187,19 +1267,19 @@ main_menu() {
       "Step 5 - Magisk" "Step 6 - Backup" "Step 7 - Flash" "Step 8+9 - Verify" \
       "$(L 'Recovery export (custom ROMs)' 'Recovery-Export (Custom-ROMs)')" "$(L 'Install ROM / GSI (guided)' 'ROM / GSI installieren (gefuehrt)')" \
       "$(L 'Root methods (Magisk preferred)' 'Root-Methoden (Magisk bevorzugt)')" "$(L 'TWRP path (guide+flash)' 'TWRP-Pfad (Anleitung+Flash)')" \
-      "$(L 'Compatibility registry' 'Kompatibilitaets-Registry')" \
+      "$(L 'Compatibility registry' 'Kompatibilitaets-Registry')" "$(L 'Persist root fixes (service.d)' 'Root-Fixes persistieren (service.d)')" \
       "$(L 'Unlock guide (PotatoNV)' 'Unlock-Anleitung (PotatoNV)')" "$(L 'Kernels + fixes (wiki)' 'Kernel + Fixes (Wiki)')" \
       "Restore / Unroot" "$(L 'Boot tricks (Huawei)' 'Boot-Tricks (Huawei)')" "$(L 'Tools + diagnostic ZIP' 'Tools + Diagnose-ZIP')" \
       "$(L 'Exit' 'Beenden')"
     c="$REPLY_MENU"
     case "$c" in
-      -1|22) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
+      -1|23) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
       0) status_screen ;; 1) wizard ;; 2) screen_goals ;; 3) screen_resume ;;
       4) screen_detect ;; 5) screen_analyze ;; 6) screen_firmware ;; 7) screen_extract ;;
       8) screen_patch ;; 9) screen_backup ;; 10) screen_flash ;; 11) screen_verify ;;
       12) screen_export ;; 13) screen_flashsystem ;; 14) screen_rootmethods ;; 15) screen_twrp ;;
-      16) screen_compat ;; 17) screen_unlock ;; 18) screen_kernelfixes ;;
-      19) do_restore "" "" || true; pause_tt ;; 20) screen_bootkeys ;; 21) screen_tools ;;
+      16) screen_compat ;; 17) screen_persist ;; 18) screen_unlock ;; 19) screen_kernelfixes ;;
+      20) do_restore "" "" || true; pause_tt ;; 21) screen_bootkeys ;; 22) screen_tools ;;
     esac
   done
 }
@@ -1210,7 +1290,7 @@ wizard() {
 # ---------------------------------------------------------------- CLI
 show_help() {
   printf 'Huawei P10 Root Manager v%s\n' "$TTVERSION"
-  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
+  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
   printf '%s\n' "$(L 'No args: TUI. Download/flash/restore need --yes.' 'Ohne Args: TUI. Download/Flash/Restore brauchen --yes.')"
 }
 CMD=""; JSON=""; YES=""; IMAGE=""; FWFILE=""; ANON=""; NOREBOOT=""; RUNMODE="safe"; GOAL=""
@@ -1224,7 +1304,7 @@ for a in "$@"; do
     continue
   fi
   case "$a" in
-    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
+    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
     --json) JSON=1 ;; --yes) YES=1 ;; --anonymize) ANON=1 ;; --no-reboot) NOREBOOT=1 ;;
     --mode|--goal|--image|--firmware-file) WANTVAL="$a" ;;
   esac
@@ -1318,6 +1398,9 @@ case "$CMD" in
     rc=$?
     [ -n "$JSON" ] && printf '{"rc":%s}\n' "$rc"
     exit "$rc" ;;
+  persist)
+    if [ -z "$YES" ]; then printf '%s\n' "$(L 'Needs live root + --yes.' 'Braucht live Root + --yes.')"; exit 4; fi
+    install_persist_fixes || exit 1 ;;
   validate)
     rep="$(validate_checked)"; rc=$?
     if [ -n "$JSON" ]; then printf '{"ok":%s}\n' "$([ "$rc" = 0 ] && printf true || printf false)"; else printf '%s\n' "$rep"; fi
