@@ -1,41 +1,47 @@
-# TROUBLESHOOTING
+# Troubleshooting — trebleManager
 
-## Download (Stock-Firmware)
+## Download (stock firmware)
 
-- `URL abgelehnt`: nur `http(s)` + Archivtyp (`zip/7z/tar/gz/app/rar`). `ftp/file/exe` werden blockiert.
-- BITS hängt: Tool fällt automatisch auf WebClient mit Balken zurück. Freien Platz prüfen (2-4 GB), Ziel `data/firmware/` (Cache, kein Re-Download).
-- `WARN < 100 MB / keine UPDATE.APP im ZIP`: falsches Paket (Delta/Region). Andere Full-Firmware mit passender CUST wählen, danach TUI Step 4.
-- Ehrlichkeit: 2026 gibt es keinen garantierten offiziellen Direktlink. HiSuite (offiziell) für Re-Install nutzen oder Community-Archiv-Link selbst wählen + Hash prüfen. Ohne `--yes` lädt CLI nichts.
+- `URL rejected`: only `http(s)` + archive type (`zip/7z/tar/gz/app/rar`). `ftp/file/exe` are blocked.
+- BITS stuck: the tool automatically falls back to WebClient with progress bar. Check free space (2–4 GB), target `data/firmware/` (cache, no re-download).
+- `WARN < 100 MB / no UPDATE.APP in ZIP`: wrong package (delta/region). Pick another full firmware with matching CUST, then TUI step 4.
+- Honesty note: in 2026 there is no guaranteed official direct link. Use HiSuite (official) for re-install or pick a community-archive link yourself + verify hash. Without `--yes` the CLI downloads nothing.
 
-## ADB/Fastboot
+## ADB / fastboot
 
-- `ADB not found`: `p10-magisk-check-FIXED.bat` / PS1 neben `adb.exe` legen oder PATH setzen (`C:\Program Files (x86)\Minimal ADB and Fastboot`).
-- `No device detected`: Kabel/Port wechseln, Treiber (HiSuite/Kirin) pruefen, `adb kill-server/start-server` (TUI Tools).
-- `ADB unauthorized`: Dialog am Geraet bestaetigen ("immer zulassen"), Kabel neu stecken.
-- `Fastboot not found / waiting for device`: manuell in Fastboot (Power+Vol-Down oder `adb reboot bootloader`), 30s-Wait abwarten.
-- `FAILED (remote: Command not allowed)`: Huawei-normal. Nicht als locked werten. Weiter mit by-name + `ro.boot.*` + `/proc/cmdline`.
-- Altes Minimal-Fastboot `unknown command 2>&1`: Umleitung falsch escaped. FIXED-BAT / PS1 nutzen (dort korrekt `>> log 2>&1`, nie als Fastboot-Arg).
+- `ADB not found`: put `p10-magisk-check-FIXED.bat` / PS1 next to `adb.exe` or set PATH (`C:\Program Files (x86)\Minimal ADB and Fastboot`).
+- `No device detected`: change cable/port, check drivers (HiSuite/Kirin), `adb kill-server/start-server` (TUI tools).
+- `ADB unauthorized`: confirm the on-device dialog ("always allow"), replug cable.
+- `Fastboot not found / waiting for device`: boot to fastboot manually (Power+Vol-Down or `adb reboot bootloader`), wait the 30s window.
+- `FAILED (remote: Command not allowed)`: normal on Huawei. Not proof of lock. Continue with by-name + `ro.boot.*` + `/proc/cmdline`.
+- Old Minimal fastboot `unknown command 2>&1`: wrongly escaped redirection. Use FIXED BAT / PS1 (correct `>> log 2>&1`, never as fastboot arg).
 
-## Partitionen / Firmware
+## Partitions / firmware
 
-- `Unsupported partition layout` (kein `recovery_ramdisk`): TUI Step 2 + Tools `getvar` + by-name liefern. Nicht raten, kein `boot`/`recovery`-Ersatz. Diagnose-ZIP erzeugen.
-- `Unsupported model`: Nur VTR-L29/L09, VKY-L29 profiliert. Andere Kirin-Geraete: Profil in `$DeviceProfiles` ergaenzen, nie mit fremdem Profil flashen.
-- `Firmware mismatch` (FAIL): Modell-Familie (VTR vs VKY) strikt, Submodell/Region (L29 vs L09, C432 vs C185) und EMUI (9.1 vs 9.0/8) pruefen. Andere Full-Firmware mit passender CUST waehlen.
-- `UPDATE.APP` unklar: Datei nach `data/firmware/` legen, CLI `extract` / TUI Step 4. Extractor in `data/tools/` (huawei-update-extractor/splitupdate) oder manuell. Exakten Namen (`RECOVERY_RAMDIS.img` vs `RECOVERY_RAMDISK.img`) behalten.
-- `Cannot safely flash image`: Groesse/Hash/Header pruefen (`extract` zeigt Details). Nie umbenannte/fremde Images erzwingen.
+- `Unsupported partition layout` (no `recovery_ramdisk`): run TUI step 2 + tools `getvar` + by-name. Never guess, no `boot`/`recovery` substitute. Create a diagnostic ZIP.
+- `Unsupported model`: only VTR-L29/L09, VKY-L29 are profiled. Other Kirin devices: add a profile in `$DeviceProfiles`, never flash with a foreign profile.
+- `Firmware mismatch` (FAIL): model family (VTR vs VKY) is strict; check submodel/region (L29 vs L09, C432 vs C185) and EMUI (9.1 vs 9.0/8). Pick another full firmware with matching CUST.
+- `UPDATE.APP` unclear: place file in `data/firmware/`, CLI `extract` / TUI step 4. Extractors go in `data/tools/` (huawei-update-extractor/splitupdate) or extract manually. Keep the exact name (`RECOVERY_RAMDIS.img` vs `RECOVERY_RAMDISK.img`).
+- `Cannot safely flash image`: check size/hash/header (`extract` shows details). Never force foreign/renamed images.
 
-## Magisk / Root
+## Magisk / root
 
-- `Patch failed`: Nur echte on-device-Patches (`Magisk -> Select and Patch a File` mit exakt `RECOVERY_RAMDIS(K).img`). Hash muss sich von Stock unterscheiden. `magisk_patched-*.img` via `adb pull /sdcard/Download/` holen.
-- `INCONCLUSIVE` (su da, kein uid=0): Magisk-App oeffnen, Root-Freigabe erteilen, Reboot mit Boot-Cheat wiederholen, Erstboot abwarten.
-- `NOT_ROOTED` nach Flash: Boot-Cheat (`Vol-Up + Power bis Logo`) vergessen? Stock gebootet statt Magisk-Recovery. Wiederholen. Magisk-Paket (`pm list packages`) pruefen.
-- `Boot verification failed`: In Fastboot bleiben, TUI Restore / CLI `restore`, Original-Hash wird geprueft, dann `fastboot flash recovery_ramdisk original.img`, `fastboot reboot`.
+- `Patch failed`: only real on-device patches (`Magisk → Select and Patch a File` with exactly `RECOVERY_RAMDIS(K).img`). Hash must differ from stock. Pull via `adb pull /sdcard/Download/`.
+- `INCONCLUSIVE` (su present, no uid=0): open the Magisk app, grant root, repeat reboot with boot cheat, wait out first boot.
+- `NOT_ROOTED` after flash: boot cheat forgotten (`Vol-Up + Power until logo`)? Booted stock instead of Magisk recovery. Repeat. Check Magisk package (`pm list packages`).
+- `Boot verification failed`: stay in fastboot, TUI Restore / CLI `restore`, original hash is verified, then `fastboot flash recovery_ramdisk original.img`, `fastboot reboot`.
 
-## GSI-Erhalt
+## Recovery export (custom ROMs)
 
-- Tool fasst `system`/`vendor`/`userdata` nie an. Bei versehentlichem Wipe nur via Stock-Recovery (nicht TWRP Factory-Reset laut Wiki, bricht userdata).
+- `No boot.img/recovery.img/payload.bin in ZIP`: probably a GSI system package — it has no recovery by design. Use the stock UPDATE.APP path.
+- `payload.bin` without output: place `payload-dumper-go` in `data/tools/` or extract `boot.img` manually, then re-run `export`.
+- Exported images are patch candidates, not flash-ready: validate target partition from the device profile, patch in Magisk, pass the safety gate. Rights are granted in the Magisk app (verified via `uid=0`).
 
-## Logs / Diagnose
+## GSI preservation
 
-- Jeder Run schreibt `logs/toolkit-<stamp>.log`. TUI Logs-Vorschau (200 Zeilen) + Ordner oeffnen.
-- Volldiagnose: CLI `diagnostic [--anonymize] [--json]` oder TUI Tools. ZIP in `logs/` (10 Dateien). Seriennummer vor Upload schwaerzen/anonymisieren.
+- The tool never touches `system`/`vendor`/`userdata`. On accidental wipe use stock recovery only (per wiki, TWRP factory reset breaks userdata).
+
+## Logs / diagnostics
+
+- Every run writes `logs/toolkit-<stamp>.log`. TUI log preview (200 lines) + open folder.
+- Full diagnosis: CLI `diagnostic [--anonymize] [--json]` or TUI tools. ZIP in `logs/` (10 files). Redact/anonymize serials before upload.

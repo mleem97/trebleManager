@@ -1,40 +1,46 @@
-# ARCHITECTURE
+# Architecture — trebleManager
 
-TrebleToolkit v2.0.0 ist bewusst als **eine autarke PowerShell-Datei** (`scripts/Treble-Toolkit.ps1`, PS 5.1 + 7)
-umgesetzt, damit sie per `irm`/`Run-FromGitHub.bat` direkt von GitHub lauffaehig ist
-(User-Vorgabe: 100% TUI per URL). Die vom Auftrag bevorzugte Rust/Tauri-Trennung ist
-als Modul-Regionen in der Datei abgebildet und laesst sich 1:1 nach Rust portieren.
+Version: [`VERSION`](VERSION) (single source of truth).
 
-## Modul-Regionen (-> Rust-core-Mapping)
+The toolkit is deliberately a **single self-contained PowerShell file**
+(`scripts/Treble-Toolkit.ps1`, PS 5.1 + 7) so it runs straight from GitHub via
+`irm`/direct download with zero install (see [INSTRUCTIONS.md](INSTRUCTIONS.md)).
+The module regions below map 1:1 to a future native port (e.g. Rust `core/*`),
+and to the planned Linux/macOS bash port (after the Windows release).
 
-- `core/device`: `$DeviceProfiles` (VTR-L29/L09, VKY-L29), `Update-TTMode` (android/fastboot/none, kein unnoetiger Reboot).
-- `core/adb`: `Find-TTTools`, `Invoke-TTAdb`, `Get-TTProp`, Prop-Liste inkl. `ro.product.*`, `ro.boot.*`, `ro.treble.enabled`.
-- `core/fastboot`: `Invoke-TTFastboot`, `ConvertFrom-FastbootGetvar` (tolerant gegen `Command not allowed`), Var-Liste aus Spec.
+## Module regions (-> `core/*` mapping)
+
+- `core/device`: `$DeviceProfiles` (VTR-L29/L09, VKY-L29), `Update-TTMode` (android/fastboot/none, no useless reboots).
+- `core/adb`: `Find-TTTools`, `Invoke-TTAdb`, `Get-TTProp`, prop set incl. `ro.product.*`, `ro.boot.*`, `ro.treble.enabled`.
+- `core/fastboot`: `Invoke-TTFastboot`, `ConvertFrom-FastbootGetvar` (tolerant of `Command not allowed`), getvar set from spec.
 - `core/partitions`: `ConvertFrom-ByNameListing`, `Invoke-TTAndroidAnalysis` + `Invoke-TTFastbootAnalysis`.
-- `core/firmware`: `Get-TTFirmwareBaseline` (Stock direkt, GSI assistiert), `Test-FirmwareCompatibility` (Modell-Familie strikt, Submodell/Region/EMUI als WARN, Beispiel-Firmware nur Advisory), `Invoke-TTUpdateAppAnalysis`, `Find-TTRecoveryImage` (exakte Namen, kein Umbenennen).
-- `core/magisk`: `$MagiskCompatTable` (nicht blind latest), `Find-TTMagiskApk`, `Get-TTMagiskInfo` (Version+SHA256), `Prepare-TTMagiskPatch` (staging + Anleitung, Erkennung via adb pull/Filepicker, Hash-Ungleichheit Pflicht).
-- `core/backup`: `New-TTBackup` (`backups/<MODEL>/recovery_ramdisk/<stamp>/` + metadata.json/sha256/sha512/partition-probe; dd-Versuch ehrlich dokumentiert, nie vorgetaeuscht).
-- `core/flashing`: `Test-TTFlashReadiness` (8 Checks), `Invoke-TTSafeFlash` (Befehl aus Profil abgeleitet, WARNING-Dialog, Doppel-Bestaetigung).
-- `core/verification`: `Invoke-TTRootVerification` (wait-for-device, `which su`, `su -c id` -> nur `uid=0` = ROOTED, Boot allein != Root), `Invoke-TTRestoreFlow`, `New-TTDiagnostic` (ZIP mit 10 Dateien, `--anonymize`).
-- `ui`: TUI (`Show-TTMenu` Pfeiltasten, `Show-TTHeader` mit Modus/Profil/OS, Screens Step 1-9, Status, Bootkeys, Tools, Logs, Wizard).
-- `cli`: Dispatch `detect|analyze|firmware|extract|patch|backup|flash|verify|restore|diagnostic|wizard|help` + `--json/--yes/--image/--firmware-file/--anonymize/--no-reboot`.
+- `core/firmware`: `Get-TTFirmwareBaseline` (stock direct, GSI assisted), `Test-FirmwareCompatibility` (model family strict, submodel/region/EMUI as WARN, example firmware advisory only), `Invoke-TTUpdateAppAnalysis`, `Find-TTRecoveryImage` (exact names, never renamed).
+- `core/download`: `Test-FirmwareUrl`, `Invoke-FirmwareDownload` (BITS resume + WebClient progress), `Test-DownloadedFirmware` (size/hash/UPDATE.APP check).
+- `core/romexport`: `Test-BootImageMagic`, `Get-RomImageEntries`, `Export-RecoveryFromRom` (direct `.img`, ROM `.zip`, `payload.bin` via payload-dumper-go; GSI refused honestly) → `data/recovery/<rom>/` + metadata.
+- `core/magisk`: `$MagiskCompatTable` (never blind latest), `Find-TTMagiskApk`, `Get-TTMagiskInfo` (version+SHA-256), `Prepare-TTMagiskPatch` (staging + instructions, detection via adb pull/file picker, hash inequality required).
+- `core/backup`: `New-TTBackup` (`backups/<MODEL>/recovery_ramdisk/<stamp>/` + metadata.json/sha256/sha512/partition-probe; dd attempt documented honestly, never faked).
+- `core/flashing`: `Test-TTFlashReadiness` (9 checks), `Invoke-TTSafeFlash` (command derived from profile, WARNING dialog, double confirmation).
+- `core/verification`: `Invoke-TTRootVerification` (wait-for-device, `which su`, `su -c id` → only `uid=0` = ROOTED, boot alone ≠ root), `Invoke-TTRestoreFlow`, `New-TTDiagnostic` (ZIP with 10 files, `--anonymize`).
+- `core/i18n`: `$TTLang` (system UI culture) + `L "en" "de"` helper. Repo and default UI are English; German UI if the system language is German.
+- `ui`: TUI (`Show-TTMenu` arrow keys, `Show-TTHeader` with mode/profile/OS, step screens, status, bootkeys, tools, logs, wizard).
+- `cli`: dispatcher `detect|analyze|firmware|download|extract|export|patch|backup|flash|verify|restore|diagnostic|wizard|help` + `--json/--yes/--image/--firmware-file/--anonymize/--no-reboot`.
 
-## OS-Unabhaengigkeit
+## OS independence
 
-`Get-OSClassification` klassifiziert aus getprop (jedes OS): TrebleDroid-GSI, Lineage-GSI,
-Pixel/Superior/AOSP-GSI, Stock-EMUI-8/9/9.1, Custom-ROM, Unknown. GSI versteckt Huawei-Basis
--> Baseline assistiert (User-Angabe + fastboot product + CUST). Flash-Profil bleibt OS-unabhaengig
-(`recovery_ramdisk`), GSI bleibt erhalten.
+`Get-OSClassification` classifies from getprop (any OS): TrebleDroid GSI, Lineage GSI,
+Pixel/Superior/AOSP GSI, Stock EMUI 8/9/9.1, custom ROM, unknown. GSI hides the Huawei
+base → baseline assisted (user input + fastboot product + CUST). The flash profile stays
+OS-independent (`recovery_ramdisk`); the GSI is preserved.
 
-## Datenfluesse
+## Data flow
 
-1. Detect -> Analyze (Props + by-name + getvar, OS-Klasse) -> Firmware (Baseline + Compat).
-2. Extract (UPDATE.APP + Image-Validierung: Size/Hash/Header) -> Patch (echt, on-device).
-3. Backup (Pflicht) -> Safety-Gate -> Confirm -> Flash -> Reboot (Huawei-Bootkeys) -> Verify (uid=0).
-4. Bei FAIL/Bootloop: Diagnose-ZIP -> Restore (Hash+Partition+Confirm).
+1. Detect → Analyze (props + by-name + getvar, OS class) → Firmware (baseline + compat).
+2. Download/Extract (UPDATE.APP + image validation: size/hash/header) → Export (custom ROMs) → Patch (real, on-device).
+3. Backup (mandatory) → safety gate → confirm → flash → reboot (Huawei boot keys) → verify (uid=0).
+4. On FAIL/bootloop: diagnostic ZIP → restore (hash+partition+confirm).
 
-## Warum kein Rust-Build hier
+## Why no native build here
 
-User-Endanforderung ueberschreibt Rust-Wunsch: sofortiger URL-Run ohne Build.
-Rust-Port: jede PS-Region entspricht einem `core/*`-Modul, Parser sind pure Functions mit Unit-Tests
-in `tests/Test-Parsers.ps1` (simulierte Ausgaben nur dort).
+Requirement is instant URL-run without a build toolchain. The future Rust port maps each
+PS region to a `core/*` module; parsers are pure functions with unit tests in
+`tests/Test-Parsers.ps1` (simulated outputs only there).

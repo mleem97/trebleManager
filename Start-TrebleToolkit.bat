@@ -3,23 +3,23 @@ setlocal EnableExtensions
 chcp 65001 >nul 2>&1
 title Huawei P10 Root Manager - Launcher
 
-REM Smart-Launcher: findet pwsh/powershell, fordert bei Bedarf Admin an, startet TUI.
+REM Smart launcher: finds pwsh/powershell, requests admin if needed, starts the TUI.
 set "SCRIPT=%~dp0scripts\Treble-Toolkit.ps1"
 if not exist "%SCRIPT%" (
-  echo FEHLER: %SCRIPT% nicht gefunden.
-  echo Entpackten Ordner komplett lassen: Start-*.bat + scripts\ + logs\ + data\ + backups\
+  echo ERROR: %SCRIPT% not found.
+  echo Keep the extracted folder complete: Start-*.bat + scripts\ + logs\ + data\ + backups\
   pause
   exit /b 1
 )
 if not exist "%~dp0logs" mkdir "%~dp0logs" >nul 2>&1
 
-REM Admin-Check: net session geht nur als Admin
+REM Admin check: net session only succeeds as admin
 net session >nul 2>&1
 if errorlevel 1 (
-  echo Kein Admin. Fastboot/USB-Treiber brauchen oft Admin.
-  echo [J]etzt mit Admin neu starten (UAC) oder [N]ormal ohne Admin fortfahren?
-  set /p ELEV="Auswahl J/N: "
-  if /i "%ELEV%"=="J" (
+  echo No admin. Fastboot/USB drivers often need admin.
+  echo Restart with admin now (UAC) [Y] or continue without admin [N]?
+  set /p ELEV="Choice Y/N: "
+  if /i "%ELEV%"=="Y" (
     powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs" >nul 2>&1
     exit /b 0
   )
@@ -32,10 +32,10 @@ if not defined PSBIN (
 )
 if not defined PSBIN set "PSBIN=powershell.exe"
 
-echo Starte: %PSBIN% -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%"
+echo Starting: %PSBIN% -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%"
 "%PSBIN%" -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" %*
 set "EC=%ERRORLEVEL%"
 echo.
-echo Exit-Code: %EC% - Log liegt in logs\
+echo Exit code: %EC% - log is in logs\
 if not "%EC%"=="0" pause
 exit /b %EC%

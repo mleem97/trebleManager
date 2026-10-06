@@ -40,7 +40,7 @@ function Import-TTFunction {
   $block = $Src.Substring($start, ($i - $start) + 1)
   try { Invoke-Expression $block } catch { Write-Host ("Ladefehler " + $Name + ": " + $_.Exception.Message) -ForegroundColor Red; $script:Fail++ }
 }
-foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl")) {
+foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic")) {
   Import-TTFunction $fn
 }
 
@@ -123,6 +123,22 @@ $u4 = Test-FirmwareUrl "https://example.com/fw.exe"
 Assert-True "url exe abgelehnt" (-not $u4.Ok)
 $u5 = Test-FirmwareUrl ""
 Assert-True "url leer abgelehnt" (-not $u5.Ok)
+
+# ---- 11. Boot image magic (echt, kein Mock) ----
+$tmpImg = Join-Path ([System.IO.Path]::GetTempPath()) ("tt-boot-" + (Get-Date -Format "HHmmss") + ".img")
+$fs = [System.IO.File]::Create($tmpImg)
+$magic = [System.Text.Encoding]::ASCII.GetBytes("ANDROID!")
+$fs.Write($magic, 0, $magic.Length)
+$fs.WriteByte(3)
+$pad = New-Object byte[] 100
+$fs.Write($pad, 0, $pad.Length)
+$fs.Close()
+Assert-Equal "boot magic version" 3 (Test-BootImageMagic $tmpImg)
+$tmpTxt = $tmpImg + ".txt"
+"no android here" | Out-File $tmpTxt -Encoding ascii
+Assert-Equal "kein magic abgelehnt" -1 (Test-BootImageMagic $tmpTxt)
+Remove-Item $tmpImg -Force -ErrorAction SilentlyContinue
+Remove-Item $tmpTxt -Force -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host ("Ergebnis: " + $Pass + " PASS, " + $Fail + " FAIL") -ForegroundColor $(if ($Fail -eq 0) { "Green" } else { "Red" })

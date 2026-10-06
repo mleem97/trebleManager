@@ -5,31 +5,31 @@ title Huawei P10 - Prerequisite Check (fixed)
 
 REM ============================================================
 REM  Huawei P10 - ADB / Fastboot / Magisk Prerequisite Check
-REM  FIXED VERSION - erklaert eure 2 Fehler:
+REM  FIXED VERSION - fixes 2 bugs of the first draft:
 REM
-REM  FEHLER 1: 2^>^&1 als Befehl geschrieben
-REM   Ihr hattet: fastboot getvar product 2^>^&1
-REM   Das ^ maskiert die Umleitung, fastboot bekommt
-REM   dadurch literal "2>&1" als Argument ->
+REM  BUG 1: 2^>^&1 written as command
+REM   Was: fastboot getvar product 2^>^&1
+REM   The ^ escapes the redirection, so fastboot receives
+REM   literal "2>&1" as argument ->
 REM   "fastboot: usage: unknown command 2>&1"
-REM   RICHTIG in .bat: >> "%LOG%" 2>&1  (ohne ^ beim echten Aufruf)
+REM   CORRECT in .bat: >> "%LOG%" 2>&1  (no ^ on real calls)
 REM
-REM  FEHLER 2: kein Auto-Modus
-REM   Skript ging immer von Android aus, auch wenn das
-REM   Geraet schon in Fastboot war (6PQ0217B08003446 fastboot)
+REM  BUG 2: no auto mode
+REM   Script always assumed Android, even when the
+REM   device was already in fastboot (6PQ0217B08003446 fastboot)
 REM   -> "error: no devices/emulators found"
-REM   Diese Version erkennt automatisch Android vs Fastboot.
+REM   This version auto-detects Android vs fastboot.
 REM ============================================================
 
 set "ADB=adb.exe"
 set "FASTBOOT=fastboot.exe"
 set "LOG=%USERPROFILE%\Desktop\Huawei-P10-Magisk-Check.txt"
 
-REM Log starten (ueberschreiben)
+REM Start log (overwrite)
 > "%LOG%" echo ============================================================
 >>"%LOG%" echo Huawei P10 - ADB / Fastboot / Magisk Prerequisite Check (FIXED)
 >>"%LOG%" echo Started: %DATE% %TIME%
->>"%LOG%" echo Serial Beispiel: 6PQ0217B08003446
+>>"%LOG%" echo Serial example: 6PQ0217B08003446
 >>"%LOG%" echo ============================================================
 >>"%LOG%" echo.
 
@@ -39,12 +39,12 @@ echo ============================================================
 echo Log: %LOG%
 echo.
 
-REM --- Tools vorhanden? ---
+REM --- Tools present? ---
 where adb.exe >nul 2>&1
 if errorlevel 1 (
   if not exist "%~dp0adb.exe" (
-    echo FEHLER: adb.exe nicht gefunden. .bat neben adb.exe legen oder PATH pruefen.
-    >>"%LOG%" echo FEHLER: adb.exe nicht gefunden.
+    echo ERROR: adb.exe not found. Put .bat next to adb.exe or check PATH.
+    >>"%LOG%" echo ERROR: adb.exe not found.
     pause
     exit /b 1
   ) else (
@@ -53,9 +53,9 @@ if errorlevel 1 (
   )
 )
 
-REM --- Modus erkennen ---
-echo [1] Modus erkennen ...
->>"%LOG%" echo [1] Modus erkennen ...
+REM --- Detect mode ---
+echo [1] Detecting mode ...
+>>"%LOG%" echo [1] Detecting mode ...
 
 set "ADB_DEV="
 for /f "skip=1 tokens=1,2" %%A in ('"%ADB%" devices') do (
@@ -63,8 +63,8 @@ for /f "skip=1 tokens=1,2" %%A in ('"%ADB%" devices') do (
 )
 
 if defined ADB_DEV (
-  echo Android gefunden: !ADB_DEV!
-  >>"%LOG%" echo Android gefunden: !ADB_DEV!
+  echo Android found: !ADB_DEV!
+  >>"%LOG%" echo Android found: !ADB_DEV!
   goto :ANDROID
 )
 
@@ -74,16 +74,16 @@ for /f "tokens=1,2" %%A in ('"%FASTBOOT%" devices') do (
 )
 
 if defined FB_DEV (
-  echo Fastboot gefunden: !FB_DEV! - ADB wird uebersprungen.
-  >>"%LOG%" echo Fastboot gefunden: !FB_DEV! - ADB wird uebersprungen.
+  echo Fastboot found: !FB_DEV! - ADB skipped.
+  >>"%LOG%" echo Fastboot found: !FB_DEV! - ADB skipped.
   goto :FASTBOOT
 )
 
 echo.
-echo FEHLER: Weder ADB noch Fastboot gefunden.
-echo - USB-Debugging an? - Autorisierung am Handy bestaetigt?
-echo - Oder manuell in Fastboot booten (Power+Vol-Down).
->>"%LOG%" echo FEHLER: kein Geraet gefunden.
+echo ERROR: neither ADB nor fastboot found.
+echo - USB debugging on? - Authorization confirmed on phone?
+echo - Or boot manually to fastboot (Power+Vol-Down).
+>>"%LOG%" echo ERROR: no device found.
 pause
 exit /b 1
 
@@ -104,7 +104,7 @@ call :PROP ro.build.display.id
 
 echo.
 echo ============================================================
-echo [3] Boot properties (OS-unabhaengig, Stock wie GSI/Custom)
+echo [3] Boot properties (OS-independent, stock or GSI/custom)
 echo ============================================================
 >>"%LOG%" echo.
 >>"%LOG%" echo ============================================================
@@ -122,6 +122,7 @@ echo ============================================================
 echo [4] Kernel cmdline
 echo ============================================================
 >>"%LOG%" echo.
+>>"%LOG%" echo ============================================================
 >>"%LOG%" echo [4] Kernel cmdline
 >>"%LOG%" echo ============================================================
 "%ADB%" shell cat /proc/cmdline >>"%LOG%" 2>&1
@@ -129,22 +130,23 @@ echo ============================================================
 
 echo.
 echo ============================================================
-echo [5] Partitionen by-name
+echo [5] Partitions by-name
 echo ============================================================
 >>"%LOG%" echo.
->>"%LOG%" echo [5] Partitionen by-name
+>>"%LOG%" echo ============================================================
+>>"%LOG%" echo [5] Partitions by-name
 >>"%LOG%" echo ============================================================
 "%ADB%" shell ls -l /dev/block/by-name/ >>"%LOG%" 2>&1
 "%ADB%" shell ls -l /dev/block/by-name/ | findstr /i "boot recovery ramdisk system vendor vbmeta"
 
 echo.
 echo ============================================================
-echo Wechsle nach Fastboot ...
+echo Switching to fastboot ...
 echo ============================================================
 >>"%LOG%" echo.
->>"%LOG%" echo Wechsle nach Fastboot ...
+>>"%LOG%" echo Switching to fastboot ...
 "%ADB%" reboot bootloader >>"%LOG%" 2>&1
-echo Warte max. 30s auf Fastboot ...
+echo Waiting max. 30s for fastboot ...
 set /a CNT=0
 :WAITFB
 timeout /t 1 /nobreak >nul
@@ -155,8 +157,8 @@ for /f "tokens=1,2" %%A in ('"%FASTBOOT%" devices') do (
 if defined FB_DEV goto :FASTBOOT
 set /a CNT+=1
 if !CNT! GEQ 30 (
-  echo FEHLER: Kein Fastboot nach 30s. Manuell in Fastboot booten.
-  >>"%LOG%" echo FEHLER: Kein Fastboot nach 30s.
+  echo ERROR: no fastboot after 30s. Boot to fastboot manually.
+  >>"%LOG%" echo ERROR: no fastboot after 30s.
   pause
   exit /b 1
 )
@@ -172,7 +174,7 @@ echo ============================================================
 >>"%LOG%" echo FASTBOOT - !FB_DEV!
 >>"%LOG%" echo ============================================================
 
-REM WICHTIG: Hier KEIN ^ verwenden. >> LOG 2>&1 ist Umleitung, kein Argument.
+REM IMPORTANT: no ^ here. >> LOG 2>&1 is redirection, not an argument.
 echo [6] product ...
 "%FASTBOOT%" getvar product >>"%LOG%" 2>&1
 type "%LOG%" | findstr /i "product" >nul 2>&1
@@ -180,13 +182,13 @@ type "%LOG%" | findstr /i "product" >nul 2>&1
 echo [7] secure ...
 "%FASTBOOT%" getvar secure >>"%LOG%" 2>&1
 
-echo [8] unlocked - FAILED (remote: Command not allowed) ist bei Huawei NORMAL, kein Lock-Beweis!
+echo [8] unlocked - FAILED (remote: Command not allowed) is NORMAL on Huawei, no proof of lock!
 "%FASTBOOT%" getvar unlocked >>"%LOG%" 2>&1
 
-echo [9] current-slot - P10 hat kein klassisches A/B, leere/FAILED Ausgabe ist ok ...
+echo [9] current-slot - P10 has no classic A/B, empty/FAILED output is fine ...
 "%FASTBOOT%" getvar current-slot >>"%LOG%" 2>&1
 
-echo [10] recovery_ramdisk - ZIELPARTITION fuer Magisk-Weg ...
+echo [10] recovery_ramdisk - TARGET partition for Magisk path ...
 "%FASTBOOT%" getvar partition-type:recovery_ramdisk >>"%LOG%" 2>&1
 "%FASTBOOT%" getvar partition-size:recovery_ramdisk >>"%LOG%" 2>&1
 
@@ -194,11 +196,11 @@ echo [11] boot ...
 "%FASTBOOT%" getvar partition-type:boot >>"%LOG%" 2>&1
 "%FASTBOOT%" getvar partition-size:boot >>"%LOG%" 2>&1
 
-echo [12] recovery - NICHT mit recovery_ramdisk verwechseln ...
+echo [12] recovery - do NOT confuse with recovery_ramdisk ...
 "%FASTBOOT%" getvar partition-type:recovery >>"%LOG%" 2>&1
 "%FASTBOOT%" getvar partition-size:recovery >>"%LOG%" 2>&1
 
-echo [13] system - GSI bleibt erhalten, nur lesen ...
+echo [13] system - GSI stays intact, read-only ...
 "%FASTBOOT%" getvar partition-type:system >>"%LOG%" 2>&1
 "%FASTBOOT%" getvar partition-size:system >>"%LOG%" 2>&1
 
@@ -206,26 +208,26 @@ echo [14] vendor ...
 "%FASTBOOT%" getvar partition-type:vendor >>"%LOG%" 2>&1
 "%FASTBOOT%" getvar partition-size:vendor >>"%LOG%" 2>&1
 
-echo [15] getvar all - viele FAILED sind Huawei-normal ...
+echo [15] getvar all - many FAILED are Huawei-normal ...
 "%FASTBOOT%" getvar all >>"%LOG%" 2>&1
 
 echo.
 echo ============================================================
-echo CHECK COMPLETE - nichts geflasht, nichts geloescht
+echo CHECK COMPLETE - nothing flashed, nothing wiped
 echo ============================================================
 >>"%LOG%" echo.
 >>"%LOG%" echo ============================================================
 >>"%LOG%" echo CHECK COMPLETE - %DATE% %TIME%
->>"%LOG%" echo Es wurde nichts geflasht oder veraendert.
+>>"%LOG%" echo Nothing was flashed or changed.
 >>"%LOG%" echo ============================================================
 echo Log: %LOG%
 echo.
-echo [Enter] = nach Android rebooten, [X] = in Fastboot bleiben
-set /p CHOICE="Auswahl: "
+echo [Enter] = reboot to Android, [X] = stay in fastboot
+set /p CHOICE="Choice: "
 if /i "%CHOICE%"=="X" goto :END
 "%FASTBOOT%" reboot >>"%LOG%" 2>&1
 :END
-echo Fertig. Log auf Desktop hochladen fuer Auswertung.
+echo Done. Upload the desktop log for evaluation.
 pause
 exit /b 0
 
