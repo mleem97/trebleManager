@@ -50,7 +50,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.8.0"
+$TTVersion = "2.9.0"
 
 # Spec error cases (handled explicitly, SEARCHABLE):
 # ADB not found / No device detected / USB debugging authorization required (ADB unauthorized) /
@@ -1722,7 +1722,20 @@ function Show-PreflightBlocked {
   Write-Host (L "Missing global prerequisites:" "Fehlende Grundvoraussetzungen:") -ForegroundColor Red
   foreach ($b in $Pre.Blocks) { Write-Host (" - " + $b) -ForegroundColor Yellow }
   Write-Host ""
-  Write-Host (L "Fix: run Setup-TrebleToolkit.bat (installs tools into user PATH), then restart." "Fix: Setup-TrebleToolkit.bat ausfuehren (installiert Tools in User-PATH), dann Neustart.") -ForegroundColor Cyan
+  Write-Host (L "Fix: run the setup now? It asks for paths or installs into user PATH (scrcpy optional). [Y/n]: " "Fix: Setup jetzt starten? Fragt Pfade ab oder installiert in User-PATH (scrcpy optional). [J/n]: ") -NoNewline -ForegroundColor Cyan
+  $a = Read-Host
+  if ($a -eq "" -or $a -eq "Y" -or $a -eq "y" -or $a -eq "J" -or $a -eq "j") {
+    $setup = Join-Path $TTRoot "scripts\Setup-Windows.ps1"
+    if (Test-Path $setup) {
+      try {
+        $exe = (Get-Process -Id $PID).Path
+      } catch { $exe = "powershell.exe" }
+      & $exe -NoProfile -ExecutionPolicy Bypass -File "$setup"
+    } else {
+      Write-Host (L "No local setup file (remote run): place adb/fastboot on PATH, then restart." "Keine lokale Setup-Datei (Remote-Start): adb/fastboot in PATH legen, dann Neustart.") -ForegroundColor Yellow
+    }
+  }
+  Write-Host ""
   Write-Host (L "Device states right now:" "Geraete-Status gerade:") -ForegroundColor Gray
   Write-Host (" ADB: " + $Pre.States.AdbState + " | Fastboot: " + $Pre.States.FastbootState) -ForegroundColor Gray
   Pause-TT
@@ -2870,8 +2883,16 @@ function Screen-Resume {
 
 function Start-TTTui {
   Invoke-TTSelfElevate
-  $pre = Invoke-Preflight
-  if (-not $pre.Go) { Show-PreflightBlocked $pre; return }
+  # Guided preflight: resolve with the user until prerequisites are met (or abort).
+  for ($try = 0; $try -lt 3; $try++) {
+    $pre = Invoke-Preflight
+    if ($pre.Go) { break }
+    Show-PreflightBlocked $pre
+    $pre = Invoke-Preflight
+    if ($pre.Go) { break }
+    if ($try -ge 2) { return }
+  }
+  if (-not $pre.Go) { return }
   if (-not (Select-TargetDevice $pre.States)) { return }
   Find-TTTools
   Update-TTMode | Out-Null

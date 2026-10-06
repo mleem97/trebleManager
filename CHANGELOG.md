@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v2.9.0
+
+- Guided preflight: missing tools no longer dead-end — `[1]` official install into PATH, `[2]` pick binary + folder scan, `[3]` pick each binary, `[4]` custom folder as PATH (+ symlinks into central tools), scrcpy finale question, `setup` CLI, saved config
+- Zero-file pipe runs fixed (`BASH_SOURCE` fallback, `/dev/tty` reads)
+- Preflight screen offers to run setup directly, then continues on success
+
 ## v2.8.0
 
 - Root persistence: service.d boot scripts (aptouch + speaker, reboot-proof) via menu/CLI `persist` (needs live root once); persisted boot-mode state (cheat/persistent)

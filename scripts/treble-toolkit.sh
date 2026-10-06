@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.8.0"
+TTVERSION="2.9.0"
 # Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
 # still enforced), developer (unlocks dump-* commands).
 RUNMODE_REQ=""
@@ -18,11 +18,21 @@ TTLANG="en"
 case "${LANG:-en}" in de*) TTLANG="de" ;; esac
 
 # ---------------------------------------------------------------- paths/state
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Works from file, pipe (curl|bash) or process substitution: BASH_SOURCE may be
+# unset/empty there, so fall back safely (set -u is active).
+_BSSRC="${BASH_SOURCE[0]:-}"
+if [ -n "$_BSSRC" ] && [ -f "$_BSSRC" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "$_BSSRC")" && pwd)"
+else
+  SCRIPT_DIR="$(pwd)"
+fi
 TOOL_ROOT="$(dirname "$SCRIPT_DIR")"
 if [ "$(basename "$TOOL_ROOT")" = "scripts" ]; then TOOL_ROOT="$(dirname "$TOOL_ROOT")"; fi
 # Remote-run fallback: current directory layout
 if [ ! -d "$TOOL_ROOT/data" ]; then TOOL_ROOT="$(pwd)"; fi
+# Config: repo data/config.json if it looks like a checkout, else user config.
+if [ -d "$TOOL_ROOT/scripts" ]; then CONFIG_FILE="$TOOL_ROOT/data/config.json"
+else CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/trebleManager/config.json"; fi
 LOG_DIR="$TOOL_ROOT/logs"
 DATA_DIR="$TOOL_ROOT/data"
 FIRM_DIR="$DATA_DIR/firmware"
@@ -115,24 +125,183 @@ fb_run() { if [ "$USE_TMO" = 1 ]; then timeout 120 "$FB_BIN" "$@"; else "$FB_BIN
 fb_flash() { if [ "$USE_TMO" = 1 ]; then timeout 600 "$FB_BIN" "$@"; else "$FB_BIN" "$@"; fi; }
 iread() { if [ -c /dev/tty ] 2>/dev/null; then builtin read "$@" </dev/tty; else builtin read "$@"; fi; }
 find_tools() {
-  # Saved setup config first (data/config.json)
-  if [ -f "$TOOL_ROOT/data/config.json" ]; then
-    cfg_adb="$(sed -n 's/.*"adb"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$TOOL_ROOT/data/config.json" | head -1)"
-    cfg_fb="$(sed -n 's/.*"fastboot"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$TOOL_ROOT/data/config.json" | head -1)"
-    [ -n "$cfg_adb" ] && [ -x "$cfg_adb" ] && ADB_BIN="$cfg_adb"
-    [ -n "$cfg_fb" ] && [ -x "$cfg_fb" ] && FB_BIN="$cfg_fb"
-  fi
+  # Saved setup config first (repo data/config.json or user config).
+  for cfg in "$TOOL_ROOT/data/config.json" "$CONFIG_FILE"; do
+    if [ -f "$cfg" ]; then
+      cfg_adb="$(sed -n 's/.*"adb"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$cfg" | head -1)"
+      cfg_fb="$(sed -n 's/.*"fastboot"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$cfg" | head -1)"
+      cfg_scr="$(sed -n 's/.*"scrcpy"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$cfg" | head -1)"
+      [ -n "$cfg_adb" ] && [ -x "$cfg_adb" ] && ADB_BIN="$cfg_adb"
+      [ -n "$cfg_fb" ] && [ -x "$cfg_fb" ] && FB_BIN="$cfg_fb"
+      [ -n "$cfg_scr" ] && [ -x "$cfg_scr" ] && SCRCPY_BIN="$cfg_scr"
+    fi
+  done
   [ -z "$ADB_BIN" ] && ADB_BIN="$(command -v adb 2>/dev/null || true)"
   [ -z "$FB_BIN" ] && FB_BIN="$(command -v fastboot 2>/dev/null || true)"
+  [ -z "${SCRCPY_BIN:-}" ] && SCRCPY_BIN="$(command -v scrcpy 2>/dev/null || true)"
   if [ -n "$ADB_BIN" ]; then log SUCCESS "ADB: $ADB_BIN"; else log ERROR "$(L 'ADB not found (install android-tools / platform-tools).' 'ADB nicht gefunden (android-tools / platform-tools installieren).')"; fi
   if [ -n "$FB_BIN" ]; then log SUCCESS "Fastboot: $FB_BIN"; else log WARNING "$(L 'Fastboot not found.' 'Fastboot nicht gefunden.')"; fi
   # scrcpy is optional (screen mirror during rooting), never required
-  SCRCPY_BIN="$(command -v scrcpy 2>/dev/null || true)"
   if [ -n "$SCRCPY_BIN" ]; then
     log SUCCESS "scrcpy: $SCRCPY_BIN ($("$SCRCPY_BIN" --version 2>&1 | head -1))"
   else
     log INFO "$(L 'scrcpy not found (optional, screen mirror only: https://github.com/Genymobile/scrcpy).' 'scrcpy nicht gefunden (optional, nur Screen-Mirror: https://github.com/Genymobile/scrcpy).')"
   fi
+}
+
+save_config() { # persist resolved tool paths (repo config or user config)
+  local f="$TOOL_ROOT/data/config.json"
+  mkdir -p "$(dirname "$f")" 2>/dev/null || f="$CONFIG_FILE"
+  mkdir -p "$(dirname "$f")" 2>/dev/null || return 0
+  printf '{"adb":"%s","fastboot":"%s","scrcpy":"%s","updated":"%s"}\n' \
+    "${ADB_BIN:-}" "${FB_BIN:-}" "${SCRCPY_BIN:-}" "$(date '+%Y-%m-%d %H:%M:%S')" > "$f" 2>/dev/null || true
+  log SUCCESS "$(L 'Config saved: ' 'Config gespeichert: ')$f"
+}
+
+platform_tools_url() { # [uname_s] -> official portable zip URL (pure, testable)
+  case "$(printf '%s' "${1:-$(uname -s)}" | tr '[:upper:]' '[:lower:]')" in
+    linux*) printf 'https://dl.google.com/android/repository/platform-tools-latest-linux.zip' ;;
+    darwin*) printf 'https://dl.google.com/android/repository/platform-tools-latest-darwin.zip' ;;
+    *) printf 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' ;;
+  esac
+}
+
+install_base_dir() { # central tools folder (repo tools/ if writable, else user share)
+  if [ -w "$TOOL_DIR" ] || mkdir -p "$TOOL_DIR" 2>/dev/null; then printf '%s' "$TOOL_DIR";
+  else printf '%s/.local/share/trebleManager/tools' "$HOME"; fi
+}
+
+download_file() { # url outfile -> 0/1 with simple progress
+  local url="$1" out="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -L --progress-bar -o "$out" "$url" || return 1
+  elif command -v wget >/dev/null 2>&1; then
+    wget --show-progress -O "$out" "$url" || return 1
+  else
+    log ERROR "$(L 'Neither curl nor wget found.' 'Weder curl noch wget gefunden.')"; return 1
+  fi
+}
+
+scan_dir_for_tools() { # dir -> adopts adb/fastboot/scrcpy found there
+  local d="$1" f t
+  for t in adb fastboot scrcpy; do
+    for cand in "$d/$t" "$d/$t.exe"; do
+      if [ -x "$cand" ]; then
+        case "$t" in
+          adb) ADB_BIN="$cand" ;; fastboot) FB_BIN="$cand" ;; scrcpy) SCRCPY_BIN="$cand" ;;
+        esac
+        log SUCCESS "$t: $cand"
+      fi
+    done
+    f="$(find "$d" -maxdepth 2 \( -name "$t" -o -name "$t.exe" \) -type f -executable 2>/dev/null | head -1)"
+    if [ -n "$f" ]; then
+      case "$t" in
+        adb) ADB_BIN="$f" ;; fastboot) FB_BIN="$f" ;; scrcpy) SCRCPY_BIN="$f" ;;
+      esac
+      log SUCCESS "$t: $f"
+    fi
+  done
+}
+
+add_to_path() { # dir -> session PATH (+ persist/symlink handled by caller choice)
+  local d="$1"
+  case ":$PATH:" in *":$d:"*) ;; *) export PATH="$d:$PATH" ;; esac
+  log INFO "PATH += $d ($(L 'this session' 'diese Sitzung'))"
+}
+
+install_platform_tools() { # official portable zip -> central tools + PATH
+  local url tmp base dest
+  url="$(platform_tools_url)"
+  base="$(install_base_dir)"
+  tmp="/tmp/tt-platform-tools.zip"
+  printf '%s\n%s\n' "$(L 'Downloading official platform-tools ...' 'Lade offizielle platform-tools ...')" "$url"
+  download_file "$url" "$tmp" || return 1
+  mkdir -p "$base"
+  if command -v unzip >/dev/null 2>&1; then unzip -q -o "$tmp" -d "$base" || return 1
+  elif command -v python3 >/dev/null 2>&1; then python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$tmp" "$base" || return 1
+  else log ERROR "unzip/python3 needed to extract."; return 1; fi
+  rm -f "$tmp"
+  dest="$base/platform-tools"
+  [ -d "$dest" ] || dest="$base"
+  scan_dir_for_tools "$dest"
+  add_to_path "$dest"
+  [ -n "$ADB_BIN" ] && [ -n "$FB_BIN" ]
+}
+
+link_into_tools() { # dir -> symlinks found binaries into central tools folder
+  local d="$1" base t src
+  base="$(install_base_dir)"
+  mkdir -p "$base" 2>/dev/null || return 0
+  for t in adb adb.exe fastboot fastboot.exe scrcpy scrcpy.exe; do
+    src="$(find "$d" -maxdepth 1 -name "$t" -type f 2>/dev/null | head -1)"
+    if [ -n "$src" ] && [ ! -e "$base/$t" ]; then
+      ln -sf "$src" "$base/$t" 2>/dev/null && log SUCCESS "symlink: $base/$t"
+    fi
+  done
+  add_to_path "$base"
+}
+
+ensure_tool() { # id [adb|fastboot] -> loops with options until present or user aborts
+  local id="$1"
+  while true; do
+    if [ "$id" = "adb" ] && [ -n "$ADB_BIN" ]; then return 0; fi
+    if [ "$id" = "fastboot" ] && [ -n "$FB_BIN" ]; then return 0; fi
+    printf '\n%s\n' "$(L "$id missing. Install or point to it?" "$id fehlt. Installieren oder Pfad angeben?")"
+    printf '%s\n' "$(L '[1] Install into PATH (official Google platform-tools, portable)' '[1] In PATH installieren (offizielle Google platform-tools, portable)')"
+    printf '%s\n' "$(L '[2] Select one executable (scans its folder for the others)' '[2] Eine Binary waehlen (Ordner wird nach den anderen gescannt)')"
+    printf '%s\n' "$(L '[3] Select every needed executable manually' '[3] Jede noetige Binary einzeln waehlen')"
+    printf '%s' "$(L '[4] Use custom folder as PATH (adds folder to PATH / symlinks into central tools)  [q] Abort: ' '[4] Eigenen Ordner als PATH nutzen (Ordner in PATH / Symlinks in zentrale tools)  [q] Abbruch: ')"
+    iread -r c
+    case "$c" in
+      1) install_platform_tools || continue ;;
+      2) printf '%s' "$(L 'Path to adb/adb.exe or fastboot: ' 'Pfad zu adb/adb.exe oder fastboot: ')"; iread -r p
+         p="$(printf '%s' "$p" | sed "s/^['\"]//;s/['\"]$//")"
+         if [ -x "$p" ]; then scan_dir_for_tools "$(dirname "$p")"; else log ERROR "$(L 'Not executable.' 'Nicht ausfuehrbar.')"; fi ;;
+      3) for t in adb fastboot; do
+           cur=""; case "$t" in adb) cur="$ADB_BIN" ;; fastboot) cur="$FB_BIN" ;; esac
+           [ -n "$cur" ] && continue
+           printf '%s: ' "$t"; iread -r p
+           p="$(printf '%s' "$p" | sed "s/^['\"]//;s/['\"]$//")"
+           if [ -x "$p" ]; then
+             case "$t" in adb) ADB_BIN="$p" ;; fastboot) FB_BIN="$p" ;; esac
+             log SUCCESS "$t: $p"
+           else log ERROR "$(L 'Not executable, skipped.' 'Nicht ausfuehrbar, uebersprungen.')"; fi
+         done ;;
+      4) printf '%s' "$(L 'Custom folder: ' 'Eigener Ordner: ')"; iread -r d
+         d="$(printf '%s' "$d" | sed "s/^['\"]//;s/['\"]$//")"
+         if [ -d "$d" ]; then
+           add_to_path "$d"
+           scan_dir_for_tools "$d"
+           link_into_tools "$d"
+         else log ERROR "$(L 'No such folder.' 'Kein solcher Ordner.')"; fi ;;
+      q|Q) return 1 ;;
+      *) printf '%s\n' "$(L 'Enter 1-4 or q.' '1-4 oder q eingeben.')"; continue ;;
+    esac
+    save_config
+  done
+}
+
+ensure_scrcpy() { # finale scrcpy question: install/select/skip (optional forever)
+  [ -n "${SCRCPY_BIN:-}" ] && return 0
+  printf '\n%s\n' "$(L 'scrcpy (screen mirror) is optional. Want it?' 'scrcpy (Screen-Mirror) ist optional. Gewuenscht?')"
+  printf '%s\n' "$(L '[1] Install hint for your OS  [2] Select executable (scans folder)  [3] Skip' '[1] Install-Hinweis fuers OS  [2] Binary waehlen (Ordner-Scan)  [3] Ueberspringen')"
+  printf '%s' "[1/2/3]: "; iread -r c
+  case "$c" in
+    1) case "$(uname -s)" in
+         Linux*) printf 'Debian/Ubuntu: sudo apt install scrcpy\nFedora: sudo dnf install scrcpy\nArch: sudo pacman -S scrcpy\n';;
+         Darwin*) printf 'macOS: brew install scrcpy\n' ;;
+         *) printf 'Windows: Setup-TrebleToolkit.bat or: https://github.com/Genymobile/scrcpy/releases\n' ;;
+       esac
+       printf '%s' "$(L 'Retry detection now? [Y/n]: ' 'Erkennung jetzt wiederholen? [J/n]: ')"; iread -r r
+       case "$r" in ""|y|Y|j|J) SCRCPY_BIN="$(command -v scrcpy 2>/dev/null || true)"
+         [ -n "$SCRCPY_BIN" ] && log SUCCESS "scrcpy: $SCRCPY_BIN" || log INFO "$(L 'Still missing - staying optional.' 'Weiter fehlend - bleibt optional.')" ;; esac ;;
+    2) printf '%s' "$(L 'Path to scrcpy executable: ' 'Pfad zu scrcpy: ')"; iread -r p
+       p="$(printf '%s' "$p" | sed "s/^['\"]//;s/['\"]$//")"
+       if [ -x "$p" ]; then SCRCPY_BIN="$p"; scan_dir_for_tools "$(dirname "$p")"; save_config
+       else log ERROR "$(L 'Not executable.' 'Nicht ausfuehrbar.')"; fi ;;
+    *) log INFO "$(L 'scrcpy skipped (stays optional).' 'scrcpy uebersprungen (bleibt optional).')" ;;
+  esac
+  return 0
 }
 adb_prop() { # name -> value (single line)
   [ -n "$ADB_BIN" ] || return 0
@@ -1252,11 +1421,20 @@ screen_bootkeys() {
   pause_tt
 }
 main_menu() {
-  if ! preflight; then
-    printf '%s\n' "$(L 'Preflight blocked - fix tools first (Setup/README), then restart.' 'Preflight blockiert - erst Tools fixen (Setup/README), dann Neustart.')"
-    printf '%s' "$(L 'Press Enter to exit ...' 'Enter zum Beenden ...')"; iread -r _
-    return 1
-  fi
+  find_tools
+  # Guided preflight: resolve missing tools with the user until all
+  # prerequisites are met (or the user aborts) - never a dead-end block.
+  while true; do
+    if preflight >/dev/null 2>&1; then break; fi
+    printf '\n%s\n' "$(L 'Some prerequisites are missing - fixing them together now.' 'Einige Voraussetzungen fehlen - beheben wir sie gemeinsam.')"
+    ensure_tool adb || { printf '%s\n' "$(L 'Aborted (adb still missing).' 'Abgebrochen (adb fehlt weiter).')"; return 1; }
+    ensure_tool fastboot || { printf '%s\n' "$(L 'Aborted (fastboot still missing).' 'Abgebrochen (fastboot fehlt weiter).')"; return 1; }
+    ensure_scrcpy
+    save_config
+    find_tools
+  done
+  ensure_scrcpy
+  save_config
   select_target || return 1
   find_tools; detect_mode
   while true; do
@@ -1290,7 +1468,7 @@ wizard() {
 # ---------------------------------------------------------------- CLI
 show_help() {
   printf 'Huawei P10 Root Manager v%s\n' "$TTVERSION"
-  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
+  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
   printf '%s\n' "$(L 'No args: TUI. Download/flash/restore need --yes.' 'Ohne Args: TUI. Download/Flash/Restore brauchen --yes.')"
 }
 CMD=""; JSON=""; YES=""; IMAGE=""; FWFILE=""; ANON=""; NOREBOOT=""; RUNMODE="safe"; GOAL=""
@@ -1304,7 +1482,7 @@ for a in "$@"; do
     continue
   fi
   case "$a" in
-    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
+    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
     --json) JSON=1 ;; --yes) YES=1 ;; --anonymize) ANON=1 ;; --no-reboot) NOREBOOT=1 ;;
     --mode|--goal|--image|--firmware-file) WANTVAL="$a" ;;
   esac
@@ -1414,6 +1592,14 @@ case "$CMD" in
     if [ -n "$JSON" ]; then printf '{"zip":"%s"}\n' "$z"; else printf 'ZIP: %s\n' "$z"; fi ;;
   preflight)
     if preflight; then printf 'PREFLIGHT READY\n'; else exit 1; fi ;;
+  setup)
+    find_tools
+    ensure_tool adb || exit 1
+    ensure_tool fastboot || exit 1
+    ensure_scrcpy
+    save_config
+    preflight || exit 1
+    printf 'SETUP COMPLETE\n' ;;
   recon)
     preflight >/dev/null 2>&1 || { printf 'PREFLIGHT BLOCKED\n'; exit 1; }
     detect_mode
