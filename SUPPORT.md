@@ -1,7 +1,8 @@
 # Support — trebleManager
 
 1. Read [INSTRUCTIONS.md](INSTRUCTIONS.md) (CMD / PowerShell / bash / offline release),
-   then [QUICKSTART.md](QUICKSTART.md) for the 5-minute path.
+   then [QUICKSTART.md](QUICKSTART.md) for the 5-minute path,
+   then [FAQ.md](FAQ.md) (stock vs custom recovery, full-ROM scope, restore, APTouch fix).
 2. Stuck? Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md) (ADB/fastboot, Huawei
    `Command not allowed`, firmware, Magisk, restore).
 3. Still stuck? Open a [Discussion](https://github.com/mleem97/trebleManager/discussions)

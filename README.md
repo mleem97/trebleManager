@@ -185,7 +185,7 @@ Treble-Toolkit.ps1 detect|analyze|firmware|download|extract|export|patch|backup|
 
 Wizard order: Detect → Analyze → Firmware → Extract → Patch → Backup → Flash → Reboot+Verify.
 Flash/restore need double confirmation (`FLASH`+`YES` / `RESTORE`+`YES`, CLI: `--yes`).
-Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md).
+Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md), [FAQ.md](FAQ.md).
 
 ## Repository Layout
 
@@ -206,6 +206,7 @@ Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md).
 ├── README.md
 ├── INSTRUCTIONS.md         # CMD / PowerShell / offline-release guide
 ├── QUICKSTART.md
+├── FAQ.md
 ├── ARCHITECTURE.md
 ├── SECURITY.md
 ├── TROUBLESHOOTING.md
