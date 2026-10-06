@@ -97,6 +97,7 @@ $TT = @{
   Log       = $TTLog
   Adb       = $null
   Fastboot  = $null
+  Scrcpy    = $null
   Mode      = "none"      # android | fastboot | none
   AdbSerial = ""
   FbSerial  = ""
@@ -643,6 +644,19 @@ function Export-RecoveryFromRom {
 
 # ============================================================ Tool discovery / wrappers
 function Find-TTTools {
+  # Saved setup config first (Setup-TrebleToolkit.bat -> data/config.json)
+  try {
+    $cfg = Join-Path $TTRoot "data\config.json"
+    if (Test-Path $cfg) {
+      $j = Get-Content $cfg -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue
+      if ($j -ne $null) {
+        if ($j.adb -ne "" -and (Test-Path $j.adb)) { $TT.Adb = $j.adb }
+        if ($j.fastboot -ne "" -and (Test-Path $j.fastboot)) { $TT.Fastboot = $j.fastboot }
+        if ($j.scrcpy -ne "" -and (Test-Path $j.scrcpy)) { $TT.Scrcpy = $j.scrcpy }
+        if ($TT.Adb) { Write-TTLog "ADB (config): $($TT.Adb)" "SUCCESS" }
+      }
+    }
+  } catch {}
   $adbCandidates = @()
   try { $c = Get-Command "adb.exe" -ErrorAction SilentlyContinue; if ($c) { $adbCandidates += $c.Source } } catch {}
   try { $c = Get-Command "adb" -ErrorAction SilentlyContinue; if ($c -and $c.Source -notin $adbCandidates) { $adbCandidates += $c.Source } } catch {}
@@ -669,6 +683,17 @@ function Find-TTTools {
 
   if ($TT.Adb) { Write-TTLog "ADB: $($TT.Adb)" "SUCCESS" } else { Write-TTLog (L "ADB not found (put Minimal ADB / platform-tools in PATH)." "ADB nicht gefunden (Minimal ADB / platform-tools in PATH legen).") "ERROR" }
   if ($TT.Fastboot) { Write-TTLog "Fastboot: $($TT.Fastboot)" "SUCCESS" } else { Write-TTLog (L "Fastboot not found." "Fastboot nicht gefunden.") "WARNING" }
+  # scrcpy is optional (screen mirror during rooting), never required
+  $TT.Scrcpy = $null
+  try {
+    $s = Get-Command "scrcpy.exe" -ErrorAction SilentlyContinue
+    if (-not $s) { $s = Get-Command "scrcpy" -ErrorAction SilentlyContinue }
+    if ($s) {
+      $TT.Scrcpy = $s.Source
+      try { $sv = (& $s.Source --version 2>&1 | Select-Object -First 1) } catch { $sv = "?" }
+      Write-TTLog "scrcpy: $($TT.Scrcpy) ($sv)" "SUCCESS"
+    } else { Write-TTLog (L "scrcpy not found (optional, screen mirror only: https://github.com/Genymobile/scrcpy)." "scrcpy nicht gefunden (optional, nur Screen-Mirror: https://github.com/Genymobile/scrcpy).") "INFO" }
+  } catch {}
 }
 
 function Invoke-TTAdb {
@@ -777,6 +802,19 @@ $FbVarList = @(
 
 function Invoke-TTFastbootAnalysis {
   Write-TTLog (L "Fastboot analysis (read-only) ..." "Fastboot-Analyse (read-only) ...") "INFO"
+  # Never probe getvar without a fastboot device (fastboot would wait forever).
+  if ($TT.Mode -ne "fastboot") {
+    try {
+      $d = & $TT.Fastboot devices 2>&1
+      $has = $false
+      foreach ($l in $d) { if ($l -match "fastboot\s*$") { $has = $true } }
+      if (-not $has) {
+        Write-TTLog (L "Not in fastboot mode, skipping getvar probes (would wait forever)." "Nicht im Fastboot-Modus, getvar-Abfragen uebersprungen (wuerden ewig warten).") "WARNING"
+        return @{}
+      }
+      $TT.Mode = "fastboot"
+    } catch {}
+  }
   $all = @{}
   $rawAll = ""
   foreach ($v in $FbVarList) {
@@ -1110,6 +1148,12 @@ function Invoke-TTRestoreFlow {
   if (-not $cands -or $cands.Count -eq 0) { Write-TTLog (L "No backup with original.img found." "Kein Backup mit original.img gefunden.") "ERROR"; return $false }
   $pick = $cands[0].FullName
   if ($BackupPick -ne "" -and (Test-Path $BackupPick)) { $pick = $BackupPick }
+  # Never flash without a live fastboot device.
+  Update-TTMode | Out-Null
+  if ($TT.Mode -ne "fastboot") {
+    Write-TTLog (L "Not in fastboot mode. Reboot to fastboot first, then restore." "Nicht im Fastboot-Modus. Erst nach Fastboot booten, dann Restore.") "ERROR"
+    return $false
+  }
   Write-TTLog ((L "Restore candidate: " "Restore-Kandidat: ") + $pick) "INFO"
   $orig = Join-Path $pick "original.img"
   $metaF = Join-Path $pick "metadata.json"
@@ -1614,9 +1658,10 @@ function Screen-Tools {
       "getprop full dump -> logs/",
       "adb kill-server/start-server",
       (L "Create diagnostic ZIP" "Diagnose-ZIP erzeugen"),
+      (L "Mirror screen via scrcpy (optional)" "Bildschirm via scrcpy spiegeln (optional)"),
       (L "Back" "Zurueck")
     )
-    if ($c -eq -1 -or $c -eq 6) { return }
+    if ($c -eq -1 -or $c -eq 7) { return }
     if ($c -eq 0) { Show-TTHeader "adb devices"; Write-Host ""; Write-Host ((Invoke-TTAdb @("devices","-l") -join "`n") ) -ForegroundColor White; Pause-TT }
     elseif ($c -eq 1) {
       $s = Show-TTMenu (L "Reboot target" "Reboot-Ziel") @("bootloader","recovery","fastbootd","system",(L "Cancel" "Abbrechen"))
@@ -1644,6 +1689,15 @@ function Screen-Tools {
       $z = New-TTDiagnostic
       Write-Host ("ZIP: " + $z) -ForegroundColor White
       Pause-TT
+    }
+    elseif ($c -eq 6) {
+      if ($TT.Scrcpy) {
+        Write-TTLog (L "Starting scrcpy mirror (close window to continue) ..." "Starte scrcpy-Spiegel (Fenster schliessen zum Fortfahren) ...") "INFO"
+        try { Start-Process -FilePath $TT.Scrcpy | Out-Null } catch { Write-TTLog $_.Exception.Message "ERROR" }
+      } else {
+        Write-Host (L "scrcpy not installed (optional). Get it: https://github.com/Genymobile/scrcpy" "scrcpy nicht installiert (optional). Bezug: https://github.com/Genymobile/scrcpy") -ForegroundColor Yellow
+        Pause-TT
+      }
     }
   }
 }
@@ -1794,7 +1848,7 @@ elseif ($cmd -eq "detect") {
 }
 elseif ($cmd -eq "analyze") {
   if ($TT.Mode -eq "android") { Invoke-TTAndroidAnalysis | Out-Null }
-  if ($TT.Mode -eq "fastboot" -or $TT.Fastboot) { Invoke-TTFastbootAnalysis | Out-Null }
+  if ($TT.Mode -eq "fastboot") { Invoke-TTFastbootAnalysis | Out-Null }
   $o = @{ mode = $TT.Mode; os = $TT.OS; props = $TT.Props; byname = ($TT.ByName | ForEach-Object { "$($_.Name) -> $($_.Target)" }); fastboot = $TT.FbVars }
   if ($Json) { ($o | ConvertTo-Json -Depth 6) | Write-Host }
   else {

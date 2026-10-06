@@ -72,6 +72,13 @@ UI language: English by default, German if the system language is German.
 
 ## Installation
 
+### Step 0 — Setup (fresh machines, run once)
+
+Double-click `Setup-TrebleToolkit.bat`: requests admin automatically (UAC), allows
+script execution, installs ADB/fastboot (official Google platform-tools, portable)
+and — only if you agree — scrcpy into user PATH, saves `data/config.json`.
+Afterwards all tools are globally reachable.
+
 ### Option A — CMD (quick check)
 
 1. Put `p10-magisk-check-FIXED.bat` next to `adb.exe`
@@ -112,30 +119,37 @@ on Debian/Ubuntu). Optional: `unzip`, `curl`, `zip` (or `python3` as fallback ea
 
 ## Run Directly from the Internet
 
-No download, no install — needs internet + `adb`/`fastboot` on PATH. TUI stays interactive.
+No files needed — one command, straight from the prompt. TUI stays interactive.
+First run on a fresh machine: use `Setup-TrebleToolkit.bat` once (auto-UAC,
+execution policy, installs ADB/fastboot + optional scrcpy into user PATH,
+saves `data/config.json`).
 
-### CMD (Windows)
+### CMD (Windows, zero files)
 
 ```cmd
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $f=\"$env:TEMP\Treble-Toolkit.ps1\"; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1' -OutFile $f -UseBasicParsing; & $f"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $f=$env:TEMP + '\Treble-Toolkit.ps1'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1' -OutFile $f -UseBasicParsing; & $f"
 ```
 
-### PowerShell (Windows)
+(No nested double quotes — `$env:TEMP + '\...'` avoids the classic
+`TerminatorExpectedAtEndOfString` parser error.)
+
+### PowerShell (Windows, zero files)
 
 ```powershell
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$f = "$env:TEMP\Treble-Toolkit.ps1"
-Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1' -OutFile $f -UseBasicParsing
-& $f
+irm https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1 | iex
 ```
 
-### Bash (Linux)
+(If your session blocks scripts, start PowerShell once via `Setup-TrebleToolkit.bat`
+or `powershell -ExecutionPolicy Bypass`.)
+
+### Bash (Linux, zero files)
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/treble-toolkit.sh)
+curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/treble-toolkit.sh | bash
 ```
 
-Fallback (if process substitution is unavailable):
+Stays interactive (reads `/dev/tty`); with args: `curl -fsSL <url> | bash -s -- detect --json`.
+Fallback without process substitution issues:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/treble-toolkit.sh -o /tmp/treble-toolkit.sh \
@@ -146,7 +160,8 @@ curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/
 
 ### Runtime
 
-- **ADB/Fastboot** — Minimal ADB and Fastboot or Android platform-tools (PATH or next to the scripts)
+- **ADB/Fastboot** — Minimal ADB and Fastboot or Android platform-tools (PATH or next to the scripts). Detected at startup with version/path; missing tools abort with a real error, never a guess.
+- **scrcpy (optional)** — screen mirror while rooting ([Genymobile/scrcpy](https://github.com/Genymobile/scrcpy)). Detected at startup, launchable from Tools; absence only logs INFO.
 - **USB drivers** — HiSuite/Kirin drivers, USB debugging on device
 - **Magisk APK** — official releases only, placed in `data/magisk/`
 - **Stock firmware** — full EMUI 9.1 package for `UPDATE.APP` (see downloader / [INSTRUCTIONS.md](INSTRUCTIONS.md))
@@ -175,7 +190,7 @@ Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md).
 ## Repository Layout
 
 ```
-├── scripts/                # Treble-Toolkit.ps1 (Windows TUI+CLI, PS 5.1/7) + treble-toolkit.sh (Linux bash port)
+├── scripts/                # Treble-Toolkit.ps1 (Windows TUI+CLI, PS 5.1/7) + treble-toolkit.sh (Linux bash port) + Setup-Windows.ps1
 ├── tests/                  # Test-Parsers.ps1 + test-parsers.sh (parser/firmware/OS/hash/root/URL/magic tests)
 ├── data/firmware/          # Full firmware drops (UPDATE.APP source, offline cache)
 ├── data/magisk/            # Magisk APK + to-patch staging + pulled patched images
@@ -186,6 +201,7 @@ Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md).
 ├── logs/                   # Session logs + diagnostic ZIPs (git-ignored)
 ├── p10-magisk-check-FIXED.bat
 ├── Start-TrebleToolkit.bat # Local smart launcher (finds pwsh/powershell, elevation)
+├── Setup-TrebleToolkit.bat # First-run setup (auto-UAC, policy, tools+PATH, config)
 ├── Run-FromGitHub.bat      # Remote loader (RAW_URL, temp download + run)
 ├── README.md
 ├── INSTRUCTIONS.md         # CMD / PowerShell / offline-release guide

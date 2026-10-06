@@ -1,6 +1,7 @@
 # TrebleToolkit - grosse Binaries und Geraete-Artefakte nicht committen
 logs/
 backups/
+data/config.json
 data/firmware/*.zip
 data/firmware/*.7z
 data/firmware/*.tar*
@@ -12,3 +13,5 @@ data/magisk/*.apk
 Huawei-P10-Diagnostic-*.zip
 Huawei-P10-Magisk-Check.txt
 $TEMP/
+trebleManager-*.zip
+trebleManager-*.zip.sha256

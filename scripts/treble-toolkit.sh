@@ -68,16 +68,38 @@ marketing_name() {
   case "$PROFILE_ID" in VKY-L29) printf 'Huawei P10 Plus' ;; *) printf 'Huawei P10' ;; esac
 }
 
-# ---------------------------------------------------------------- tools
+# ---------------------------------------------------------------- tools (with timeouts + tty reads)
+# adb_run/fb_run guard every device call with `timeout` (e.g. su prompts must
+# never hang the TUI). iread reads the terminal so `curl | bash` stays
+# interactive with zero downloaded files.
+USE_TMO=0; command -v timeout >/dev/null 2>&1 && USE_TMO=1
+adb_run() { if [ "$USE_TMO" = 1 ]; then timeout 30 "$ADB_BIN" "$@"; else "$ADB_BIN" "$@"; fi; }
+fb_run() { if [ "$USE_TMO" = 1 ]; then timeout 120 "$FB_BIN" "$@"; else "$FB_BIN" "$@"; fi; }
+fb_flash() { if [ "$USE_TMO" = 1 ]; then timeout 600 "$FB_BIN" "$@"; else "$FB_BIN" "$@"; fi; }
+iread() { if [ -c /dev/tty ] 2>/dev/null; then builtin read "$@" </dev/tty; else builtin read "$@"; fi; }
 find_tools() {
-  ADB_BIN="$(command -v adb 2>/dev/null || true)"
-  FB_BIN="$(command -v fastboot 2>/dev/null || true)"
+  # Saved setup config first (data/config.json)
+  if [ -f "$TOOL_ROOT/data/config.json" ]; then
+    cfg_adb="$(sed -n 's/.*"adb"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$TOOL_ROOT/data/config.json" | head -1)"
+    cfg_fb="$(sed -n 's/.*"fastboot"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$TOOL_ROOT/data/config.json" | head -1)"
+    [ -n "$cfg_adb" ] && [ -x "$cfg_adb" ] && ADB_BIN="$cfg_adb"
+    [ -n "$cfg_fb" ] && [ -x "$cfg_fb" ] && FB_BIN="$cfg_fb"
+  fi
+  [ -z "$ADB_BIN" ] && ADB_BIN="$(command -v adb 2>/dev/null || true)"
+  [ -z "$FB_BIN" ] && FB_BIN="$(command -v fastboot 2>/dev/null || true)"
   if [ -n "$ADB_BIN" ]; then log SUCCESS "ADB: $ADB_BIN"; else log ERROR "$(L 'ADB not found (install android-tools / platform-tools).' 'ADB nicht gefunden (android-tools / platform-tools installieren).')"; fi
   if [ -n "$FB_BIN" ]; then log SUCCESS "Fastboot: $FB_BIN"; else log WARNING "$(L 'Fastboot not found.' 'Fastboot nicht gefunden.')"; fi
+  # scrcpy is optional (screen mirror during rooting), never required
+  SCRCPY_BIN="$(command -v scrcpy 2>/dev/null || true)"
+  if [ -n "$SCRCPY_BIN" ]; then
+    log SUCCESS "scrcpy: $SCRCPY_BIN ($("$SCRCPY_BIN" --version 2>&1 | head -1))"
+  else
+    log INFO "$(L 'scrcpy not found (optional, screen mirror only: https://github.com/Genymobile/scrcpy).' 'scrcpy nicht gefunden (optional, nur Screen-Mirror: https://github.com/Genymobile/scrcpy).')"
+  fi
 }
 adb_prop() { # name -> value (single line)
   [ -n "$ADB_BIN" ] || return 0
-  "$ADB_BIN" shell getprop "$1" 2>/dev/null | tr -d '\r\n'
+  adb_run shell getprop "$1" 2>/dev/null | tr -d '\r\n'
 }
 
 # ---------------------------------------------------------------- mode + analysis
@@ -138,10 +160,10 @@ android_analysis() {
   [ -z "$EMUI" ] && EMUI="$(grep '^ro.emui.version=' "$PROPS_FILE" | cut -d= -f2-)"
   OS_DETAIL="$MODEL / $PNAME / Android $OS_RELEASE ($DISPLAY)"
   os_classify
-  BYNAME_RAW="$("$ADB_BIN" shell ls -l /dev/block/by-name/ 2>&1)"
-  CMDLINE="$("$ADB_BIN" shell cat /proc/cmdline 2>&1 | tr -d '\r')"
-  WHICHSU="$("$ADB_BIN" shell 'which su; ls -l /system/xbin/su 2>&1; ls -l /system/bin/su 2>&1' 2>&1)"
-  MAGISKV="$("$ADB_BIN" shell 'magisk -v 2>&1; su -v 2>&1; su -c id 2>&1' 2>&1)"
+  BYNAME_RAW="$(adb_run shell ls -l /dev/block/by-name/ 2>&1)"
+  CMDLINE="$(adb_run shell cat /proc/cmdline 2>&1 | tr -d '\r')"
+  WHICHSU="$(adb_run shell 'which su; ls -l /system/xbin/su 2>&1; ls -l /system/bin/su 2>&1' 2>&1)"
+  MAGISKV="$(adb_run shell 'magisk -v 2>&1; su -c id 2>&1' 2>&1)"
   case "$MODEL" in *VTR-L29*) PROFILE_ID="VTR-L29" ;; *VTR-L09*) PROFILE_ID="VTR-L09" ;; *VKY-L29*) PROFILE_ID="VKY-L29" ;;
     *) PROFILE_ID="VTR-L29"; log WARNING "$(L "Model string is GSI ('$MODEL'). Profile default VTR-L29, verification before flash mandatory." "Modellstring ist GSI. Profil-Default VTR-L29, Verifikation vor Flash Pflicht.")" ;; esac
   log SUCCESS "OS: $OS_KIND | $OS_DETAIL"
@@ -149,12 +171,20 @@ android_analysis() {
 
 FBRAW_FILE="$LOG_DIR/.fbraw-$STAMP.tmp"
 fastboot_analysis() {
+  # Never probe getvar without a fastboot device (fastboot would wait forever).
+  if [ "$MODE" != "fastboot" ]; then
+    if ! "$FB_BIN" devices 2>/dev/null | grep -q fastboot; then
+      log WARNING "$(L 'Not in fastboot mode, skipping getvar probes (would wait forever).' 'Nicht im Fastboot-Modus, getvar-Abfragen uebersprungen (wuerden ewig warten).')"
+      return 0
+    fi
+    MODE="fastboot"
+  fi
   log INFO "$(L 'Fastboot analysis (read-only) ...' 'Fastboot-Analyse (read-only) ...')"
   : > "$FBRAW_FILE"
   for v in product secure unlocked current-slot partition-type:recovery_ramdisk partition-size:recovery_ramdisk partition-type:boot partition-size:boot partition-type:recovery partition-size:recovery partition-type:system partition-size:system partition-type:vendor partition-size:vendor; do
-    { printf '### getvar %s\n' "$v"; "$FB_BIN" getvar "$v" 2>&1; } >> "$FBRAW_FILE"
+    { printf '### getvar %s\n' "$v"; fb_run getvar "$v" 2>&1; } >> "$FBRAW_FILE"
   done
-  { printf '### getvar all\n'; "$FB_BIN" getvar all 2>&1; } >> "$FBRAW_FILE"
+  { printf '### getvar all\n'; fb_run getvar all 2>&1; } >> "$FBRAW_FILE"
   if grep -q "Command not allowed" "$FBRAW_FILE"; then
     log WARNING "$(L 'Huawei refuses getvar (Command not allowed). NOT proof of lock.' 'Huawei verweigert getvar (Command not allowed). KEIN Lock-Beweis.')"
   fi
@@ -413,14 +443,14 @@ safe_flash() { # patched_image [--yes]
   local sha; if command -v sha256sum >/dev/null 2>&1; then sha="$(sha256sum "$img" | awk '{print $1}')"; else sha="$(shasum -a 256 "$img" | awk '{print $1}')"; fi
   printf 'WARNING\nYou are about to modify:\n  %s\nDevice: %s %s\nImage: %s\nSHA-256: %s\nOriginal backup: %s\nThis operation modifies the boot chain.\nContinue?\n' "$part" "$(marketing_name)" "$PROFILE_ID" "$img" "$sha" "$BACKUP_DIR"
   if [ -z "$yes" ]; then
-    printf '%s' "$(L "Type 'FLASH' to continue (1/2): " "Zum Fortfahren 'FLASHEN' tippen (1/2): ")"; read -r a
+    printf '%s' "$(L "Type 'FLASH' to continue (1/2): " "Zum Fortfahren 'FLASHEN' tippen (1/2): ")"; iread -r a
     if [ "$a" != "FLASH" ] && [ "$a" != "FLASHEN" ]; then log WARNING "$(L 'Flash aborted.' 'Flash abgebrochen.')"; return 1; fi
-    printf '%s' "$(L "Type 'YES' again (2/2): " "Nochmal 'JA' (2/2): ")"; read -r b
+    printf '%s' "$(L "Type 'YES' again (2/2): " "Nochmal 'JA' (2/2): ")"; iread -r b
     if [ "$b" != "YES" ] && [ "$b" != "JA" ]; then log WARNING "$(L 'Flash aborted.' 'Flash abgebrochen.')"; return 1; fi
   else log WARNING "$(L 'CLI --yes: explicit consent documented.' 'CLI --yes dokumentiert.')"
   fi
   log WARNING "Starting: fastboot flash $part <patched>"
-  local out; out="$("$FB_BIN" flash "$part" "$img" 2>&1)"
+  local out; out="$(fb_flash flash "$part" "$img" 2>&1)"
   printf '%s\n' "$out" | tee -a "$TTLOG"
   if printf '%s' "$out" | grep -q -i -E 'OKAY|finished|Writing'; then log SUCCESS "$(L 'Flash reported: OK.' 'Flash gemeldet: OK.')"; return 0; fi
   log ERROR "$(L 'Flash output unclear/faulty.' 'Flash-Ausgabe unklar/fehlerhaft.')"; return 1
@@ -428,19 +458,20 @@ safe_flash() { # patched_image [--yes]
 verify_root() { # [--no-reboot]
   local noreboot="${1:-}"
   if [ -z "$noreboot" ] && [ "$MODE" = "fastboot" ] && [ -n "$FB_BIN" ]; then
-    log INFO "fastboot reboot ..."; "$FB_BIN" reboot >/dev/null 2>&1 || true
+    log INFO "fastboot reboot ..."; fb_run reboot >/dev/null 2>&1 || true
   fi
   printf '%b\n' "${C_CYN}$(L 'Huawei boot procedure (mandatory, else no root):' 'Huawei Boot-Prozedur (Pflicht, sonst kein Root):')${C_RST}"
   printf '%s\n' "$(L '  Vol-Up + Power until Huawei logo, then release (Magisk boot cheat).' '  Vol-Up + Power bis Huawei-Logo, dann loslassen (Magisk boot cheat).')"
   if [ -n "$ADB_BIN" ]; then
     log INFO "$(L 'Waiting for adb (up to 120s) ...' 'Warte auf adb (bis 120s) ...')"
-    "$ADB_BIN" wait-for-device 2>/dev/null || true
+    if [ "$USE_TMO" = 1 ]; then timeout 150 "$ADB_BIN" wait-for-device 2>/dev/null || true
+    else "$ADB_BIN" wait-for-device 2>/dev/null || true; fi
     sleep 5; detect_mode
   fi
   local w id mv
-  w="$("$ADB_BIN" shell which su 2>&1 | tr -d '\r')"
-  id="$("$ADB_BIN" shell su -c id 2>&1 | tr -d '\r')"
-  mv="$("$ADB_BIN" shell magisk -v 2>&1 | tr -d '\r')"
+  w="$(adb_run shell which su 2>&1 | tr -d '\r')"
+  id="$(adb_run shell su -c id 2>&1 | tr -d '\r')"
+  mv="$(adb_run shell magisk -v 2>&1 | tr -d '\r')"
   printf '%s\n' "which su: $w" "su -c id: $id" "magisk -v: $mv" | tee -a "$TTLOG"
   case "$id" in *uid=0*) log SUCCESS "ROOT DETECTED (uid=0)."; printf 'ROOTED\n'; return 0 ;; esac
   if [ -n "$w" ] && [[ "$w" != *"not found"* ]]; then log WARNING "INCONCLUSIVE (su present, no uid=0)."; printf 'INCONCLUSIVE\n'; return 2; fi
@@ -449,15 +480,21 @@ verify_root() { # [--no-reboot]
 do_restore() { # [backupdir] [--yes]
   local pick="${1:-}" yes="${2:-}" part
   part="$(target_partition)"
+  # Never flash without a live fastboot device.
+  detect_mode
+  if [ "$MODE" != "fastboot" ]; then
+    log ERROR "$(L 'Not in fastboot mode. Reboot to fastboot first, then restore.' 'Nicht im Fastboot-Modus. Erst nach Fastboot booten, dann Restore.')"
+    return 1
+  fi
   if [ -z "$pick" ]; then pick="$(find "$BACK_DIR/$PROFILE_ID/$part" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | sort -r | head -1)"; fi
   [ -z "$pick" ] && pick="$(find "$BACK_DIR" -name original.img 2>/dev/null | head -1 | xargs -r dirname)"
   if [ -z "$pick" ] || [ ! -f "$pick/original.img" ]; then log ERROR "$(L 'No backup with original.img found.' 'Kein Backup mit original.img gefunden.')"; return 1; fi
   log INFO "$(L 'Restore candidate: ' 'Restore-Kandidat: ')$pick"
   if [ -z "$yes" ]; then
-    printf '%s' "$(L "Type 'RESTORE' (1/2): " "'RESTORE' tippen (1/2): ")"; read -r a; [ "$a" = "RESTORE" ] || return 1
-    printf '%s' "$(L "Type 'YES' (2/2): " "'JA' tippen (2/2): ")"; read -r b; { [ "$b" = "YES" ] || [ "$b" = "JA" ]; } || return 1
+    printf '%s' "$(L "Type 'RESTORE' (1/2): " "'RESTORE' tippen (1/2): ")"; iread -r a; [ "$a" = "RESTORE" ] || return 1
+    printf '%s' "$(L "Type 'YES' (2/2): " "'JA' tippen (2/2): ")"; iread -r b; { [ "$b" = "YES" ] || [ "$b" = "JA" ]; } || return 1
   fi
-  "$FB_BIN" flash "$part" "$pick/original.img" 2>&1 | tee -a "$TTLOG"
+  fb_flash flash "$part" "$pick/original.img" 2>&1 | tee -a "$TTLOG"
   log WARNING "$(L 'Restore executed.' 'Restore ausgefuehrt.')"
 }
 do_diagnostic() { # [--anonymize]
@@ -502,14 +539,14 @@ header() { # title
   printf '%b\n' "${C_CYN}================================================================${C_RST}"
   printf ' %s\n' "$1"
 }
-pause_tt() { printf '%s' "$(L '[Enter] back ...' '[Enter] zurueck ...')"; read -r _; }
+pause_tt() { printf '%s' "$(L '[Enter] back ...' '[Enter] zurueck ...')"; iread -r _; }
 menu() { # title opt1 opt2... -> prints index via REPLY_MENU (0-based), -1 on q
   local title="$1"; shift
   local n=$# i=0
   while true; do
     header "$title"; printf '\n'
     i=1; for o in "$@"; do printf '  [%d] %s\n' "$i" "$o"; i=$((i+1)); done
-    printf '\n%s' "$(L 'Number (q=back): ' 'Nummer (q=zurueck): ')"; read -r ans
+    printf '\n%s' "$(L 'Number (q=back): ' 'Nummer (q=zurueck): ')"; iread -r ans
     case "$ans" in q|Q|"") REPLY_MENU=-1; return ;; esac
     if [ "$ans" -ge 1 ] 2>/dev/null && [ "$ans" -le "$n" ]; then REPLY_MENU=$((ans-1)); return; fi
   done
@@ -549,25 +586,25 @@ screen_firmware() {
   header "$(L 'Step 3 - Firmware (determine compatible)' 'Step 3 - Firmware (kompatibel bestimmen)')"; printf '\n'
   if [ "$MODE" = "android" ] && [ -z "$OS_KIND" -o "$OS_KIND" = "?" ]; then android_analysis; fi
   if [ -z "$FW_BASELINE" ]; then
-    printf '%s' "$(L 'Original Huawei firmware (e.g. VTR-L29 9.1.0.297(C432E5R1P9), Enter=later): ' 'Original-Firmware (z.B. VTR-L29 9.1.0.297(C432E5R1P9), Enter=spaeter): ')"; read -r FW_BASELINE
+    printf '%s' "$(L 'Original Huawei firmware (e.g. VTR-L29 9.1.0.297(C432E5R1P9), Enter=later): ' 'Original-Firmware (z.B. VTR-L29 9.1.0.297(C432E5R1P9), Enter=spaeter): ')"; iread -r FW_BASELINE
   fi
   printf 'Baseline: %s\n\nSources (no dubious auto-download):\n - https://professorjtj.github.io/v2/\n - Discussion #2542 example: VTR-L29 9.1.0.297(C432E5R1P9) (NOT exclusive)\n - Wiki P10: EMUI 9.1 base, RECOVERY_RAMDIS.img from UPDATE.APP\n' "${FW_BASELINE:-(empty)}"
   local region=""; region="$(printf '%s' "$FW_BASELINE" | grep -o '(C[0-9]*' | head -1 | tr -d '(')"
-  if [ -z "$region" ]; then printf '%s' "$(L 'Region/CUST (e.g. C432, Enter=unknown): ' 'Region/CUST (z.B. C432, Enter=unbekannt): ')"; read -r region; fi
+  if [ -z "$region" ]; then printf '%s' "$(L 'Region/CUST (e.g. C432, Enter=unknown): ' 'Region/CUST (z.B. C432, Enter=unbekannt): ')"; iread -r region; fi
   local out; out="$(firmware_compat "$PROFILE_ID" "$FW_BASELINE" "$region")"
   FW_STATUS="${out%%|*}"
   printf '\nCompatibility: %s\n%s\n' "$FW_STATUS" "${out##*|}"
-  printf '\n%s' "$(L '[D] download stock firmware  [Enter] back: ' '[D] Stock-Firmware laden  [Enter] zurueck: ')"; read -r k
+  printf '\n%s' "$(L '[D] download stock firmware  [Enter] back: ' '[D] Stock-Firmware laden  [Enter] zurueck: ')"; iread -r k
   case "$k" in d|D) screen_download ;; esac
 }
 screen_download() {
   header "$(L 'Stock firmware download (original, progress + confirmation)' 'Stock-Download (original, Fortschritt + Bestaetigung)')"; printf '\n'
   printf '%s\n\nTrusted sources:\n [official] HiSuite: https://consumer.huawei.com/de/support/hisuite/\n [official] Consumer search: https://consumer.huawei.com/de/support/\n [historic] FIRM FINDER V2: https://professorjtj.github.io/v2/\n [archive] androidhost.ru: https://androidhost.ru/search.html?search=VTR-L29\n\n' "$(L 'Target: data/firmware/ (offline cache). Full packages only.' 'Ziel: data/firmware/ (Cache). Nur Full-Pakete.')"
-  printf '%s' "$(L 'Direct link to full firmware ZIP (Enter=abort): ' 'Direktlink Full-Firmware-ZIP (Enter=Abbruch): ')"; read -r url
+  printf '%s' "$(L 'Direct link to full firmware ZIP (Enter=abort): ' 'Direktlink Full-Firmware-ZIP (Enter=Abbruch): ')"; iread -r url
   [ -z "$url" ] && { pause_tt; return; }
   valid_url "$url" || { log ERROR "$(L 'URL rejected.' 'URL abgelehnt.')"; pause_tt; return; }
   local out="$FIRM_DIR/stock-firmware-$PROFILE_ID-$STAMP.zip"
-  printf '\nURL: %s\nTarget: %s\n%s' "$url" "$out" "$(L "Type 'YES' to download (2-4 GB): " "'JA' tippen (2-4 GB): ")"; read -r c
+  printf '\nURL: %s\nTarget: %s\n%s' "$url" "$out" "$(L "Type 'YES' to download (2-4 GB): " "'JA' tippen (2-4 GB): ")"; iread -r c
   if [ "$c" != "YES" ] && [ "$c" != "JA" ]; then log WARNING "$(L 'Download aborted.' 'Download abgebrochen.')"; pause_tt; return; fi
   download_firmware "$url" "$out" --yes && verify_download "$out" || true
   pause_tt
@@ -594,10 +631,10 @@ screen_export() {
   local roms; roms="$(find "$ROM_DIR" -maxdepth 1 \( -iname '*.zip' -o -iname '*.img' \) -type f 2>/dev/null)"
   local rom=""
   if [ -z "$roms" ]; then
-    printf '%s' "$(L 'ROM path (Enter=abort): ' 'ROM-Pfad (Enter=Abbruch): ')"; read -r rom
+    printf '%s' "$(L 'ROM path (Enter=abort): ' 'ROM-Pfad (Enter=Abbruch): ')"; iread -r rom
     [ -z "$rom" ] && { pause_tt; return; }
   else
-    printf '%s\n%s\n%s' "$(L 'Found:' 'Gefunden:')" "$roms" "$(L 'Number (Enter=first): ' 'Nummer (Enter=erste): ')"; read -r n
+    printf '%s\n%s\n%s' "$(L 'Found:' 'Gefunden:')" "$roms" "$(L 'Number (Enter=first): ' 'Nummer (Enter=erste): ')"; iread -r n
     rom="$(printf '%s' "$roms" | sed -n "${n:-1}p")"
     [ -z "$rom" ] && rom="$(printf '%s' "$roms" | head -1)"
   fi
@@ -611,17 +648,17 @@ screen_patch() {
   printf 'Official: https://github.com/topjohnwu/Magisk/releases\n'
   local apk; apk="$(magisk_apk)"
   if [ -z "$apk" ]; then
-    printf '%s' "$(L 'No Magisk APK in data/magisk/. Place it there, or path (Enter=later): ' 'Keine Magisk-APK in data/magisk/. Dort ablegen oder Pfad (Enter=spaeter): ')"; read -r p
+    printf '%s' "$(L 'No Magisk APK in data/magisk/. Place it there, or path (Enter=later): ' 'Keine Magisk-APK in data/magisk/. Dort ablegen oder Pfad (Enter=spaeter): ')"; iread -r p
     if [ -n "$p" ] && [ -f "$p" ]; then cp -f "$p" "$MAG_DIR/"; apk="$MAG_DIR/$(basename "$p")"; fi
   fi
   [ -n "$apk" ] && printf 'APK: %s\n' "$apk"
   if [ -z "$STOCK_IMAGE" ] || [ ! -f "$STOCK_IMAGE" ]; then printf '%s\n' "$(L 'No stock image -> step 4 first.' 'Kein Stock-Image -> erst Step 4.')"; pause_tt; return; fi
   printf 'Input: %s\nTarget: %s\nDevice: Huawei %s\nFirmware: %s\nSHA-256: %s\n' "$STOCK_IMAGE" "$(target_partition)" "$PROFILE_ID" "$FW_BASELINE" "$STOCK_SHA"
-  printf '%s\n' "$(L '[1] Prepare patch (to-patch + instructions)  [2] Register patched file' '[1] Patch vorbereiten  [2] Gepatchte Datei registrieren')"; read -r k
+  printf '%s\n' "$(L '[1] Prepare patch (to-patch + instructions)  [2] Register patched file' '[1] Patch vorbereiten  [2] Gepatchte Datei registrieren')"; iread -r k
   case "$k" in
     1) prepare_patch "$STOCK_IMAGE" >/dev/null; printf '%s\n' "$(L 'Prepared. Patch on device per data/magisk/to-patch/PATCH-INSTRUCTIONS.txt.' 'Vorbereitet. Am Geraet patchen (Anleitung in to-patch/).')" ;;
-    2) "$ADB_BIN" shell 'ls /sdcard/Download/magisk_patched*.img 2>&1' 2>/dev/null || true
-       printf '%s' "$(L 'Path to patched file: ' 'Pfad gepatchte Datei: ')"; read -r pp
+    2) adb_run shell 'ls /sdcard/Download/magisk_patched*.img 2>&1' 2>/dev/null || true
+       printf '%s' "$(L 'Path to patched file: ' 'Pfad gepatchte Datei: ')"; iread -r pp
        if [ -n "$pp" ] && [ -f "$pp" ]; then
          local t ph; t="$(test_image "$pp")"; ph="$(printf '%s' "$t" | cut -d'|' -f2)"
          if [ "$ph" = "$STOCK_SHA" ]; then log ERROR "$(L 'ERROR: patched == stock. NO fake patch accepted.' 'FEHLER: gepatcht == Stock. KEIN Fake-Patch.')"
@@ -640,8 +677,8 @@ screen_backup() {
 screen_flash() {
   header "$(L 'Step 7 - Flash (only after safety gate)' 'Step 7 - Flash (nur nach Safety-Gate)')"; printf '\n'
   if [ "$MODE" != "fastboot" ]; then
-    printf '%s' "$(L "'adb reboot bootloader' now? [y/N]: " "'adb reboot bootloader' jetzt? [y/N]: ")"; read -r k
-    case "$k" in y|Y|j|J) "$ADB_BIN" reboot bootloader 2>/dev/null; for _ in $(seq 1 30); do sleep 1; detect_mode; [ "$MODE" = "fastboot" ] && break; done ;; esac
+    printf '%s' "$(L "'adb reboot bootloader' now? [y/N]: " "'adb reboot bootloader' jetzt? [y/N]: ")"; iread -r k
+    case "$k" in y|Y|j|J) adb_run reboot bootloader 2>/dev/null; for _ in $(seq 1 30); do sleep 1; detect_mode; [ "$MODE" = "fastboot" ] && break; done ;; esac
   fi
   safe_flash "$PATCHED_IMAGE" || true
   pause_tt
@@ -655,16 +692,23 @@ screen_tools() {
   while true; do
     menu "$(L 'Tools (read-only where possible)' 'Tools (read-only wo moeglich)')" \
       "adb devices -l" "$(L 'Reboot menu' 'Reboot-Menue')" "fastboot devices + getvar" "getprop dump -> logs/" \
-      "adb kill-server/start-server" "$(L 'Create diagnostic ZIP' 'Diagnose-ZIP erzeugen')" "$(L 'Back' 'Zurueck')"
-    c="$REPLY_MENU"; [ "$c" = "-1" ] || [ "$c" = "6" ] && return
+      "adb kill-server/start-server" "$(L 'Create diagnostic ZIP' 'Diagnose-ZIP erzeugen')" "$(L 'Mirror via scrcpy (optional)' 'Spiegeln via scrcpy (optional)')" "$(L 'Back' 'Zurueck')"
+    c="$REPLY_MENU"; [ "$c" = "-1" ] || [ "$c" = "7" ] && return
     case "$c" in
-      0) header "adb devices"; "$ADB_BIN" devices -l 2>&1; pause_tt ;;
+      0) header "adb devices"; adb_run devices -l 2>&1; pause_tt ;;
       1) menu "$(L 'Reboot target' 'Reboot-Ziel')" bootloader recovery fastbootd system "$(L 'Cancel' 'Abbrechen')"
-         rc="$REPLY_MENU"; case "$rc" in 0) "$ADB_BIN" reboot bootloader;; 1) "$ADB_BIN" reboot recovery;; 2) "$ADB_BIN" reboot fastboot;; 3) "$ADB_BIN" reboot;; esac; pause_tt ;;
+         rc="$REPLY_MENU"; case "$rc" in 0) adb_run reboot bootloader;; 1) adb_run reboot recovery;; 2) adb_run reboot fastboot;; 3) adb_run reboot;; esac; pause_tt ;;
       2) header "fastboot"; fastboot_analysis; cat "$FBRAW_FILE"; pause_tt ;;
-      3) f="$LOG_DIR/getprop-full-$STAMP.txt"; "$ADB_BIN" shell getprop > "$f" 2>&1; log SUCCESS "Dump: $f"; pause_tt ;;
-      4) "$ADB_BIN" kill-server >/dev/null 2>&1; "$ADB_BIN" start-server >/dev/null 2>&1; log SUCCESS "ADB reset."; pause_tt ;;
+      3) f="$LOG_DIR/getprop-full-$STAMP.txt"; adb_run shell getprop > "$f" 2>&1; log SUCCESS "Dump: $f"; pause_tt ;;
+      4) adb_run kill-server >/dev/null 2>&1; adb_run start-server >/dev/null 2>&1; log SUCCESS "ADB reset."; pause_tt ;;
       5) do_diagnostic; pause_tt ;;
+      6) if [ -n "${SCRCPY_BIN:-}" ]; then
+           log INFO "$(L 'Starting scrcpy mirror (close window to continue) ...' 'Starte scrcpy (Fenster schliessen zum Fortfahren) ...')"
+           "$SCRCPY_BIN" >/dev/null 2>&1 &
+         else
+           printf '%s\n' "$(L 'scrcpy not installed (optional). Get it: https://github.com/Genymobile/scrcpy' 'scrcpy nicht installiert (optional). Bezug: https://github.com/Genymobile/scrcpy')"
+         fi
+         pause_tt ;;
     esac
   done
 }
@@ -687,7 +731,7 @@ main_menu() {
       "$(L 'Exit' 'Beenden')"
     c="$REPLY_MENU"
     case "$c" in
-      -1|15) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
+      -1|14) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
       0) status_screen ;; 1) wizard ;; 2) screen_detect ;; 3) screen_analyze ;;
       4) screen_firmware ;; 5) screen_extract ;; 6) screen_patch ;; 7) screen_backup ;;
       8) screen_flash ;; 9) screen_verify ;; 10) screen_export ;;
@@ -719,17 +763,18 @@ find_tools; detect_mode
 case "$CMD" in
   help) show_help ;;
   detect)
-    if [ -n "$JSON" ]; then printf '{"mode":"%s","adb":"%s","fastboot":"%s"}\n' "$MODE" "$ADB_SERIAL" "$FB_SERIAL"
-    else printf 'mode: %s\nadb: %s\nfastboot: %s\n' "$MODE" "$ADB_SERIAL" "$FB_SERIAL"; fi ;;
+    if [ -n "$JSON" ]; then printf '{"mode":"%s","adb":"%s","fastboot":"%s","scrcpy":"%s"}\n' "$MODE" "$ADB_SERIAL" "$FB_SERIAL" "${SCRCPY_BIN:-}"
+    else printf 'mode: %s\nadb: %s\nfastboot: %s\nscrcpy: %s\n' "$MODE" "$ADB_SERIAL" "$FB_SERIAL" "${SCRCPY_BIN:-not found (optional)}"; fi ;;
   analyze)
     [ "$MODE" = "android" ] && android_analysis
-    { [ "$MODE" = "fastboot" ] || [ -n "$FB_BIN" ]; } && fastboot_analysis || true
+    [ "$MODE" = "fastboot" ] && fastboot_analysis || true
     if [ -n "$JSON" ]; then printf '{"mode":"%s","os":"%s","detail":"%s"}\n' "$MODE" "$OS_KIND" "$OS_DETAIL"
     else printf 'OS: %s | %s\n' "$OS_KIND" "$OS_DETAIL"; fi ;;
   firmware)
     [ -n "$FWFILE" ] && FW_BASELINE="$FWFILE"
     [ -z "$FW_BASELINE" ] && [ "$MODE" = "android" ] && { android_analysis; FW_BASELINE="$(grep '^ro.build.display.id=' "$PROPS_FILE" | cut -d= -f2-)"; }
     out="$(firmware_compat "$PROFILE_ID" "$FW_BASELINE" "")"
+    FW_STATUS="${out%%|*}"
     if [ -n "$JSON" ]; then printf '{"baseline":"%s","compat":"%s"}\n' "$FW_BASELINE" "$FW_STATUS"; else printf '%s [%s]\n' "$FW_BASELINE" "$FW_STATUS"; fi ;;
   download)
     url="${FWFILE:-$IMAGE}"

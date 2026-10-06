@@ -7,7 +7,9 @@ needed afterwards for optional firmware/Magisk downloads.
 ## 0. Requirements (all paths)
 
 - Windows 10/11, PowerShell 5.1 (built in) or PowerShell 7
-- ADB/Fastboot: `C:\Program Files (x86)\Minimal ADB and Fastboot\` or platform-tools
+- First run: double-click `Setup-TrebleToolkit.bat` — auto-UAC, execution policy,
+  installs ADB/fastboot (+ optional scrcpy with your consent) into user PATH,
+  saves `data/config.json`. Skip only if tools are already on PATH.
 - USB drivers (HiSuite/Kirin), USB debugging on the P10, cable straight into the PC
 - Keep the folder layout intact: `scripts\`, `data\firmware`, `data\magisk`, `data\roms`, `logs\`, `backups\`
 
