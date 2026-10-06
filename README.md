@@ -110,6 +110,38 @@ on Debian/Ubuntu). Optional: `unzip`, `curl`, `zip` (or `python3` as fallback ea
 3. Extract (path without spaces preferred), keep layout (`scripts\`, `data\`, `logs\`, `backups\`).
 4. Optionally pre-place full firmware ZIP in `data\firmware\` and Magisk APK in `data\magisk\` — then no internet is needed at all.
 
+## Run Directly from the Internet
+
+No download, no install — needs internet + `adb`/`fastboot` on PATH. TUI stays interactive.
+
+### CMD (Windows)
+
+```cmd
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $f=\"$env:TEMP\Treble-Toolkit.ps1\"; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1' -OutFile $f -UseBasicParsing; & $f"
+```
+
+### PowerShell (Windows)
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$f = "$env:TEMP\Treble-Toolkit.ps1"
+Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1' -OutFile $f -UseBasicParsing
+& $f
+```
+
+### Bash (Linux)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/treble-toolkit.sh)
+```
+
+Fallback (if process substitution is unavailable):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/treble-toolkit.sh -o /tmp/treble-toolkit.sh \
+&& chmod +x /tmp/treble-toolkit.sh && /tmp/treble-toolkit.sh
+```
+
 ## Dependencies
 
 ### Runtime
