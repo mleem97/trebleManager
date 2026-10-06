@@ -9,6 +9,7 @@
 ## Links
 
 - **Repository:** [github.com/mleem97/trebleManager](https://github.com/mleem97/trebleManager)
+- **Wiki (user guide, EN+DE):** [github.com/mleem97/trebleManager/wiki](https://github.com/mleem97/trebleManager/wiki) — mirrored as `wiki/` subrepo (`git clone --recurse-submodules`; push both via `./push-all.sh` / `Push-All.bat`)
 - **Issues:** [github.com/mleem97/trebleManager/issues](https://github.com/mleem97/trebleManager/issues)
 - **Technical basis:** [phhusson Discussion #2542](https://github.com/phhusson/treble_experimentations/discussions/2542) · [Huawei P10 Wiki](https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus)
 - **Magisk (official):** [github.com/topjohnwu/Magisk/releases](https://github.com/topjohnwu/Magisk/releases)
