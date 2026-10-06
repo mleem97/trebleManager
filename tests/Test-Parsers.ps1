@@ -40,7 +40,7 @@ function Import-TTFunction {
   $block = $Src.Substring($start, ($i - $start) + 1)
   try { Invoke-Expression $block } catch { Write-Host ("Ladefehler " + $Name + ": " + $_.Exception.Message) -ForegroundColor Red; $script:Fail++ }
 }
-foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod")) {
+foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice")) {
   Import-TTFunction $fn
 }
 
@@ -148,6 +148,22 @@ $RootMethods = @(
 $ordered = Get-PreferredRootMethod
 Assert-Equal "preferred first" "magisk-recovery" $ordered[0].Id
 Assert-Equal "all methods kept" 3 $ordered.Count
+
+# ---- 13. Registry ROM check (synthetic registry object) ----
+$reg = [PSCustomObject]@{
+  roms = @(
+    [PSCustomObject]@{ name = "LineageOS 20 Light"; status = "broken"; reason = "non-booting"; markers = @("light") },
+    [PSCustomObject]@{ name = "LineageOS"; version = 20; status = "working"; markers = $null }
+  )
+}
+$r1 = Test-RomAgainstRegistry $reg "lineage-20-light-arm64.img"
+Assert-Equal "light blocked" "FAIL" $r1.Status
+$r2 = Test-RomAgainstRegistry $reg "lineage-20.0-arm64_bgN.img"
+Assert-Equal "normal lineage passes" "PASS" $r2.Status
+
+# ---- 14. Vendor advice ----
+Assert-True "oreo risk" ((Get-VendorAdvice "EmotionUI_8.0" "13") -match "RISK")
+Assert-True "pie boots" ((Get-VendorAdvice "EmotionUI_9.1" "13") -match "expected to boot")
 
 Write-Host ""
 Write-Host ("Ergebnis: " + $Pass + " PASS, " + $Fail + " FAIL") -ForegroundColor $(if ($Fail -eq 0) { "Green" } else { "Red" })

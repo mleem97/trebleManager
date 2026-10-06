@@ -66,10 +66,10 @@ log() { # level message
 # LineageOS is a valid STARTING point (hides Huawei base -> assisted baseline),
 # but the Magisk SOURCE stays the stock RECOVERY_RAMDISK.img.
 target_partition() {
-  case "$PROFILE_ID" in VTR-L29|VTR-L09|VKY-L29|VTR-AL00|VKY-L09) printf 'recovery_ramdisk' ;; *) printf '' ;; esac
+  case "$PROFILE_ID" in VTR-*|VKY-*) printf 'recovery_ramdisk' ;; *) printf '' ;; esac
 }
 marketing_name() {
-  case "$PROFILE_ID" in VKY-L29|VKY-L09) printf 'Huawei P10 Plus' ;; GENERIC-TREBLE) printf 'Generic Treble device' ;; *) printf 'Huawei P10' ;; esac
+  case "$PROFILE_ID" in VKY-*) printf 'Huawei P10 Plus' ;; GENERIC-TREBLE) printf 'Generic Treble device' ;; *) printf 'Huawei P10' ;; esac
 }
 profile_verified() {
   case "$PROFILE_ID" in VTR-L29|VTR-L09|VKY-L29) printf '1' ;; *) printf '0' ;; esac
@@ -80,7 +80,10 @@ profile_variant() {
     VTR-L09) printf 'Europe (UFS storage)' ;;
     VKY-L29) printf 'Global market Plus (UFS storage)' ;;
     VTR-AL00) printf 'China, no SIM restriction (eMMC or UFS - check!)' ;;
+    VTR-TL00) printf 'China Mobile customized (eMMC or UFS - check!)' ;;
     VKY-L09) printf 'Europe Plus (UFS storage)' ;;
+    VKY-AL00) printf 'China Plus, no SIM restriction (eMMC or UFS - check!)' ;;
+    VKY-TL00) printf 'China Mobile Plus customized (eMMC or UFS - check!)' ;;
     *) printf 'Fallback (analyze only)' ;;
   esac
 }
@@ -192,7 +195,12 @@ android_analysis() {
   CMDLINE="$(adb_run shell cat /proc/cmdline 2>&1 | tr -d '\r')"
   WHICHSU="$(adb_run shell 'which su; ls -l /system/xbin/su 2>&1; ls -l /system/bin/su 2>&1' 2>&1)"
   MAGISKV="$(adb_run shell 'magisk -v 2>&1; su -c id 2>&1' 2>&1)"
-  case "$MODEL" in *VTR-L29*) PROFILE_ID="VTR-L29" ;; *VTR-L09*) PROFILE_ID="VTR-L09" ;; *VKY-L29*) PROFILE_ID="VKY-L29" ;; *VTR-AL00*) PROFILE_ID="VTR-AL00" ;; *VKY-L09*) PROFILE_ID="VKY-L09" ;;
+  # Storage detection (eMMC vs UFS): informational, never assumed.
+  STORAGE="unknown"
+  blk="$(adb_run shell ls /sys/block/ 2>&1)"
+  if printf '%s' "$blk" | grep -q -E '(^|[[:space:]])sd[a-z]([[:space:]]|$)'; then STORAGE="UFS (sd* present)"
+  elif printf '%s' "$blk" | grep -q mmcblk; then STORAGE="eMMC (mmcblk, no sd*)"; fi
+  case "$MODEL" in *VTR-L29*) PROFILE_ID="VTR-L29" ;; *VTR-L09*) PROFILE_ID="VTR-L09" ;; *VKY-L29*) PROFILE_ID="VKY-L29" ;; *VTR-AL00*) PROFILE_ID="VTR-AL00" ;; *VTR-TL00*) PROFILE_ID="VTR-TL00" ;; *VKY-L09*) PROFILE_ID="VKY-L09" ;; *VKY-AL00*) PROFILE_ID="VKY-AL00" ;; *VKY-TL00*) PROFILE_ID="VKY-TL00" ;;
     *) PROFILE_ID="VTR-L29"; log WARNING "$(L "Model string is GSI ('$MODEL'). Profile default VTR-L29, verification before flash mandatory." "Modellstring ist GSI. Profil-Default VTR-L29, Verifikation vor Flash Pflicht.")" ;; esac
   log SUCCESS "OS: $OS_KIND | $OS_DETAIL"
 }
@@ -559,7 +567,45 @@ do_diagnostic() { # [--anonymize]
   printf '%s\n' "$zipf"
 }
 
-# ---------------------------------------------------------------- TUI
+# Compatibility registry (JSON mirror of data/compatibility YAML).
+compat_file() { printf '%s/data/compatibility/huawei/p10/%s.json' "$TOOL_ROOT" "$PROFILE_ID"; }
+compat_roms() { # prints "name|status|reason-or-note" lines, or fails
+  local f; f="$(compat_file)"
+  [ -f "$f" ] || return 1
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "import json,sys; [print(r.get('name','')+'|'+r.get('status','')+'|'+str(r.get('reason',r.get('note','')))) for r in json.load(open(sys.argv[1])).get('roms',[])]" "$f" 2>/dev/null && return 0
+  fi
+  grep -o '"name": "[^"]*"[^"]*"status": "[^"]*"' "$f" 2>/dev/null | sed 's/"name": //;s/"status": /|/;s/"//g' || return 1
+}
+compat_broken_markers() { # prints lowercase markers, one per line
+  local f; f="$(compat_file)"
+  [ -f "$f" ] || return 1
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "import json,sys; [print(m.lower()) for r in json.load(open(sys.argv[1])).get('roms',[]) if r.get('status')=='broken' for m in (r.get('markers') or [])]" "$f" 2>/dev/null && return 0
+  fi
+  tr -d '\n' < "$f" | grep -o '"markers": \[[^]]*\]' 2>/dev/null | grep -o '"[a-z0-9]*"' | tr -d '"' | grep -v '^markers$' || true
+}
+vendor_advice() { # emui target_android -> message
+  local emui="$1" tgt="$2"
+  if [ -z "$emui" ]; then printf 'Vendor base unknown (GSI hides it) - assume nothing.'; return; fi
+  case "$emui" in
+    *8.*) printf 'Oreo vendor: Q/8.1 problematic, P good. Target %s on Oreo = RISK.' "$tgt" ;;
+    *9.*) printf 'Pie vendor: Q/R/S boot. Target %s expected to boot.' "$tgt" ;;
+    *) printf "Vendor base '%s' unclassified - verify manually." "$emui" ;;
+  esac
+}
+screen_compat() {
+  header "$(L 'Compatibility registry (researched ROM/firmware matrix)' 'Kompatibilitaets-Registry')"
+  printf '\n'
+  local roms; if ! roms="$(compat_roms)"; then
+    printf '%s\n' "$(L 'No registry for this profile. Submit device data first.' 'Keine Registry. Erst Geraetedaten einreichen.')"; pause_tt; return
+  fi
+  printf '%s\n' "$(L 'Recommended (tested builds only):' 'Empfohlen (nur getestet):')"
+  printf '%s\n' "$roms" | grep -E '\|working' | sed 's/^/ [+] /'
+  printf '\n%s\n' "$(L 'NOT recommended (researched):' 'NICHT empfohlen:')"
+  printf '%s\n' "$roms" | grep -v -E '\|working' | sed 's/^/ [X] /'
+  pause_tt
+}
 header() { # title
   clear 2>/dev/null || true
   printf '%b\n' "${C_CYN}================================================================${C_RST}"
@@ -608,6 +654,10 @@ screen_analyze() {
     case "$OS_KIND:$OS_RELEASE" in *GSI*:13*|*GSI*:14*)
       case "$PROFILE_ID" in VTR-*|VKY-*) printf 'WARN: %s\n' "$WIKI_ANDROID13_WARN" ;; esac ;;
     esac
+    printf 'Storage: %s\n' "$STORAGE"
+    emui="$(grep '^ro.build.version.emui=' "$PROPS_FILE" | cut -d= -f2-)"
+    [ -z "$emui" ] && emui="$(grep '^ro.emui.version=' "$PROPS_FILE" | cut -d= -f2-)"
+    printf 'Vendor advice: %s\n' "$(vendor_advice "$emui" "$OS_RELEASE")"
     printf '\n--- Partitions ---\n'
     printf '%s\n' "$BYNAME_RAW" | grep -E 'boot|recovery|ramdisk|system|vendor|vbmeta' || printf '%s\n' "$BYNAME_RAW"
     if printf '%s' "$BYNAME_RAW" | grep -q recovery_ramdisk; then printf 'recovery_ramdisk: DETECTED\n'; else printf '%s\n' "$(L 'recovery_ramdisk NOT in by-name -> fastboot analysis + firmware path needed.' 'recovery_ramdisk NICHT in by-name -> Fastboot + Firmware-Weg noetig.')"; fi
@@ -757,7 +807,14 @@ system_flash() { # image [--yes]
   t="$(test_system_image "$img")"
   printf '%s\n' "$(L '=== System image check (ROM install) ===' '=== System-Image-Pruefung ===')"
   printf 'Result: %s\n' "$t"
-  if [ "${t%%|*}" != "PASS" ] || [ "$(profile_verified)" != "1" ]; then
+  # Registry cross-check: researched-broken builds block hard.
+  local low mk blocked=""
+  low="$(basename "$img" | tr '[:upper:]' '[:lower:]')"
+  for mk in $(compat_broken_markers); do
+    case "$low" in *"$mk"*) blocked="$mk" ;; esac
+  done
+  [ -n "$blocked" ] && printf 'REGISTRY BLOCKED: marker "%s" is researched BROKEN.\n' "$blocked"
+  if [ "${t%%|*}" != "PASS" ] || [ -n "$blocked" ] || [ "$(profile_verified)" != "1" ]; then
     printf 'DO NOT FLASH\n'; log ERROR "$(L 'System flash blocked.' 'System-Flash blockiert.')"; return 1
   fi
   printf 'WARNING\n%s\n%s\n' "$(L 'You are about to REPLACE the Android system (fastboot flash system).' 'Du ersetzt das Android-System.')" "$(L 'Back up storage first. Afterwards: eRecovery wipe + first boot.' 'Speicher sichern. Danach: eRecovery Wipe + Erstboot.')"
@@ -885,17 +942,18 @@ main_menu() {
       "Step 5 - Magisk" "Step 6 - Backup" "Step 7 - Flash" "Step 8+9 - Verify" \
       "$(L 'Recovery export (custom ROMs)' 'Recovery-Export (Custom-ROMs)')" "$(L 'Install ROM / GSI (guided)' 'ROM / GSI installieren (gefuehrt)')" \
       "$(L 'Root methods (Magisk preferred)' 'Root-Methoden (Magisk bevorzugt)')" "$(L 'TWRP path (guide+flash)' 'TWRP-Pfad (Anleitung+Flash)')" \
+      "$(L 'Compatibility registry' 'Kompatibilitaets-Registry')" \
       "$(L 'Unlock guide (PotatoNV)' 'Unlock-Anleitung (PotatoNV)')" "$(L 'Kernels + fixes (wiki)' 'Kernel + Fixes (Wiki)')" \
       "Restore / Unroot" "$(L 'Boot tricks (Huawei)' 'Boot-Tricks (Huawei)')" "$(L 'Tools + diagnostic ZIP' 'Tools + Diagnose-ZIP')" \
       "$(L 'Exit' 'Beenden')"
     c="$REPLY_MENU"
     case "$c" in
-      -1|19) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
+      -1|20) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
       0) status_screen ;; 1) wizard ;; 2) screen_detect ;; 3) screen_analyze ;;
       4) screen_firmware ;; 5) screen_extract ;; 6) screen_patch ;; 7) screen_backup ;;
       8) screen_flash ;; 9) screen_verify ;; 10) screen_export ;; 11) screen_flashsystem ;;
-      12) screen_rootmethods ;; 13) screen_twrp ;; 14) screen_unlock ;; 15) screen_kernelfixes ;;
-      16) do_restore "" "" || true; pause_tt ;; 17) screen_bootkeys ;; 18) screen_tools ;;
+      12) screen_rootmethods ;; 13) screen_twrp ;; 14) screen_compat ;; 15) screen_unlock ;; 16) screen_kernelfixes ;;
+      17) do_restore "" "" || true; pause_tt ;; 18) screen_bootkeys ;; 19) screen_tools ;;
     esac
   done
 }
@@ -906,13 +964,13 @@ wizard() {
 # ---------------------------------------------------------------- CLI
 show_help() {
   printf 'Huawei P10 Root Manager v%s\n' "$TTVERSION"
-  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|verify|restore|diagnostic|wizard|help] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
+  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|verify|restore|diagnostic|wizard|help] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
   printf '%s\n' "$(L 'No args: TUI. Download/flash/restore need --yes.' 'Ohne Args: TUI. Download/Flash/Restore brauchen --yes.')"
 }
 CMD=""; JSON=""; YES=""; IMAGE=""; FWFILE=""; ANON=""; NOREBOOT=""
 for a in "$@"; do
   case "$a" in
-    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|verify|restore|diagnostic|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
+    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|verify|restore|diagnostic|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
     --json) JSON=1 ;; --yes) YES=1 ;; --anonymize) ANON=1 ;; --no-reboot) NOREBOOT=1 ;;
     --image|--firmware-file) WANTVAL="$a" ;;
     *) if [ "${WANTVAL:-}" = "--image" ]; then IMAGE="$a"; WANTVAL=""; elif [ "${WANTVAL:-}" = "--firmware-file" ]; then FWFILE="$a"; WANTVAL=""; fi ;;
@@ -991,6 +1049,16 @@ case "$CMD" in
   root-methods)
     if [ -n "$JSON" ]; then printf '[{"id":"magisk-recovery","preferred":true},{"id":"magisk-twrp","preferred":false},{"id":"phh-su","preferred":false},{"id":"kernelsu","preferred":false}]\n'
     else for m in $(root_method_ids); do printf ' - %s: %s\n' "$m" "$(root_method_name "$m")"; done; fi ;;
+  compat)
+    if roms="$(compat_roms)"; then
+      if [ -n "$JSON" ]; then
+        if command -v python3 >/dev/null 2>&1; then python3 -c "import json,sys; print(json.dumps(json.load(open(sys.argv[1]))))" "$(compat_file)"
+        else printf '%s\n' "$roms"; fi
+      else
+        printf 'Recommended:\n'; printf '%s\n' "$roms" | grep -E '\|working' | sed 's/^/ [+] /'
+        printf 'Not recommended:\n'; printf '%s\n' "$roms" | grep -v -E '\|working' | sed 's/^/ [X] /'
+      fi
+    else printf '%s\n' "$(L 'No registry for this profile.' 'Keine Registry.')"; exit 3; fi ;;
   verify)
     if [ -n "$NOREBOOT" ]; then verify_root --no-reboot; else verify_root; fi
     rc=$?

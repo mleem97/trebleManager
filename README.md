@@ -37,11 +37,11 @@ from Huawei fastboot is treated as a Huawei quirk, never as proof of lock.
 
 | Device | Model | Arch | State |
 |---|---|---|---|
-| Huawei P10 | VTR-L29 (primary, verified) | arm64 | Supported |
+| Huawei P10 (test device) | VTR-L29 (primary, verified) | arm64 | Supported |
 | Huawei P10 | VTR-L09 (verified) | arm64 | Supported |
-| Huawei P10 Plus | VKY-L29 (verified) | arm64 | Supported |
-| Huawei P10 | VTR-AL00 (unverified) | arm64 | Analyze + export only (flash blocked) |
-| Huawei P10 Plus | VKY-L09 (unverified) | arm64 | Analyze + export only (flash blocked) |
+| Huawei P10 | VTR-AL00 / VTR-TL00 (unverified) | arm64 | Analyze + export only (flash blocked) |
+| Huawei P10 Plus (secondary, no test device) | VKY-L29 (verified) | arm64 | Supported |
+| Huawei P10 Plus | VKY-L09 / VKY-AL00 / VKY-TL00 (unverified) | arm64 | Analyze + export only (flash blocked) |
 
 Unverified = same Kirin 960 hypothesis, but flash stays blocked until device data
 is submitted (see `device-support` issue template). `devices` CLI lists all profiles.
@@ -69,6 +69,7 @@ UI language: English by default, German if the system language is German.
 - Stock firmware downloader with progress (BITS resume + WebClient fallback) and mandatory `YES` confirmation
 - `UPDATE.APP` analysis + `RECOVERY_RAMDIS(K).img` validation (size, SHA-256/512, header magic, exact filename kept)
 - **Recovery export from compatible custom ROMs** (direct `.img`, ROM `.zip` with `boot/recovery.img`, `payload.bin` via payload-dumper-go; GSI system images honestly refused)
+- **Compatibility registry** (`data/compatibility/huawei/p10/*.yaml` + generated `.json`): researched ROM/firmware/TWRP/Magisk matrix per variant (working / working-slim / working-with-fixes / broken / variant-dependent). TUI screen + `compat` CLI show recommendations; `flash-system` hard-blocks researched-broken builds (e.g. Lineage 20 Light, HavocOS 3.12); vendor (Oreo vs Pie) + storage (eMMC vs UFS) advice in analysis
 - **Guided ROM/GSI install** (`flash-system`, TUI menu): image checks (size, arm64, A-only), double confirmation, `fastboot flash system`, eRecovery wipe guidance — never auto-wipes userdata
 - **TWRP path** (guide + guided flash): device-exact builds, image validation, automatic slot backup, explicit shared-slot warning (TWRP ↔ Magisk overwrite each other), Vol-Up boot, never TWRP userdata wipe
 - **Root methods by priority** (Magisk preferred): patched recovery_ramdisk → Magisk-via-TWRP → phh-su → KernelSU (v0.9.2 only), selectable in TUI / `root-methods` CLI
@@ -207,6 +208,7 @@ Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md), [FA
 ├── data/magisk/            # Magisk APK + to-patch staging + pulled patched images
 ├── data/roms/              # Custom ROM packages for recovery export
 ├── data/recovery/          # Exported recovery/boot images + metadata
+├── data/compatibility/     # Researched per-variant matrix (YAML source + JSON mirror)
 ├── data/tools/             # Optional extractors (update extractor, payload dumper)
 ├── backups/                # Pre-flash backups per model/partition/stamp (git-ignored)
 ├── logs/                   # Session logs + diagnostic ZIPs (git-ignored)

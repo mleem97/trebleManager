@@ -1,0 +1,209 @@
+{
+  "device": {
+    "family": "Huawei-P10",
+    "codename": "VTR",
+    "variant": "VTR-L29",
+    "region_note": "Global / Dual-SIM"
+  },
+  "hardware": {
+    "soc": "Kirin 960",
+    "arch": "arm64",
+    "treble": true,
+    "ab_scheme": "a-only"
+  },
+  "storage": {
+    "expected": [
+      "UFS"
+    ],
+    "note": "Europe/Global units are UFS. Still verify, never assume."
+  },
+  "partitions": {
+    "recovery_ramdisk": "required",
+    "method": "magisk-patch-image"
+  },
+  "firmware": {
+    "required_base": "EMUI 9.1",
+    "advisory": [
+      "VTR-L29 9.1.0.297(C432E5R1P9)",
+      "VTR-L29 9.1.0.275(C432E2R1P9T8)"
+    ],
+    "note": "Advisory only, never auto-selected. Region/CUST must match the device.",
+    "archives": [
+      {
+        "name": "ROMDevelopers VTR-L29",
+        "kind": "community-archive",
+        "tier": 3,
+        "note": "separated C10/C185/C432-C900/C576/C605/C636 areas"
+      },
+      {
+        "name": "HalabTech VTR-L29",
+        "kind": "community-archive",
+        "tier": 3,
+        "note": "large mirror",
+        "e.g. 9.1.0.290 C10": null,
+        "9.1.0.270 C636": null,
+        "9.1.0.252 C432": null
+      },
+      {
+        "name": "HUAWEI FIRM FINDER V2",
+        "url": "https://professorjtj.github.io/v2/",
+        "kind": "proxy-historic",
+        "tier": 1,
+        "note": "many old Huawei CDN links are dead"
+      }
+    ]
+  },
+  "vendor_boot": {
+    "oreo": {
+      "Q": "problematic",
+      "Oreo81": "problematic",
+      "P": "good"
+    },
+    "pie": {
+      "Q": "boot",
+      "R": "boot",
+      "S": "boot"
+    }
+  },
+  "roms": [
+    {
+      "name": "AOSP",
+      "android": "10",
+      "status": "working",
+      "vendor": "9.0.1.201"
+    },
+    {
+      "name": "AOSP",
+      "android": "11",
+      "status": "working",
+      "vendor": "9.0.1.201"
+    },
+    {
+      "name": "AOSP",
+      "android": "12",
+      "status": "working",
+      "note": "v400.e fixes speaker/touch; fingerprint may break; mobile data may need IMS tuning"
+    },
+    {
+      "name": "LineageOS",
+      "version": 18.1,
+      "status": "working",
+      "gsi": "arm64_bgN"
+    },
+    {
+      "name": "LineageOS",
+      "version": 19.1,
+      "status": "working",
+      "gsi": "arm64_bgN"
+    },
+    {
+      "name": "LineageOS",
+      "version": 20,
+      "status": "working",
+      "gsi": "arm64_bgN",
+      "note": "NOT the Light build"
+    },
+    {
+      "name": "LineageOS 20 Light",
+      "version": 20,
+      "status": "broken",
+      "reason": "wiki-tested non-booting on P10",
+      "markers": [
+        "light"
+      ]
+    },
+    {
+      "name": "PixelExperience",
+      "android": 13,
+      "status": "working",
+      "vendor": "9.0.1.190"
+    },
+    {
+      "name": "SuperiorOS",
+      "android": 13,
+      "build": 20240401,
+      "status": "working-slim",
+      "image": "SuperiorOS_A13-arm64-bgS-slim_20240401.img"
+    },
+    {
+      "name": "HavocOS",
+      "version": 3.12,
+      "status": "broken",
+      "reason": "phone/media crashes",
+      "no SIM on VTR-L09 EMUI 9.1": null,
+      "markers": [
+        "havoc"
+      ]
+    },
+    {
+      "name": "ResurrectionRemix",
+      "version": "8.5.8",
+      "status": "working-with-fixes",
+      "note": "speaker + screen-edge fixes via init/Magisk"
+    },
+    {
+      "name": "LeaOS",
+      "status": "variant-dependent",
+      "reason": "do not run L29 builds on L09 (laggy)",
+      "match submodel": null
+    }
+  ],
+  "magisk": {
+    "method": "recovery_ramdisk",
+    "patch_on_device": true,
+    "supported": true,
+    "verified_method": true,
+    "forbidden": [
+      "shared patched image"
+    ],
+    "note": "Never use someone else's patched image; patch the concrete stock file on the device (Magisk docs)."
+  },
+  "twrp": [
+    {
+      "version": "3.2.1-0",
+      "base": "oreo",
+      "status": "working",
+      "partition": "recovery_ramdisk",
+      "source": "XDA P10/Plus thread"
+    },
+    {
+      "version": "3.4.0-0-emui9_eR",
+      "base": "EMUI 9.1",
+      "status": "working",
+      "use": "Android 12/12.1 GSI",
+      "source": "XDA recommended thread"
+    }
+  ],
+  "kernels": [
+    {
+      "name": "Proto8",
+      "base": "EMUI8",
+      "status": "optional",
+      "note": "stable all P10"
+    },
+    {
+      "name": "HyperPlus",
+      "base": "EMUI8",
+      "status": "optional",
+      "note": "EU/Global or CN-with-UFS only"
+    },
+    {
+      "name": "Pangu",
+      "base": "EMUI9-CN",
+      "status": "optional"
+    },
+    {
+      "name": "KernelSU",
+      "status": "experimental",
+      "note": "v0.9.2 only",
+      "NOT v0.9.5+": null
+    }
+  ],
+  "sources": {
+    "discussion_2542": "https://github.com/phhusson/treble_experimentations/discussions/2542",
+    "wiki_p10": "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus",
+    "magisk_install": "https://topjohnwu.github.io/Magisk/install.html",
+    "potatonv": "https://github.com/mashed-potatoes/PotatoNV",
+    "gsi_source": "https://sourceforge.net/projects/andyyan-gsi/files/"
+  }
+}

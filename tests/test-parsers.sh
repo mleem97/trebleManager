@@ -25,7 +25,7 @@ $line"
   done < "$SRC"
   eval "$block" || { bad "load: $name"; return; }
 }
-for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name; do import_fn "$fn"; done
+for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name compat_file compat_broken_markers compat_roms vendor_advice; do import_fn "$fn"; done
 
 # Need TTLANG + PROFILE_ID + stubs used by imported funcs
 TTLANG="en"
@@ -71,6 +71,15 @@ PROFILE_ID="VTR-L29"
 first="$(root_method_ids | head -1)"
 [ "$first" = "magisk-recovery" ] && ok "magisk preferred first" || bad "magisk order ($first)"
 [ "$(root_method_ids | wc -l)" -eq 4 ] && ok "4 root methods" || bad "root method count"
+
+# 5c. Registry: broken markers + rom lists (needs TOOL_ROOT)
+TOOL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROFILE_ID="VTR-L29"
+mk="$(compat_broken_markers)"
+printf '%s' "$mk" | grep -q light && ok "marker light" || bad "marker light ($mk)"
+printf '%s' "$mk" | grep -q havoc && ok "marker havoc" || bad "marker havoc ($mk)"
+rl="$(compat_roms)"
+printf '%s' "$rl" | grep -q "LineageOS|working" && ok "registry lineage" || bad "registry lineage"
 
 # 6. System image gate (small/foreign names refused)
 printf 'tiny' > "$TMP/small.img"

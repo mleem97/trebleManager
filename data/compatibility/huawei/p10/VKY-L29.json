@@ -1,0 +1,99 @@
+{
+  "device": {
+    "family": "Huawei-P10-Plus",
+    "codename": "VKY",
+    "variant": "VKY-L29",
+    "region_note": "Global / Dual-SIM"
+  },
+  "hardware": {
+    "soc": "Kirin 960",
+    "arch": "arm64",
+    "treble": true,
+    "ab_scheme": "a-only"
+  },
+  "storage": {
+    "expected": [
+      "UFS"
+    ],
+    "note": "Europe/Global units are UFS. Still verify, never assume."
+  },
+  "partitions": {
+    "recovery_ramdisk": "required",
+    "method": "magisk-patch-image"
+  },
+  "firmware": {
+    "required_base": "EMUI 9.1",
+    "advisory": [
+      "VKY-L29 EMUI 9.1 with matching CUST"
+    ],
+    "note": "Advisory only. Secondary device (no test unit here)."
+  },
+  "vendor_boot": {
+    "oreo": {
+      "Q": "problematic",
+      "Oreo81": "problematic",
+      "P": "good"
+    },
+    "pie": {
+      "Q": "boot",
+      "R": "boot",
+      "S": "boot"
+    }
+  },
+  "roms": [
+    {
+      "name": "LineageOS",
+      "version": 18.1,
+      "status": "working",
+      "gsi": "arm64_bgN",
+      "note": "tested on Plus per wiki"
+    },
+    {
+      "name": "LineageOS 20 Light",
+      "version": 20,
+      "status": "broken",
+      "markers": [
+        "light"
+      ]
+    },
+    {
+      "name": "HavocOS",
+      "version": 3.12,
+      "status": "broken",
+      "markers": [
+        "havoc"
+      ]
+    }
+  ],
+  "magisk": {
+    "method": "recovery_ramdisk",
+    "patch_on_device": true,
+    "supported": true,
+    "verified_method": true,
+    "forbidden": [
+      "shared patched image"
+    ]
+  },
+  "twrp": [
+    {
+      "version": "3.2.1-0",
+      "base": "oreo",
+      "status": "working",
+      "partition": "recovery_ramdisk",
+      "source": "XDA P10/Plus thread"
+    },
+    {
+      "version": "3.4.0-0-emui9_eR",
+      "base": "EMUI 9.1",
+      "status": "working",
+      "source": "XDA recommended thread"
+    }
+  ],
+  "sources": {
+    "discussion_2542": "https://github.com/phhusson/treble_experimentations/discussions/2542",
+    "wiki_p10": "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus",
+    "magisk_install": "https://topjohnwu.github.io/Magisk/install.html",
+    "potatonv": "https://github.com/mashed-potatoes/PotatoNV",
+    "gsi_source": "https://sourceforge.net/projects/andyyan-gsi/files/"
+  }
+}

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Compatibility registry (`data/compatibility/huawei/p10/*.yaml` + JSON): researched ROM/firmware/TWRP/Magisk matrix, `compat` screen/CLI, broken-build hard block, vendor + storage advice
+- Fixed `$Args` auto-variable shadowing (bare-adb help-text bug) + help-text guard
+
 ## v2.4.0
 
 - TWRP path: guide (device-exact builds, XDA/wiki rules) + guided flash with slot backup, shared-slot warning, Vol-Up boot, CLI `twrp`

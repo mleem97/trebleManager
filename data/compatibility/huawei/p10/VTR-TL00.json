@@ -1,0 +1,86 @@
+{
+  "device": {
+    "family": "Huawei-P10",
+    "codename": "VTR",
+    "variant": "VTR-TL00",
+    "region_note": "China Mobile customized"
+  },
+  "hardware": {
+    "soc": "Kirin 960",
+    "arch": "arm64",
+    "treble": true,
+    "ab_scheme": "a-only"
+  },
+  "storage": {
+    "expected": [
+      "UFS",
+      "eMMC"
+    ],
+    "note": "CN units ship BOTH eMMC and UFS. Detect storage, NEVER assume UFS."
+  },
+  "partitions": {
+    "recovery_ramdisk": "required",
+    "method": "magisk-patch-image"
+  },
+  "firmware": {
+    "required_base": "EMUI 9.1",
+    "advisory": [
+      "VTR-TL00 EMUI 9.1 with matching carrier CUST"
+    ],
+    "note": "Carrier-customized unit. Stock and CUST must match exactly."
+  },
+  "vendor_boot": {
+    "oreo": {
+      "Q": "problematic",
+      "Oreo81": "problematic",
+      "P": "good"
+    },
+    "pie": {
+      "Q": "boot",
+      "R": "boot",
+      "S": "boot"
+    }
+  },
+  "roms": [
+    {
+      "name": "LineageOS 20 Light",
+      "version": 20,
+      "status": "broken",
+      "reason": "wiki-tested non-booting on P10",
+      "markers": [
+        "light"
+      ]
+    },
+    {
+      "name": "HavocOS",
+      "version": 3.12,
+      "status": "broken",
+      "markers": [
+        "havoc"
+      ]
+    }
+  ],
+  "magisk": {
+    "method": "recovery_ramdisk",
+    "patch_on_device": true,
+    "supported": true,
+    "verified_method": true,
+    "forbidden": [
+      "shared patched image"
+    ]
+  },
+  "twrp": [
+    {
+      "version": "3.2.1-0",
+      "base": "oreo",
+      "status": "working",
+      "partition": "recovery_ramdisk"
+    }
+  ],
+  "sources": {
+    "discussion_2542": "https://github.com/phhusson/treble_experimentations/discussions/2542",
+    "wiki_p10": "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus",
+    "magisk_install": "https://topjohnwu.github.io/Magisk/install.html",
+    "potatonv": "https://github.com/mashed-potatoes/PotatoNV"
+  }
+}

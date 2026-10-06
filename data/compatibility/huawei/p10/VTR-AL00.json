@@ -1,0 +1,115 @@
+{
+  "device": {
+    "family": "Huawei-P10",
+    "codename": "VTR",
+    "variant": "VTR-AL00",
+    "region_note": "China"
+  },
+  "hardware": {
+    "soc": "Kirin 960",
+    "arch": "arm64",
+    "treble": true,
+    "ab_scheme": "a-only"
+  },
+  "storage": {
+    "expected": [
+      "UFS",
+      "eMMC"
+    ],
+    "note": "CN units ship BOTH eMMC and UFS. Detect storage, NEVER assume UFS. Old TWRP builds differ by chip."
+  },
+  "partitions": {
+    "recovery_ramdisk": "required",
+    "method": "magisk-patch-image"
+  },
+  "firmware": {
+    "required_base": "EMUI 9.1",
+    "advisory": [
+      "VTR-AL00 EMUI 9.1 with matching CUST (C00/...)"
+    ],
+    "note": "Advisory only. CN CUST (C00) required; EU firmware does not belong here."
+  },
+  "vendor_boot": {
+    "oreo": {
+      "Q": "problematic",
+      "Oreo81": "problematic",
+      "P": "good"
+    },
+    "pie": {
+      "Q": "boot",
+      "R": "boot",
+      "S": "boot"
+    }
+  },
+  "roms": [
+    {
+      "name": "AOSP",
+      "android": 12,
+      "status": "working",
+      "vendor": "9.0.1.179-C00E65R1P12"
+    },
+    {
+      "name": "PixelExperience",
+      "android": 12,
+      "status": "working-slim",
+      "note": "slim ONLY",
+      "system partition too small": null
+    },
+    {
+      "name": "PixelExperience",
+      "android": 13,
+      "build": 20221113,
+      "status": "working",
+      "note": "SIM/NFC/WLAN/audio tested working"
+    },
+    {
+      "name": "LineageOS 20 Light",
+      "version": 20,
+      "status": "broken",
+      "reason": "wiki-tested non-booting on P10",
+      "markers": [
+        "light"
+      ]
+    },
+    {
+      "name": "HavocOS",
+      "version": 3.12,
+      "status": "broken",
+      "markers": [
+        "havoc"
+      ]
+    }
+  ],
+  "magisk": {
+    "method": "recovery_ramdisk",
+    "patch_on_device": true,
+    "supported": true,
+    "verified_method": true,
+    "forbidden": [
+      "shared patched image"
+    ]
+  },
+  "twrp": [
+    {
+      "version": "3.2.1-0",
+      "base": "oreo",
+      "status": "working",
+      "partition": "recovery_ramdisk",
+      "note": "EMMC variant added later",
+      "match chip": null
+    }
+  ],
+  "kernels": [
+    {
+      "name": "Pangu",
+      "base": "EMUI9-CN",
+      "status": "optional"
+    }
+  ],
+  "sources": {
+    "discussion_2542": "https://github.com/phhusson/treble_experimentations/discussions/2542",
+    "wiki_p10": "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus",
+    "magisk_install": "https://topjohnwu.github.io/Magisk/install.html",
+    "potatonv": "https://github.com/mashed-potatoes/PotatoNV"
+  }
+}

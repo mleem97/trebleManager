@@ -115,6 +115,9 @@ $TT = @{
   PatchedImage = ""
   PatchedHash  = $null
   RootMethod   = "magisk-recovery"
+  Compat       = $null
+  CompatProfile = ""
+  Storage      = "unknown"
   MagiskApk    = ""
   MagiskInfo   = $null
   BackupDir    = ""
@@ -143,6 +146,8 @@ function Test-TTAdmin {
 }
 
 # ============================================================ Device profiles (modular)
+# Primary test device: plain Huawei P10 (VTR family - no Lite, no Plus).
+# P10 Plus (VKY) profiles are supported but secondary (no test device).
 # New Huawei device = add one block here, rest stays the same.
 # Verified = method proven from Discussion #2542 + P10 wiki (flash allowed).
 # Unverified = hypothesis only (analyze + export allowed, flash BLOCKED until verified).
@@ -227,6 +232,54 @@ $DeviceProfiles = @{
     EmuiRequired = "9.1"
     GsiAdvice = "arm64 A-only images; slim builds if system partition is small"
     KnownGoodAdvisory = @("VKY-L09 EMUI 9.1 with matching CUST - UNVERIFIED, submit device data first")
+    Discuss = "https://github.com/phhusson/treble_experimentations/discussions/2542"
+    Wiki = "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus"
+    BootKeys = "Vol-Up + Power until Huawei logo, then release"
+    UnlockTool = "https://github.com/mashed-potatoes/PotatoNV"
+    FirmwareFinder = "https://professorjtj.github.io/v2/"
+    MagiskGuide = "https://topjohnwu.github.io/Magisk/install.html"
+  }
+  "VTR-TL00" = @{
+    Id = "VTR-TL00"; Marketing = "Huawei P10"; Arch = "arm64"; SoC = "Kirin 960"
+    Verified = $false; Variant = "China Mobile customized (eMMC or UFS storage - check!)"
+    TargetPartition = "recovery_ramdisk"
+    ForbiddenPartitions = @("boot","recovery","system","vendor","userdata")
+    StockFileNames = @("RECOVERY_RAMDISK.img","RECOVERY_RAMDIS.img","recovery_ramdisk.img")
+    EmuiRequired = "9.1"
+    GsiAdvice = "arm64 A-only; carrier-customized CN unit - check CUST + storage chip, see wiki"
+    KnownGoodAdvisory = @("VTR-TL00 EMUI 9.1 with matching CUST - UNVERIFIED, submit device data first")
+    Discuss = "https://github.com/phhusson/treble_experimentations/discussions/2542"
+    Wiki = "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus"
+    BootKeys = "Vol-Up + Power until Huawei logo, then release"
+    UnlockTool = "https://github.com/mashed-potatoes/PotatoNV"
+    FirmwareFinder = "https://professorjtj.github.io/v2/"
+    MagiskGuide = "https://topjohnwu.github.io/Magisk/install.html"
+  }
+  "VKY-AL00" = @{
+    Id = "VKY-AL00"; Marketing = "Huawei P10 Plus"; Arch = "arm64"; SoC = "Kirin 960"
+    Verified = $false; Variant = "China, no SIM restriction (eMMC or UFS storage - check!)"
+    TargetPartition = "recovery_ramdisk"
+    ForbiddenPartitions = @("boot","recovery","system","vendor","userdata")
+    StockFileNames = @("RECOVERY_RAMDISK.img","RECOVERY_RAMDIS.img","recovery_ramdisk.img")
+    EmuiRequired = "9.1"
+    GsiAdvice = "arm64 A-only; CN units with eMMC behave differently - see wiki storage note"
+    KnownGoodAdvisory = @("VKY-AL00 EMUI 9.1 with matching CUST (C00/...) - UNVERIFIED, submit device data first")
+    Discuss = "https://github.com/phhusson/treble_experimentations/discussions/2542"
+    Wiki = "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus"
+    BootKeys = "Vol-Up + Power until Huawei logo, then release"
+    UnlockTool = "https://github.com/mashed-potatoes/PotatoNV"
+    FirmwareFinder = "https://professorjtj.github.io/v2/"
+    MagiskGuide = "https://topjohnwu.github.io/Magisk/install.html"
+  }
+  "VKY-TL00" = @{
+    Id = "VKY-TL00"; Marketing = "Huawei P10 Plus"; Arch = "arm64"; SoC = "Kirin 960"
+    Verified = $false; Variant = "China Mobile customized (eMMC or UFS storage - check!)"
+    TargetPartition = "recovery_ramdisk"
+    ForbiddenPartitions = @("boot","recovery","system","vendor","userdata")
+    StockFileNames = @("RECOVERY_RAMDISK.img","RECOVERY_RAMDIS.img","recovery_ramdisk.img")
+    EmuiRequired = "9.1"
+    GsiAdvice = "arm64 A-only; carrier-customized CN unit - check CUST + storage chip, see wiki"
+    KnownGoodAdvisory = @("VKY-TL00 EMUI 9.1 with matching CUST - UNVERIFIED, submit device data first")
     Discuss = "https://github.com/phhusson/treble_experimentations/discussions/2542"
     Wiki = "https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus"
     BootKeys = "Vol-Up + Power until Huawei logo, then release"
@@ -584,6 +637,58 @@ function Get-OSClassification {
   }
 }
 
+function Get-CompatRegistry {
+  # Loads data/compatibility/huawei/p10/<profile>.json (generated from .yaml). Cached.
+  if ($TT.Compat -ne $null -and $TT.CompatProfile -eq $TT.ProfileId) { return $TT.Compat }
+  $TT.Compat = $null; $TT.CompatProfile = $TT.ProfileId
+  $f = Join-Path $TTRoot ("data/compatibility/huawei/p10/" + $TT.ProfileId + ".json")
+  if (-not (Test-Path $f)) { return $null }
+  try {
+    $TT.Compat = Get-Content $f -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+  } catch {
+    Write-TTLog ((L "Registry unreadable: " "Registry unlesbar: ") + $f) "ERROR"
+    return $null
+  }
+  return $TT.Compat
+}
+
+function Test-RomAgainstRegistry {
+  # Pure logic on registry object + filename: returns @{ Status; Reasons }.
+  # Researched BROKEN builds block (not warn) - brick protection.
+  param($Reg, [string]$FileName)
+  $low = $FileName.ToLower()
+  if ($Reg -eq $null) { return @{ Status = "WARN"; Reasons = @("No registry for this profile - cannot cross-check ROM.") } }
+  foreach ($r in $Reg.roms) {
+    if ($r.status -ne "broken") { continue }
+    $hit = $false
+    foreach ($m in @($r.markers)) { if ($m -ne $null -and $low.Contains([string]$m.ToLower())) { $hit = $true } }
+    if (-not $hit) {
+      $rn = [string]$r.name
+      if ($rn -ne "" -and $low.Contains($rn.ToLower().Split(" ")[0])) {
+        # Name alone is not enough (e.g. Lineage vs Lineage Light) - need marker too.
+      }
+    }
+    if ($hit) {
+      return @{ Status = "FAIL"; Reasons = @("BLOCKED: '" + $r.name + "' is researched BROKEN (" + $r.reason + ").") }
+    }
+  }
+  return @{ Status = "PASS"; Reasons = @("No researched-broken markers matched.") }
+}
+
+function Get-VendorAdvice {
+  # EMUI base -> vendor generation -> boot expectations (TrebleDroid matrix).
+  param([string]$Emui, [string]$TargetAndroid)
+  if ([string]::IsNullOrWhiteSpace($Emui)) { return "Vendor base unknown (GSI hides it) - assume nothing about Q/R/S boot."
+  }
+  if ($Emui -match "8\.") {
+    return "Oreo vendor: Q/8.1 problematic, P good. Target Android $TargetAndroid on Oreo vendor = RISK (see registry vendor_boot)."
+  }
+  if ($Emui -match "9\.") {
+    return "Pie vendor: Q/R/S boot. Target Android $TargetAndroid expected to boot."
+  }
+  return "Vendor base '$Emui' unclassified - verify manually."
+}
+
 function Test-FirmwareCompatibility {
   param([string]$Model, [string]$FirmwareString, [string]$Region)
   $reasons = @(); $status = "PASS"
@@ -831,24 +936,29 @@ function Find-TTTools {
 }
 
 function Invoke-TTAdb {
-  param([string[]]$Args)
-  if (-not $TT.Adb) { Write-TTLog ((L "ADB missing, command skipped: " "ADB fehlt, Befehl uebersprungen: ") + "adb $($Args -join ' ')") "ERROR"; return @() }
-  Write-TTLog ">> adb $($Args -join ' ')" "DEBUG"
+  param([string[]]$Arguments)
+  if (-not $TT.Adb) { Write-TTLog ((L "ADB missing, command skipped: " "ADB fehlt, Befehl uebersprungen: ") + "adb $($Arguments -join ' ')") "ERROR"; return @() }
+  Write-TTLog ">> adb $($Arguments -join ' ')" "DEBUG"
   try {
-    $o = & $TT.Adb @Args 2>&1
+    $o = & $TT.Adb @Arguments 2>&1
     $lines = @()
     foreach ($x in $o) { $lines += [string]$x }
     ($lines -join "`n") | Out-File -FilePath $TT.Log -Encoding utf8 -Append
+    # Defense: bare/broken adb prints its help text - never treat that as data.
+    if ((($lines -join "`n") -match "Android Debug Bridge version") -and -not ($Arguments -contains "version")) {
+      Write-TTLog (L "adb printed help instead of answering (broken invocation or no device) - output ignored." "adb gab Hilfe statt Antwort aus (kaputter Aufruf oder kein Geraet) - Ausgabe ignoriert.") "ERROR"
+      return @()
+    }
     return $lines
   } catch { Write-TTLog ((L "ADB error: " "ADB-Fehler: ") + $_.Exception.Message) "ERROR"; return @() }
 }
 
 function Invoke-TTFastboot {
-  param([string[]]$Args)
+  param([string[]]$Arguments)
   if (-not $TT.Fastboot) { Write-TTLog (L "Fastboot missing, command skipped." "Fastboot fehlt, Befehl uebersprungen.") "ERROR"; return @() }
-  Write-TTLog ">> fastboot $($Args -join ' ')" "DEBUG"
+  Write-TTLog ">> fastboot $($Arguments -join ' ')" "DEBUG"
   try {
-    $o = & $TT.Fastboot @Args 2>&1
+    $o = & $TT.Fastboot @Arguments 2>&1
     $lines = @()
     foreach ($x in $o) { $lines += [string]$x }
     ($lines -join "`n") | Out-File -FilePath $TT.Log -Encoding utf8 -Append
@@ -908,12 +1018,26 @@ function Invoke-TTAndroidAnalysis {
   $TT.WhichSu = (Invoke-TTAdb @("shell","which su; ls -l /system/xbin/su 2>&1; ls -l /system/bin/su 2>&1") -join "`n")
   $TT.MagiskVer = (Invoke-TTAdb @("shell","magisk -v 2>&1; su -v 2>&1; su -c id 2>&1") -join "`n")
   $TT.MagiskPkg = (Invoke-TTAdb @("shell","pm list packages 2>&1 | grep -i -E 'magisk|topjohnwu|phh|kernelsu'") -join "`n")
+  # Storage detection (eMMC vs UFS): informational, never assumed. CN units ship both.
+  $TT.Storage = "unknown"
+  try {
+    $blk = (Invoke-TTAdb @("shell","ls /sys/block/ 2>&1") -join "`n")
+    $hasMmc = $blk -match "mmcblk"
+    $hasSd = ($blk -split "`n") | Where-Object { $_ -match "^\s*sd[a-z]\s*$|^\s*sd[a-z]\s" }
+    if ($hasSd) { $TT.Storage = "UFS (sd* block devices present)" }
+    elseif ($hasMmc) { $TT.Storage = "eMMC (mmcblk present, no sd*)" }
+  } catch {}
   # Derive profile from model (GSI reports TrebleDroid instead of VTR -> note, profile stays VTR-L29 default)
   $model = [string]$h["ro.product.model"]
   $prof = ""
   if ($model -match "VTR-L29") { $prof = "VTR-L29" }
   elseif ($model -match "VTR-L09") { $prof = "VTR-L09" }
+  elseif ($model -match "VTR-AL00") { $prof = "VTR-AL00" }
+  elseif ($model -match "VTR-TL00") { $prof = "VTR-TL00" }
   elseif ($model -match "VKY-L29") { $prof = "VKY-L29" }
+  elseif ($model -match "VKY-L09") { $prof = "VKY-L09" }
+  elseif ($model -match "VKY-AL00") { $prof = "VKY-AL00" }
+  elseif ($model -match "VKY-TL00") { $prof = "VKY-TL00" }
   else {
     # GSI/stock without Huawei model string -> default VTR-L29 (target device), flagged as WARN
     $prof = "VTR-L29"
@@ -1485,6 +1609,16 @@ function Screen-Analyze {
     $rr = $TT.ByName | Where-Object { $_.Name -eq "recovery_ramdisk" }
     if ($rr) { Write-Host "recovery_ramdisk: DETECTED" -ForegroundColor Green }
     else { Write-Host (L "recovery_ramdisk: NOT seen in by-name -> fastboot analysis + firmware path needed." "recovery_ramdisk: NICHT in by-name gesehen -> Fastboot-Analyse + Firmware-Weg noetig.") -ForegroundColor Yellow }
+    Write-Host ""
+    Write-Host ("Storage: " + $TT.Storage) -ForegroundColor White
+    $reg = Get-CompatRegistry
+    if ($reg -ne $null -and $reg.storage -ne $null) {
+      $exp = ($reg.storage.expected -join "/")
+      Write-Host ((L "Registry expects: " "Registry erwartet: ") + $exp) -ForegroundColor Gray
+    }
+    $emui = [string]$TT.Props["ro.build.version.emui"]
+    if ([string]::IsNullOrEmpty($emui)) { $emui = [string]$TT.Props["ro.emui.version"] }
+    Write-Host ((L "Vendor advice: " "Vendor-Hinweis: ") + (Get-VendorAdvice $emui $rel)) -ForegroundColor Gray
   } elseif ($TT.Mode -eq "fastboot") {
     Write-Host (L "Device in fastboot -> Android analysis after reboot, fastboot analysis now." "Geraet in Fastboot -> erst Android-Analyse nach Reboot, jetzt Fastboot-Analyse.") -ForegroundColor Yellow
     Invoke-TTFastbootAnalysis | Out-Null
@@ -1849,14 +1983,19 @@ function Test-SystemImageFile {
 function Invoke-SystemFlash {
   param([string]$Image, [switch]$ForceYes)
   $chk = Test-SystemImageFile $Image
+  $regChk = Test-RomAgainstRegistry (Get-CompatRegistry) ([System.IO.Path]::GetFileName($Image))
   Write-Host ""
   Write-Host (L "=== System image check (ROM install) ===" "=== System-Image-Pruefung (ROM-Installation) ===") -ForegroundColor Cyan
   Write-Host ((L "Result: " "Ergebnis: ") + $chk.Verdict) -ForegroundColor $(if ($chk.Verdict -eq "PASS") { "Green" } else { "Red" })
   foreach ($n in $chk.Notes) { Write-Host (" - " + $n) -ForegroundColor Gray }
+  foreach ($n in $regChk.Reasons) {
+    Write-Host (" - REGISTRY: " + $n) -ForegroundColor $(if ($regChk.Status -eq "FAIL") { "Red" } else { "Gray" })
+  }
   $profOk = ($DeviceProfiles[$TT.ProfileId].Verified -eq $true)
-  if ($chk.Verdict -ne "PASS" -or -not $profOk) {
+  if ($chk.Verdict -ne "PASS" -or $regChk.Status -eq "FAIL" -or -not $profOk) {
     Write-Host "DO NOT FLASH" -ForegroundColor Red -BackgroundColor Black
     if (-not $profOk) { Write-TTLog (L "System flash blocked: profile unverified." "System-Flash blockiert: Profil unverifiziert.") "ERROR" }
+    if ($regChk.Status -eq "FAIL") { Write-TTLog "System flash blocked: researched-broken ROM." "ERROR" }
     return $false
   }
   Write-Host ""
@@ -1996,6 +2135,43 @@ function Screen-Twrp {
   Pause-TT
 }
 
+function Screen-Compatibility {
+  Show-TTHeader (L "Compatibility registry (researched ROM/firmware matrix)" "Kompatibilitaets-Registry (recherchierte ROM/Firmware-Matrix)")
+  $reg = Get-CompatRegistry
+  if ($reg -eq $null) {
+    Write-Host (L "No registry for this profile. Submit device data first (device-support template)." "Keine Registry fuer dieses Profil. Erst Geraetedaten einreichen (device-support-Template).") -ForegroundColor Yellow
+    Pause-TT; return
+  }
+  Write-Host ""
+  Write-Host (L "Recommended (tested builds only):" "Empfohlen (nur getestete Builds):") -ForegroundColor Green
+  foreach ($r in $reg.roms) {
+    if ($r.status -like "working*") {
+      $extra = ""
+      if ($r.version) { $extra += " " + $r.version }
+      if ($r.android) { $extra += " A" + $r.android }
+      if ($r.build) { $extra += " build " + $r.build }
+      Write-Host (" [+] " + $r.name + $extra + " [" + $r.status + "]") -ForegroundColor White
+    }
+  }
+  Write-Host ""
+  Write-Host (L "NOT recommended (researched):" "NICHT empfohlen (recherchiert):") -ForegroundColor Red
+  foreach ($r in $reg.roms) {
+    if ($r.status -notlike "working*") {
+      Write-Host (" [X] " + $r.name + " [" + $r.status + "] - " + $r.reason) -ForegroundColor Yellow
+    }
+  }
+  Write-Host ""
+  if ($reg.firmware -ne $null) {
+    Write-Host (L "Firmware base: " "Firmware-Basis: ") -NoNewline -ForegroundColor Cyan
+    Write-Host ($reg.firmware.required_base + " | " + (($reg.firmware.advisory -join "; "))) -ForegroundColor White
+  }
+  if ($reg.magisk -ne $null) {
+    Write-Host (L "Magisk: " "Magisk: ") -NoNewline -ForegroundColor Cyan
+    Write-Host ($reg.magisk.method + ", on-device patch, forbidden: " + (($reg.magisk.forbidden -join ", "))) -ForegroundColor White
+  }
+  Pause-TT
+}
+
 function Screen-Tools {
   while ($true) {
     $c = Show-TTMenu (L "Tools (read-only where possible)" "Tools (read-only wo moeglich)") @(
@@ -2126,6 +2302,7 @@ function Start-TTTui {
       (L "Install ROM / GSI system image (guided)" "ROM / GSI System-Image installieren (gefuehrt)"),
       (L "Root methods (Magisk preferred)" "Root-Methoden (Magisk bevorzugt)"),
       (L "TWRP path (guide + flash)" "TWRP-Pfad (Anleitung + Flash)"),
+      (L "Compatibility registry" "Kompatibilitaets-Registry"),
       (L "Bootloader unlock guide (PotatoNV)" "Bootloader-Unlock-Anleitung (PotatoNV)"),
       (L "Kernels + known fixes (wiki)" "Kernel + bekannte Fixes (Wiki)"),
       "Restore / Unroot",
@@ -2135,7 +2312,7 @@ function Start-TTTui {
       (L "Admin restart" "Admin-Neustart"),
       (L "Exit" "Beenden")
     ) (L "GSI stays intact on root path | Never wipe userdata | Never bootloader-unlock" "GSI bleibt erhalten auf Root-Pfad | Nie userdata loeschen | Nie Bootloader-Unlock")
-    if ($c -eq -1 -or $c -eq 21) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
+    if ($c -eq -1 -or $c -eq 22) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
     if ($c -eq 0) { Show-TTStatus }
     elseif ($c -eq 1) { Start-TTWizard }
     elseif ($c -eq 2) { Screen-Detect }
@@ -2150,13 +2327,14 @@ function Start-TTTui {
     elseif ($c -eq 11) { Screen-FlashSystem }
     elseif ($c -eq 12) { Screen-RootMethods }
     elseif ($c -eq 13) { Screen-Twrp }
-    elseif ($c -eq 14) { Screen-Unlock }
-    elseif ($c -eq 15) { Screen-KernelFixes }
-    elseif ($c -eq 16) { Screen-Restore }
-    elseif ($c -eq 17) { Screen-Bootkeys }
-    elseif ($c -eq 18) { Screen-Tools }
-    elseif ($c -eq 19) { Screen-Logs }
-    elseif ($c -eq 20) {
+    elseif ($c -eq 14) { Screen-Compatibility }
+    elseif ($c -eq 15) { Screen-Unlock }
+    elseif ($c -eq 16) { Screen-KernelFixes }
+    elseif ($c -eq 17) { Screen-Restore }
+    elseif ($c -eq 18) { Screen-Bootkeys }
+    elseif ($c -eq 19) { Screen-Tools }
+    elseif ($c -eq 20) { Screen-Logs }
+    elseif ($c -eq 21) {
       try {
         $exe = (Get-Process -Id $PID).Path
         $sp = $MyInvocation.MyCommand.Path
@@ -2171,7 +2349,7 @@ function Start-TTTui {
 # ============================================================ CLI
 function Show-TTHelp {
   Write-Host "Huawei P10 Root Manager v$TTVersion" -ForegroundColor Cyan
-  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|verify|restore|diagnostic|wizard|help] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
+  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|verify|restore|diagnostic|wizard|help] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
   Write-Host (L "No args: TUI. Download/flash/restore need explicit confirmation (--yes = documented consent)." "Ohne Args: TUI. Download/Flash/Restore brauchen explizite Bestaetigung (--yes = dokumentierte Zustimmung).") -ForegroundColor Gray
 }
 
@@ -2355,6 +2533,18 @@ elseif ($cmd -eq "root-methods") {
   $ordered = Get-PreferredRootMethod
   if ($Json) { ($ordered | ConvertTo-Json -Depth 3) | Write-Host }
   else { foreach ($m in $ordered) { Write-Host (" - " + $m.Id + ": " + $m.Name + $(if ($m.Preferred) { " [PREFERRED]" } else { "" })) } }
+}
+elseif ($cmd -eq "compat") {
+  $reg = Get-CompatRegistry
+  if ($reg -eq $null) { Write-Host (L "No registry for this profile." "Keine Registry fuer dieses Profil."); exit 3 }
+  if ($Json) { ($reg | ConvertTo-Json -Depth 6) | Write-Host }
+  else {
+    Write-Host ("Profile: " + $TT.ProfileId + " (variant " + $reg.device.variant + ")")
+    Write-Host "Recommended:"
+    foreach ($r in $reg.roms) { if ($r.status -like "working*") { Write-Host (" [+] " + $r.name + " [" + $r.status + "]") } }
+    Write-Host "Not recommended:"
+    foreach ($r in $reg.roms) { if ($r.status -notlike "working*") { Write-Host (" [X] " + $r.name + " [" + $r.status + "] - " + $r.reason) } }
+  }
 }
 elseif ($cmd -eq "verify") {
   $r = Invoke-TTRootVerification -NoReboot:$NoReboot
