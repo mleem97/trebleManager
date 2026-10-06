@@ -4,6 +4,14 @@ Starting point: the working toolkit in this repo (TUI + CLI, device profiles,
 compatibility registry, safety gate, Linux bash port). This plan extends it —
 it does not rewrite it.
 
+## 0. Done in v2.7.0 (orchestrator foundation)
+
+- Startup preflight gate (tool registry, writable dirs, explicit device states)
+- 8 workflow goals + planner with live gate results + persistent state + resume
+- Controlled failure flow (diagnostic → restore → abort), JSON status API
+- CLI: `preflight|recon|status|workflow|resume|root` (+ `--goal`, `--mode`)
+- Multi-device target selection, unauthorized/offline as own states
+
 ## 1. Where we are
 
 - Wizard/CLI: detect → analyze → firmware → download → extract → export →

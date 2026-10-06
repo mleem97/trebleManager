@@ -40,7 +40,7 @@ function Import-TTFunction {
   $block = $Src.Substring($start, ($i - $start) + 1)
   try { Invoke-Expression $block } catch { Write-Host ("Ladefehler " + $Name + ": " + $_.Exception.Message) -ForegroundColor Red; $script:Fail++ }
 }
-foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode","Unquote-Path")) {
+foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode","Unquote-Path","Get-GoalSteps")) {
   Import-TTFunction $fn
 }
 
@@ -176,6 +176,11 @@ Assert-Equal "mode unknown falls back" "safe" (Resolve-RunMode "yolo")
 Assert-Equal "quoted path" 'C:\my dir\img file.img' (Unquote-Path '"C:\my dir\img file.img"')
 Assert-Equal "single-quoted path" 'C:\my dir\img file.img' (Unquote-Path "'C:\my dir\img file.img'")
 Assert-Equal "plain path" 'C:\plain\a.img' (Unquote-Path 'C:\plain\a.img')
+
+# ---- 18. Workflow goals (planner input) ----
+$WorkflowGoals = @{ "root" = @("reconnaissance","flash","validate"); "restore_original" = @("reconnaissance","restore") }
+Assert-Equal "root steps" 3 (Get-GoalSteps "root").Count
+Assert-Equal "unknown goal empty" 0 (Get-GoalSteps "nope").Count
 
 # ---- 15. Immutable release: single version everywhere ----
 $TTRoot = Split-Path -Parent $PSScriptRoot

@@ -45,11 +45,12 @@ param(
   [switch]$Anonymize,
   [switch]$NoElevateCheck,
   [switch]$Help,
-  [string]$Mode = "safe"
+  [string]$Mode = "safe",
+  [string]$Goal = ""
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.6.0"
+$TTVersion = "2.7.0"
 
 # Spec error cases (handled explicitly, SEARCHABLE):
 # ADB not found / No device detected / USB debugging authorization required (ADB unauthorized) /
@@ -743,6 +744,7 @@ function Resolve-RunMode {
   if ($n -eq "unattended" -or $n -eq "developer") { return $n }
   return "safe"
 }
+$TTMode = Resolve-RunMode $Mode
 $TTMode = Resolve-RunMode $Mode
 
 function Invoke-TTValidate {
@@ -1616,6 +1618,134 @@ function New-TTDiagnostic {
   return $zip
 }
 
+# ============================================================ Orchestrator (P0): registry, states, preflight, gates
+# Principles: unknown is never compatible; --yes never bypasses prerequisites;
+# unauthorized/offline/multiple devices are explicit states, never "absent".
+
+$ToolRegistry = @(
+  @{ Id = "adb"; Required = $true;  Bins = @("adb.exe","adb"); Kind = "platform-tools" }
+  @{ Id = "fastboot"; Required = $true;  Bins = @("fastboot.exe","fastboot"); Kind = "platform-tools" }
+  @{ Id = "scrcpy"; Required = $false; Bins = @("scrcpy.exe","scrcpy"); Kind = "optional-mirror" }
+)
+
+function Get-DeviceStates {
+  # Pure parsing + live queries. Never guesses: unauthorized/offline/multiple are own states.
+  $adbDevs = @()
+  $adbState = "ADB_NOT_FOUND"
+  if ($TT.Adb) {
+    $o = & $TT.Adb devices 2>&1
+    $lines = @()
+    foreach ($x in $o) { $lines += [string]$x }
+    $adbDevs = ConvertFrom-AdbDevices $lines
+    $ready = @($adbDevs | Where-Object { $_.State -eq "device" }).Count
+    $unauth = @($adbDevs | Where-Object { $_.State -eq "unauthorized" }).Count
+    $off = @($adbDevs | Where-Object { $_.State -eq "offline" }).Count
+    if ($ready -gt 1) { $adbState = "ADB_MULTIPLE_DEVICES" }
+    elseif ($ready -eq 1) { $adbState = "ADB_READY" }
+    elseif ($unauth -gt 0) { $adbState = "ADB_UNAUTHORIZED" }
+    elseif ($off -gt 0) { $adbState = "ADB_OFFLINE" }
+    else { $adbState = "NO_DEVICE" }
+  }
+  $fbDevs = @()
+  $fbState = "FASTBOOT_NOT_FOUND"
+  if ($TT.Fastboot) {
+    $o = & $TT.Fastboot devices 2>&1
+    $lines = @()
+    foreach ($x in $o) { $lines += [string]$x }
+    $fbDevs = ConvertFrom-FastbootDevices $lines
+    if ($fbDevs.Count -gt 1) { $fbState = "FASTBOOT_MULTIPLE_DEVICES" }
+    elseif ($fbDevs.Count -eq 1) { $fbState = "FASTBOOT_READY" }
+    else { $fbState = "FASTBOOT_NO_DEVICE" }
+  }
+  if ($adbState -in @("ADB_NOT_FOUND","NO_DEVICE") -and $fbState -in @("FASTBOOT_NOT_FOUND","FASTBOOT_NO_DEVICE")) {
+    $overall = "NO_DEVICE"
+  } elseif ($adbState -eq "ADB_READY" -or $fbState -eq "FASTBOOT_READY") {
+    $overall = "READY"
+  } else {
+    $overall = "UNKNOWN_DEVICE_STATE"
+  }
+  return @{ AdbState = $adbState; AdbDevices = $adbDevs; FastbootState = $fbState; FastbootDevices = $fbDevs; Overall = $overall }
+}
+
+function Select-TargetDevice {
+  # Multiple devices: explicit selection via ANDROID_SERIAL (honored by adb+fastboot).
+  param($States)
+  $all = @()
+  foreach ($d in $States.AdbDevices) { if ($d.State -eq "device") { $all += $d.Serial + " (adb)" } }
+  foreach ($d in $States.FastbootDevices) { $all += $d.Serial + " (fastboot)" }
+  if ($all.Count -le 1) { return $true }
+  Write-Host (L "Multiple devices - select target (ANDROID_SERIAL will be set):" "Mehrere Geraete - Ziel waehlen (ANDROID_SERIAL wird gesetzt):") -ForegroundColor Yellow
+  for ($i = 0; $i -lt $all.Count; $i++) { Write-Host (" [" + ($i+1) + "] " + $all[$i]) -ForegroundColor White }
+  Write-Host (L "Number: " "Nummer: ") -NoNewline -ForegroundColor Yellow
+  $s = Read-Host
+  if ($s -match "^\d+$") {
+    $idx = [int]$s - 1
+    if ($idx -ge 0 -and $idx -lt $all.Count) {
+      $ser = ($all[$idx] -split " ")[0]
+      $env:ANDROID_SERIAL = $ser
+      Write-TTLog ("Target device selected: " + $ser + " (ANDROID_SERIAL)") "SUCCESS"
+      return $true
+    }
+  }
+  Write-TTLog (L "No target selected - aborting." "Kein Ziel gewaehlt - Abbruch.") "ERROR"
+  return $false
+}
+
+function Invoke-Preflight {
+  # Global startup gate. Missing global prerequisites BLOCK the main menu.
+  $blocks = @()
+  if ([System.Environment]::OSVersion.Platform -ne "Win32NT" -and $PSVersionTable.PSVersion.Major -lt 6) {
+    $blocks += "unsupported shell (need Windows PowerShell 5.1+ or PowerShell 7+)"
+  }
+  Find-TTTools
+  foreach ($t in ($ToolRegistry | Where-Object { $_.Required })) {
+    $ok = ($t.Id -eq "adb" -and $TT.Adb) -or ($t.Id -eq "fastboot" -and $TT.Fastboot)
+    if (-not $ok) { $blocks += ($t.Id + " missing (install via Setup or platform-tools on PATH)") }
+  }
+  foreach ($d in @($TTLogDir, $TTBackDir, $TTFirmDir, $TTMagDir)) {
+    try {
+      $probe = Join-Path $d ".writetest"
+      "x" | Out-File $probe -Encoding ascii -ErrorAction Stop
+      Remove-Item $probe -Force -ErrorAction SilentlyContinue
+    } catch { $blocks += ("directory not writable: " + $d) }
+  }
+  $st = Get-DeviceStates
+  $TT.DeviceStates = $st
+  $go = ($blocks.Count -eq 0)
+  return @{ Go = $go; Blocks = $blocks; States = $st }
+}
+
+function Show-PreflightBlocked {
+  param($Pre)
+  Show-TTHeader (L "Preflight blocked - fix first, no main menu" "Preflight blockiert - erst beheben, kein Hauptmenue")
+  Write-Host ""
+  Write-Host (L "Missing global prerequisites:" "Fehlende Grundvoraussetzungen:") -ForegroundColor Red
+  foreach ($b in $Pre.Blocks) { Write-Host (" - " + $b) -ForegroundColor Yellow }
+  Write-Host ""
+  Write-Host (L "Fix: run Setup-TrebleToolkit.bat (installs tools into user PATH), then restart." "Fix: Setup-TrebleToolkit.bat ausfuehren (installiert Tools in User-PATH), dann Neustart.") -ForegroundColor Cyan
+  Write-Host (L "Device states right now:" "Geraete-Status gerade:") -ForegroundColor Gray
+  Write-Host (" ADB: " + $Pre.States.AdbState + " | Fastboot: " + $Pre.States.FastbootState) -ForegroundColor Gray
+  Pause-TT
+}
+
+# Step requirement engine: every step declares needs; missing needs block the step.
+function Test-StepGate {
+  param([string]$Step)
+  $reasons = @()
+  $st = Get-DeviceStates
+  $needDevice = $Step -in @("analyze","verify","patch","backup","flash","restore","flash-system","twrp","validate","export","diagnostic")
+  $needFastboot = $Step -in @("flash","restore","flash-system","twrp")
+  $needAndroid = $Step -in @("analyze","verify","validate")
+  if ($needDevice -and $st.Overall -eq "NO_DEVICE") { $reasons += "no device connected" }
+  if ($needAndroid -and $st.AdbState -ne "ADB_READY") { $reasons += ("need Android/ADB (now: " + $st.AdbState + ")") }
+  if ($needFastboot -and $st.FastbootState -ne "FASTBOOT_READY") { $reasons += ("need fastboot (now: " + $st.FastbootState + ")") }
+  if ($Step -in @("flash","twrp") -and $DeviceProfiles[$TT.ProfileId].Verified -ne $true) { $reasons += "profile unverified" }
+  if ($Step -in @("flash-system") -and $DeviceProfiles[$TT.ProfileId].Verified -ne $true) { $reasons += "profile unverified" }
+  if ($Step -eq "flash" -and [string]::IsNullOrEmpty($TT.PatchedImage)) { $reasons += "no patched image registered" }
+  if ($Step -eq "backup" -and [string]::IsNullOrEmpty($TT.StockImage)) { $reasons += "no stock image (extract first)" }
+  return @{ Pass = ($reasons.Count -eq 0); Reasons = $reasons; States = $st }
+}
+
 # ============================================================ TUI basics
 function Show-TTHeader {
   param([string]$Title)
@@ -2438,8 +2568,182 @@ function Start-TTWizard {
   }
 }
 
+# ============================================================ Orchestrator (P1): goals, planner, state, resume
+$WorkflowGoals = @{
+  "root"                   = @("reconnaissance","compatibility","firmware","extract","magisk_patch","backup","flash","reboot","root_verify","validate")
+  "custom_rom"             = @("reconnaissance","compatibility","firmware","rom_validation","backup_if_required","flash_system","reboot","validate")
+  "stock_rom"              = @("reconnaissance","firmware_selection","firmware_validation","artifact_extraction","backup","flash_plan","safety_gate","flash","reboot","validate")
+  "root_custom_rom"        = @("reconnaissance","custom_rom_compatibility","firmware","rom_installation","boot","root_preparation","backup","root_flash","root_verify","validate")
+  "root_stock_rom"         = @("reconnaissance","stock_firmware_validation","root_image_preparation","backup","root_flash","reboot","root_verify","validate")
+  "root_custom_rom_recovery" = @("reconnaissance","rom_compatibility","recovery_compatibility","firmware","backup","rom_flash","recovery_flash","root_preparation","root_flash","boot","verify","validate")
+  "root_stock_rom_recovery"  = @("reconnaissance","stock_firmware_validation","recovery_validation","backup","recovery_flash","root_preparation","root_flash","boot","verify","validate")
+  "restore_original"       = @("reconnaissance","identify_original_artifact","validate_backup","rollback_plan","safety_gate","restore","reboot","validate")
+}
+
+function Get-GoalSteps {
+  # Pure, unit-testable: goal id -> ordered step list (empty = unknown goal).
+  param([string]$Goal)
+  $g = ([string]$Goal).ToLower().Trim()
+  if ($WorkflowGoals.ContainsKey($g)) { return @($WorkflowGoals[$g]) }
+  return @()
+}
+
+function Get-WorkflowStateFile {
+  return (Join-Path $TTLogDir "workflow-state.json")
+}
+
+function Read-WorkflowState {
+  $f = Get-WorkflowStateFile
+  if (-not (Test-Path $f)) { return $null }
+  try { return (Get-Content $f -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop) }
+  catch { return $null }
+}
+
+function Write-WorkflowState {
+  param($State)
+  $State.updated = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+  ($State | ConvertTo-Json -Depth 6) | Out-File (Get-WorkflowStateFile) -Encoding utf8
+}
+
+function New-WorkflowPlan {
+  # Planner: goal + live recon -> ordered plan with per-step status. No execution.
+  param([string]$Goal)
+  $steps = Get-GoalSteps $Goal
+  $st = Get-DeviceStates
+  $plan = @()
+  foreach ($s in $steps) {
+    $gateStep = $s
+    if ($gateStep -like "*flash*") { $gateStep = "flash" }
+    elseif ($gateStep -like "*verify*" -or $gateStep -like "*validat*") { $gateStep = "verify" }
+    elseif ($gateStep -like "*backup*") { $gateStep = "backup" }
+    elseif ($gateStep -like "*recon*" -or $gateStep -like "*analy*") { $gateStep = "analyze" }
+    else { $gateStep = "" }
+    $status = "pending"
+    if ($gateStep -ne "") {
+      $g = Test-StepGate $gateStep
+      if (-not $g.Pass) { $status = "blocked: " + ($g.Reasons -join "; ") }
+    }
+    $plan += (New-Object PSObject -Property @{ step = $s; status = $status })
+  }
+  return @{ goal = $Goal; device = $st; plan = $plan }
+}
+
+function Start-GoalWorkflow {
+  # Executes a goal stepwise with persisted state; stops at first blocked/failed
+  # step and offers diagnostic/restore/abort (failure engine, controlled states).
+  param([string]$Goal)
+  $steps = Get-GoalSteps $Goal
+  if ($steps.Count -eq 0) { Write-TTLog (L "Unknown goal: " "Unbekanntes Ziel: ") + $Goal "ERROR"; return $false }
+  $state = @{ version = $TTVersion; goal = $Goal; started = (Get-Date -Format "yyyy-MM-dd HH:mm:ss"); updated = ""; device = ""; steps = @() }
+  foreach ($s in $steps) { $state.steps += @(@{ id = $s; status = "pending"; detail = "" }) }
+  Write-WorkflowState $state
+  $map = @{
+    "reconnaissance" = "Screen-Analyze"; "compatibility" = "Screen-Compatibility";
+    "firmware" = "Screen-Firmware"; "firmware_selection" = "Screen-Firmware";
+    "extract" = "Screen-Extract"; "artifact_extraction" = "Screen-Extract";
+    "magisk_patch" = "Screen-Patch"; "root_preparation" = "Screen-Patch"; "root_image_preparation" = "Screen-Patch";
+    "backup" = "Screen-Backup"; "backup_if_required" = "Screen-Backup";
+    "flash" = "Screen-Flash"; "root_flash" = "Screen-Flash"; "recovery_flash" = "Screen-Twrp";
+    "rom_validation" = "Screen-Extract"; "rom_installation" = "Screen-FlashSystem"; "rom_flash" = "Screen-FlashSystem";
+    "reboot" = "Screen-RebootVerify"; "boot" = "Screen-RebootVerify";
+    "root_verify" = "Screen-RebootVerify"; "verify" = "Screen-RebootVerify";
+    "validate" = "Screen-RebootVerify";
+    "restore" = "Screen-Restore"; "identify_original_artifact" = "Screen-Restore"; "validate_backup" = "Screen-Restore";
+    "custom_rom_compatibility" = "Screen-Compatibility"; "rom_compatibility" = "Screen-Compatibility";
+    "recovery_compatibility" = "Screen-RootMethods"; "recovery_validation" = "Screen-Twrp";
+    "stock_firmware_validation" = "Screen-Firmware"; "firmware_validation" = "Screen-Firmware";
+    "flash_plan" = "Screen-Flash"; "safety_gate" = "Screen-Flash"; "rollback_plan" = "Screen-Restore"
+  }
+  foreach ($entry in $state.steps) {
+    $fn = $map[$entry.id]
+    $entry.status = "active"
+    Write-WorkflowState $state
+    if ($fn -and (Get-Command $fn -ErrorAction SilentlyContinue)) {
+      try { & $fn | Out-Null; $entry.status = "done"; $entry.detail = "screen completed" }
+      catch { $entry.status = "failed"; $entry.detail = $_.Exception.Message }
+    } else {
+      $entry.status = "done"; $entry.detail = "informational/manual step"
+    }
+    Write-WorkflowState $state
+    if ($entry.status -eq "failed" -or $entry.status -eq "blocked") {
+      return (Invoke-FailureFlow $state $entry)
+    }
+  }
+  $state.steps += @()
+  Write-WorkflowState $state
+  Write-TTLog ("Workflow '" + $Goal + "' COMPLETED.") "SUCCESS"
+  return $true
+}
+
+function Invoke-FailureFlow {
+  # Controlled failure states: BLOCKED/FAILED -> DIAGNOSTIC -> RESTORE_REQUIRED -> RESTORED/ABORTED.
+  param($State, $Entry)
+  Show-TTHeader (L "Step failed/blocked - controlled recovery" "Step fehlgeschlagen/blockiert - kontrollierte Recovery")
+  Write-Host ""
+  Write-Host (("Step: " + $Entry.id + " [" + $Entry.status + "] " + $Entry.detail)) -ForegroundColor Red
+  Write-Host (L "[1] Create diagnostic ZIP  [2] Restore original  [3] Abort workflow" "[1] Diagnose-ZIP erzeugen  [2] Original restoren  [3] Workflow abbrechen") -ForegroundColor Yellow
+  $k = [Console]::ReadKey($true)
+  if ($k.KeyChar -eq "1") {
+    $z = New-TTDiagnostic
+    Write-Host ("ZIP: " + $z) -ForegroundColor White
+    $Entry.status = "diagnostic"
+  } elseif ($k.KeyChar -eq "2") {
+    Screen-Restore
+    $Entry.status = "restored"
+  } else {
+    $Entry.status = "aborted"
+  }
+  Write-WorkflowState $State
+  Pause-TT
+  return $false
+}
+
+function Screen-GoalSelect {
+  $goals = @($WorkflowGoals.Keys | Sort-Object)
+  $labels = @()
+  foreach ($g in $goals) { $labels += ($g + " (" + (Get-GoalSteps $g).Count + " steps)") }
+  $labels += (L "Back" "Zurueck")
+  $c = Show-TTMenu (L "Select workflow goal (planner shows the plan first)" "Workflow-Ziel waehlen (Planner zeigt erst den Plan)") $labels
+  if ($c -eq -1 -or $c -eq $goals.Count) { return }
+  $goal = $goals[$c]
+  $plan = New-WorkflowPlan $goal
+  Show-TTHeader ((L "Plan for goal: " "Plan fuer Ziel: ") + $goal)
+  Write-Host ""
+  foreach ($p in $plan.plan) {
+    $col = "Gray"
+    if ($p.status -eq "pending") { $col = "White" } else { $col = "Yellow" }
+    Write-Host (" - " + $p.step + " [" + $p.status + "]") -ForegroundColor $col
+  }
+  Write-Host ""
+  Write-Host (L "Run this workflow now? [Y/n]: " "Workflow jetzt starten? [J/n]: ") -NoNewline -ForegroundColor Cyan
+  $a = Read-Host
+  if ($a -eq "" -or $a -eq "Y" -or $a -eq "y" -or $a -eq "J" -or $a -eq "j") {
+    Start-GoalWorkflow $goal | Out-Null
+  }
+}
+
+function Screen-Resume {
+  $st = Read-WorkflowState
+  if ($st -eq $null) {
+    Write-TTLog (L "No saved workflow state to resume." "Kein gespeicherter Workflow zum Fortsetzen.") "WARNING"
+    Pause-TT; return
+  }
+  Show-TTHeader ((L "Resume workflow: " "Workflow fortsetzen: ") + $st.goal)
+  Write-Host ""
+  foreach ($s in $st.steps) { Write-Host (" - " + $s.id + " [" + $s.status + "]") -ForegroundColor Gray }
+  Write-Host ""
+  Write-Host (L "Resume re-runs the workflow from its plan (completed screens simply run again). Continue? [Y/n]: " "Resume startet den Workflow aus seinem Plan neu (fertige Screens laufen einfach erneut). Weiter? [J/n]: ") -NoNewline -ForegroundColor Cyan
+  $a = Read-Host
+  if ($a -eq "" -or $a -eq "Y" -or $a -eq "y" -or $a -eq "J" -or $a -eq "j") {
+    Start-GoalWorkflow $st.goal | Out-Null
+  }
+}
+
 function Start-TTTui {
   Invoke-TTSelfElevate
+  $pre = Invoke-Preflight
+  if (-not $pre.Go) { Show-PreflightBlocked $pre; return }
+  if (-not (Select-TargetDevice $pre.States)) { return }
   Find-TTTools
   Update-TTMode | Out-Null
   # Defaults for target device (example values from order, overridable by analysis)
@@ -2451,6 +2755,8 @@ function Start-TTTui {
     $c = Show-TTMenu (L "Main menu - Huawei P10 Root Manager (OS-independent)" "Hauptmenue - Huawei P10 Root Manager (OS-unabhaengig)") @(
       (L "Status overview" "Status-Uebersicht"),
       (L "Wizard steps 1-9 (guided)" "Wizard Step 1-9 (gefuehrt)"),
+      (L "Workflow goals (planner + resume)" "Workflow-Ziele (Planner + Resume)"),
+      (L "Resume saved workflow" "Gespeicherten Workflow fortsetzen"),
       (L "Step 1 - Detect device" "Step 1 - Device erkennen"),
       (L "Step 2 - Analyze (OS/partitions/boot chain)" "Step 2 - Analyse (OS/Partitionen/Bootchain)"),
       (L "Step 3 - Determine firmware" "Step 3 - Firmware bestimmen"),
@@ -2473,29 +2779,31 @@ function Start-TTTui {
       (L "Admin restart" "Admin-Neustart"),
       (L "Exit" "Beenden")
     ) (L "GSI stays intact on root path | Never wipe userdata | Never bootloader-unlock" "GSI bleibt erhalten auf Root-Pfad | Nie userdata loeschen | Nie Bootloader-Unlock")
-    if ($c -eq -1 -or $c -eq 22) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
+    if ($c -eq -1 -or $c -eq 24) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
     if ($c -eq 0) { Show-TTStatus }
     elseif ($c -eq 1) { Start-TTWizard }
-    elseif ($c -eq 2) { Screen-Detect }
-    elseif ($c -eq 3) { Screen-Analyze }
-    elseif ($c -eq 4) { Screen-Firmware }
-    elseif ($c -eq 5) { Screen-Extract }
-    elseif ($c -eq 6) { Screen-Patch }
-    elseif ($c -eq 7) { Screen-Backup }
-    elseif ($c -eq 8) { Screen-Flash }
-    elseif ($c -eq 9) { Screen-RebootVerify }
-    elseif ($c -eq 10) { Screen-ExportRecovery }
-    elseif ($c -eq 11) { Screen-FlashSystem }
-    elseif ($c -eq 12) { Screen-RootMethods }
-    elseif ($c -eq 13) { Screen-Twrp }
-    elseif ($c -eq 14) { Screen-Compatibility }
-    elseif ($c -eq 15) { Screen-Unlock }
-    elseif ($c -eq 16) { Screen-KernelFixes }
-    elseif ($c -eq 17) { Screen-Restore }
-    elseif ($c -eq 18) { Screen-Bootkeys }
-    elseif ($c -eq 19) { Screen-Tools }
-    elseif ($c -eq 20) { Screen-Logs }
-    elseif ($c -eq 21) {
+    elseif ($c -eq 2) { Screen-GoalSelect }
+    elseif ($c -eq 3) { Screen-Resume }
+    elseif ($c -eq 4) { Screen-Detect }
+    elseif ($c -eq 5) { Screen-Analyze }
+    elseif ($c -eq 6) { Screen-Firmware }
+    elseif ($c -eq 7) { Screen-Extract }
+    elseif ($c -eq 8) { Screen-Patch }
+    elseif ($c -eq 9) { Screen-Backup }
+    elseif ($c -eq 10) { Screen-Flash }
+    elseif ($c -eq 11) { Screen-RebootVerify }
+    elseif ($c -eq 12) { Screen-ExportRecovery }
+    elseif ($c -eq 13) { Screen-FlashSystem }
+    elseif ($c -eq 14) { Screen-RootMethods }
+    elseif ($c -eq 15) { Screen-Twrp }
+    elseif ($c -eq 16) { Screen-Compatibility }
+    elseif ($c -eq 17) { Screen-Unlock }
+    elseif ($c -eq 18) { Screen-KernelFixes }
+    elseif ($c -eq 19) { Screen-Restore }
+    elseif ($c -eq 20) { Screen-Bootkeys }
+    elseif ($c -eq 21) { Screen-Tools }
+    elseif ($c -eq 22) { Screen-Logs }
+    elseif ($c -eq 23) {
       try {
         $exe = (Get-Process -Id $PID).Path
         $sp = $MyInvocation.MyCommand.Path
@@ -2510,18 +2818,24 @@ function Start-TTTui {
 # ============================================================ CLI
 function Show-TTHelp {
   Write-Host "Huawei P10 Root Manager v$TTVersion" -ForegroundColor Cyan
-  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|wizard|help] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
+  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
   Write-Host (L "No args: TUI. Download/flash/restore need explicit confirmation (--yes = documented consent)." "Ohne Args: TUI. Download/Flash/Restore brauchen explizite Bestaetigung (--yes = dokumentierte Zustimmung).") -ForegroundColor Gray
 }
 
 if ($Help) { Show-TTHelp; exit 0 }
 
 # Tolerate --json/--yes style args (PS binding + manual)
+$wantVal = ""
 foreach ($a in $args) {
   if ($a -eq "--json") { $Json = $true }
-  if ($a -eq "--yes") { $Yes = $true }
-  if ($a -eq "--anonymize") { $Anonymize = $true }
-  if ($a -eq "--no-reboot") { $NoReboot = $true }
+  elseif ($a -eq "--yes") { $Yes = $true }
+  elseif ($a -eq "--anonymize") { $Anonymize = $true }
+  elseif ($a -eq "--no-reboot") { $NoReboot = $true }
+  elseif ($a -eq "--goal" -or $a -eq "--image" -or $a -eq "--firmware-file" -or $a -eq "--mode") { $wantVal = $a }
+  elseif ($wantVal -eq "--goal") { $Goal = $a; $wantVal = "" }
+  elseif ($wantVal -eq "--image") { $Image = $a; $wantVal = "" }
+  elseif ($wantVal -eq "--firmware-file") { $FirmwareFile = $a; $wantVal = "" }
+  elseif ($wantVal -eq "--mode") { $Mode = $a; $TTMode = Resolve-RunMode $Mode; $wantVal = "" }
 }
 
 $cmd = $Command.ToLower().Trim()
@@ -2538,7 +2852,52 @@ Find-TTTools
 Update-TTMode | Out-Null
 if ($TT.ProfileId -eq "") { $TT.ProfileId = "VTR-L29" }
 
-if ($cmd -eq "help") { Show-TTHelp; exit 0 }
+ if ($cmd -eq "help") { Show-TTHelp; exit 0 }
+elseif ($cmd -eq "preflight") {
+  $pre = Invoke-Preflight
+  if ($Json) { (@{ go = $pre.Go; blocks = $pre.Blocks; adb = $pre.States.AdbState; fastboot = $pre.States.FastbootState } | ConvertTo-Json -Depth 3) | Write-Host }
+  else {
+    if ($pre.Go) { Write-Host "PREFLIGHT READY" }
+    else { Write-Host "PREFLIGHT BLOCKED:"; foreach ($b in $pre.Blocks) { Write-Host (" - " + $b) } }
+    Write-Host ("ADB: " + $pre.States.AdbState + " | Fastboot: " + $pre.States.FastbootState)
+  }
+  if (-not $pre.Go) { exit 1 }
+}
+elseif ($cmd -eq "recon") {
+  $pre = Invoke-Preflight
+  if (-not $pre.Go) { Write-Host "PREFLIGHT BLOCKED"; exit 1 }
+  if ($TT.Mode -eq "" -or $TT.Mode -eq "none") { Update-TTMode | Out-Null }
+  if ($TT.Mode -eq "android") { Invoke-TTAndroidAnalysis | Out-Null }
+  if ($TT.Mode -eq "fastboot") { Invoke-TTFastbootAnalysis | Out-Null }
+  $o = @{ mode = $TT.Mode; os = $TT.OS; profile = $TT.ProfileId; storage = $TT.Storage; props = $TT.Props }
+  if ($Json) { ($o | ConvertTo-Json -Depth 6) | Write-Host }
+  else { Write-Host ("mode=" + $TT.Mode + " os=" + $TT.OS.Kind + " profile=" + $TT.ProfileId + " storage=" + $TT.Storage) }
+}
+elseif ($cmd -eq "status") {
+  $pre = Invoke-Preflight
+  $saved = Read-WorkflowState
+  $full = @{ preflight_go = $pre.Go; blocks = $pre.Blocks; adb = $pre.States.AdbState; fastboot = $pre.States.FastbootState; device_mode = $TT.Mode; run_mode = $TTMode; goal = $(if ($saved) { $saved.goal } else { "" }); saved_steps = $(if ($saved) { $saved.steps } else { @() }); log = $TT.Log }
+  ($full | ConvertTo-Json -Depth 6) | Write-Host
+}
+elseif ($cmd -eq "workflow") {
+  $g = $Goal
+  if ($g -eq "" -and $args.Count -gt 0) { $g = $args[0] }
+  $steps = Get-GoalSteps $g
+  if ($steps.Count -eq 0) { Write-Host ("Unknown goal. Known: " + (($WorkflowGoals.Keys | Sort-Object) -join ", ")); exit 1 }
+  $plan = New-WorkflowPlan $g
+  if ($Json) { ($plan | ConvertTo-Json -Depth 6) | Write-Host }
+  else { Write-Host ("Goal: " + $g); foreach ($p in $plan.plan) { Write-Host (" - " + $p.step + " [" + $p.status + "]") } }
+}
+elseif ($cmd -eq "resume") {
+  $st = Read-WorkflowState
+  if ($st -eq $null) { Write-Host "No saved workflow state."; exit 1 }
+  if (-not $Yes) { Write-Host ("Resume goal '" + $st.goal + "'? Re-run with --yes to execute."); exit 4 }
+  if (-not (Start-GoalWorkflow $st.goal)) { exit 1 }
+}
+elseif ($cmd -eq "root") {
+  if (-not $Yes) { Write-Host "Root goal needs --yes (gates still enforced). Show plan: workflow --goal root [--json]."; exit 4 }
+  if (-not (Start-GoalWorkflow "root")) { exit 1 }
+}
 elseif ($cmd -eq "devices") {
   $list = @()
   foreach ($k in ($DeviceProfiles.Keys | Sort-Object)) {

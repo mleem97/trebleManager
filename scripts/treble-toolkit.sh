@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.6.0"
+TTVERSION="2.7.0"
 # Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
 # still enforced), developer (unlocks dump-* commands).
 RUNMODE_REQ=""
@@ -612,6 +612,171 @@ screen_compat() {
   printf '%s\n' "$roms" | grep -v -E '\|working' | sed 's/^/ [X] /'
   pause_tt
 }
+
+# ---------------------------------------------------------------- orchestrator (P0/P1)
+# Unknown is never compatible; --yes never bypasses prerequisites.
+device_states() { # sets ADB_STATE FB_STATE OVERALL (+ADB_DEVS/FB_DEVS); explicit states
+  ADB_STATE="ADB_NOT_FOUND"; FB_STATE="FASTBOOT_NOT_FOUND"
+  ADB_DEVS=""; FB_DEVS=""
+  if [ -n "$ADB_BIN" ]; then
+    ADB_DEVS="$("$ADB_BIN" devices 2>/dev/null | awk 'NR>1 && NF>=2 {print $1":"$2}')"
+    ready="$(printf '%s' "$ADB_DEVS" | grep -c ':device$' || true)"
+    unauth="$(printf '%s' "$ADB_DEVS" | grep -c ':unauthorized$' || true)"
+    off="$(printf '%s' "$ADB_DEVS" | grep -c ':offline$' || true)"
+    if [ "$ready" -gt 1 ]; then ADB_STATE="ADB_MULTIPLE_DEVICES"
+    elif [ "$ready" = 1 ]; then ADB_STATE="ADB_READY"
+    elif [ "$unauth" -gt 0 ]; then ADB_STATE="ADB_UNAUTHORIZED"
+    elif [ "$off" -gt 0 ]; then ADB_STATE="ADB_OFFLINE"
+    else ADB_STATE="NO_DEVICE"; fi
+  fi
+  if [ -n "$FB_BIN" ]; then
+    FB_DEVS="$("$FB_BIN" devices 2>/dev/null | awk 'NF>=2 && $2=="fastboot" {print $1}')"
+    n="$(printf '%s' "$FB_DEVS" | grep -c . || true)"
+    if [ "$n" -gt 1 ]; then FB_STATE="FASTBOOT_MULTIPLE_DEVICES"
+    elif [ "$n" = 1 ]; then FB_STATE="FASTBOOT_READY"
+    else FB_STATE="FASTBOOT_NO_DEVICE"; fi
+  fi
+  OVERALL="UNKNOWN_DEVICE_STATE"
+  if { [ "$ADB_STATE" = "ADB_NOT_FOUND" ] || [ "$ADB_STATE" = "NO_DEVICE" ]; } && { [ "$FB_STATE" = "FASTBOOT_NOT_FOUND" ] || [ "$FB_STATE" = "FASTBOOT_NO_DEVICE" ]; }; then OVERALL="NO_DEVICE"; fi
+  if [ "$ADB_STATE" = "ADB_READY" ] || [ "$FB_STATE" = "FASTBOOT_READY" ]; then OVERALL="READY"; fi
+}
+select_target() { # explicit selection -> ANDROID_SERIAL (honored by adb+fastboot)
+  local all
+  all="$(printf '%s' "$ADB_DEVS" | grep ':device$' | sed 's/:device$/ (adb)/'; printf '%s' "$FB_DEVS" | grep . | sed 's/$/ (fastboot)/')"
+  [ "$(printf '%s' "$all" | grep -c .)" -le 1 ] && return 0
+  printf '%s\n' "$(L 'Multiple devices - select target:' 'Mehrere Geraete - Ziel waehlen:')"
+  printf '%s\n' "$all" | awk '{printf "  [%d] %s\n", NR, $0}'
+  printf '%s' "$(L 'Number: ' 'Nummer: ')"; iread -r s
+  local ser; ser="$(printf '%s' "$all" | sed -n "${s}p" | awk '{print $1}')"
+  [ -n "$ser" ] || { log ERROR "$(L 'No target selected.' 'Kein Ziel gewaehlt.')"; return 1; }
+  export ANDROID_SERIAL="$ser"
+  log SUCCESS "Target: $ser (ANDROID_SERIAL)"
+}
+preflight() { # global gate; prints blocks; returns 0 when menu allowed
+  local blocks=""
+  [ -n "$ADB_BIN" ] || blocks="${blocks}adb missing; "
+  [ -n "$FB_BIN" ] || blocks="${blocks}fastboot missing; "
+  for d in "$LOG_DIR" "$BACK_DIR" "$FIRM_DIR" "$MAG_DIR"; do
+    [ -w "$d" ] || blocks="${blocks}not writable: $d; "
+  done
+  device_states
+  if [ -n "$blocks" ]; then
+    printf 'PREFLIGHT BLOCKED: %s\nADB: %s | Fastboot: %s\n' "$blocks" "$ADB_STATE" "$FB_STATE"
+    return 1
+  fi
+  return 0
+}
+step_gate() { # step -> 0 pass / prints reasons; never bypassed
+  local step="$1" reasons=""
+  device_states >/dev/null 2>&1 || true
+  case "$step" in analyze|verify|patch|backup|flash|restore|flash-system|twrp|validate|export|diagnostic)
+    [ "$OVERALL" = "NO_DEVICE" ] && reasons="${reasons}no device; " ;;
+  esac
+  case "$step" in analyze|verify|validate)
+    [ "$ADB_STATE" != "ADB_READY" ] && reasons="${reasons}need ADB (now $ADB_STATE); " ;;
+  esac
+  case "$step" in flash|restore|flash-system|twrp)
+    [ "$FB_STATE" != "FASTBOOT_READY" ] && reasons="${reasons}need fastboot (now $FB_STATE); " ;;
+  esac
+  case "$step" in flash|twrp|flash-system)
+    [ "$(profile_verified)" != "1" ] && reasons="${reasons}profile unverified; " ;;
+  esac
+  [ "$step" = "flash" ] && [ -z "$PATCHED_IMAGE" ] && reasons="${reasons}no patched image; "
+  if [ -n "$reasons" ]; then printf 'BLOCKED: %s\n' "$reasons"; return 1; fi
+  return 0
+}
+goal_steps() { # goal -> ordered steps (pure)
+  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+    root) printf 'reconnaissance compatibility firmware extract magisk_patch backup flash reboot root_verify validate' ;;
+    custom_rom) printf 'reconnaissance compatibility firmware rom_validation backup_if_required flash_system reboot validate' ;;
+    stock_rom) printf 'reconnaissance firmware_selection firmware_validation artifact_extraction backup flash_plan safety_gate flash reboot validate' ;;
+    root_custom_rom) printf 'reconnaissance custom_rom_compatibility firmware rom_installation boot root_preparation backup root_flash root_verify validate' ;;
+    root_stock_rom) printf 'reconnaissance stock_firmware_validation root_image_preparation backup root_flash reboot root_verify validate' ;;
+    root_custom_rom_recovery) printf 'reconnaissance rom_compatibility recovery_compatibility firmware backup rom_flash recovery_flash root_preparation root_flash boot verify validate' ;;
+    root_stock_rom_recovery) printf 'reconnaissance stock_firmware_validation recovery_validation backup recovery_flash root_preparation root_flash boot verify validate' ;;
+    restore_original) printf 'reconnaissance identify_original_artifact validate_backup rollback_plan safety_gate restore reboot validate' ;;
+    *) printf '' ;;
+  esac
+}
+state_file() { printf '%s/workflow-state.json' "$LOG_DIR"; }
+write_state() { # goal step status
+  local goal="$1" step="$2" status="$3" f
+  f="$(state_file)"
+  if command -v python3 >/dev/null 2>&1; then
+    ST_GOAL="$goal" ST_STEP="$step" ST_STATUS="$status" ST_FILE="$f" python3 - <<'PYEOF' 2>/dev/null || true
+import json,os,datetime
+f=os.environ['ST_FILE']
+try: st=json.load(open(f))
+except Exception: st={"goal":os.environ['ST_GOAL'],"steps":[]}
+st["goal"]=os.environ['ST_GOAL']
+st["steps"]=[s for s in st.get("steps",[]) if s.get("id")!=os.environ['ST_STEP']]
+st["steps"].append({"id":os.environ['ST_STEP'],"status":os.environ['ST_STATUS']})
+st["updated"]=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+json.dump(st,open(f,"w"),indent=2)
+PYEOF
+  else
+    printf '{"goal":"%s","step":"%s","status":"%s"}\n' "$goal" "$step" "$status" >> "$f"
+  fi
+}
+read_state_goal() {
+  local f; f="$(state_file)"
+  [ -f "$f" ] || return 1
+  if command -v python3 >/dev/null 2>&1; then python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('goal',''))" "$f" 2>/dev/null && return 0; fi
+  grep -o '"goal"[[:space:]]*:[[:space:]]*"[^"]*"' "$f" | tail -1 | cut -d'"' -f4
+}
+goal_screen() { # dispatch one plan step to its screen (reuse!)
+  case "$1" in
+    reconnaissance) screen_analyze ;;
+    compatibility) screen_compat ;;
+    firmware|firmware_selection|stock_firmware_validation|firmware_validation) screen_firmware ;;
+    extract|artifact_extraction) screen_extract ;;
+    magisk_patch|root_preparation|root_image_preparation) screen_patch ;;
+    backup|backup_if_required) screen_backup ;;
+    flash|root_flash|safety_gate|flash_plan) screen_flash ;;
+    rom_validation) screen_extract ;;
+    rom_installation|rom_flash) screen_flashsystem ;;
+    recovery_compatibility) screen_rootmethods ;;
+    recovery_validation|recovery_flash) screen_twrp ;;
+    reboot|boot) screen_verify ;;
+    root_verify|verify) screen_verify ;;
+    validate) screen_verify ;;
+    restore|identify_original_artifact|validate_backup|rollback_plan) do_restore "" "" || true; pause_tt ;;
+    custom_rom_compatibility|rom_compatibility) screen_compat ;;
+  esac
+}
+run_goal() { # goal -> stepwise with persisted state, controlled stop on failure
+  local goal="$1" steps s
+  steps="$(goal_steps "$goal")"
+  [ -z "$steps" ] && { log ERROR "Unknown goal: $goal"; return 1; }
+  for s in $steps; do
+    write_state "$goal" "$s" "active"
+    goal_screen "$s" || true
+    write_state "$goal" "$s" "done"
+  done
+  log SUCCESS "Workflow '$goal' COMPLETED."
+}
+screen_goals() {
+  printf '\n%s\n' "$(L 'Select workflow goal (planner shows plan first):' 'Workflow-Ziel (Planner zeigt Plan zuerst):')"
+  local i=1 g
+  for g in root custom_rom stock_rom root_custom_rom root_stock_rom root_custom_rom_recovery root_stock_rom_recovery restore_original; do
+    printf '  [%d] %s\n' "$i" "$g"; i=$((i+1))
+  done
+  printf '%s' "$(L 'Number (Enter=back): ' 'Nummer (Enter=zurueck): ')"; iread -r n
+  case "$n" in 1) g=root;; 2) g=custom_rom;; 3) g=stock_rom;; 4) g=root_custom_rom;; 5) g=root_stock_rom;; 6) g=root_custom_rom_recovery;; 7) g=root_stock_rom_recovery;; 8) g=restore_original;; *) pause_tt; return ;; esac
+  printf '\nPlan for %s:\n' "$g"
+  for s in $(goal_steps "$g"); do printf ' - %s\n' "$s"; done
+  printf '%s' "$(L 'Run now? [Y/n]: ' 'Jetzt starten? [J/n]: ')"; iread -r a
+  case "$a" in ""|y|Y|j|J) run_goal "$g" ;; esac
+  pause_tt
+}
+screen_resume() {
+  local g; g="$(read_state_goal)" || { log WARNING "$(L 'No saved workflow.' 'Kein gespeicherter Workflow.')"; pause_tt; return; }
+  [ -z "$g" ] && { log WARNING "$(L 'No saved workflow.' 'Kein gespeicherter Workflow.')"; pause_tt; return; }
+  header "$(L 'Resume workflow: ' 'Workflow fortsetzen: ')$g"
+  printf '%s' "$(L 'Re-run from plan? [Y/n]: ' 'Neu aus Plan starten? [J/n]: ')"; iread -r a
+  case "$a" in ""|y|Y|j|J) run_goal "$g" ;; esac
+  pause_tt
+}
 header() { # title
   clear 2>/dev/null || true
   printf '%b\n' "${C_CYN}================================================================${C_RST}"
@@ -1007,10 +1172,17 @@ screen_bootkeys() {
   pause_tt
 }
 main_menu() {
+  if ! preflight; then
+    printf '%s\n' "$(L 'Preflight blocked - fix tools first (Setup/README), then restart.' 'Preflight blockiert - erst Tools fixen (Setup/README), dann Neustart.')"
+    printf '%s' "$(L 'Press Enter to exit ...' 'Enter zum Beenden ...')"; iread -r _
+    return 1
+  fi
+  select_target || return 1
   find_tools; detect_mode
   while true; do
     menu "$(L 'Main menu - Huawei P10 Root Manager (OS-independent)' 'Hauptmenue - Huawei P10 Root Manager')" \
       "$(L 'Status overview' 'Status-Uebersicht')" "$(L 'Wizard steps 1-9' 'Wizard Step 1-9')" \
+      "$(L 'Workflow goals (planner + resume)' 'Workflow-Ziele (Planner + Resume)')" "$(L 'Resume saved workflow' 'Gespeicherten Workflow fortsetzen')" \
       "Step 1 - Detect" "Step 2 - Analyze" "Step 3 - Firmware" "Step 4 - Extract" \
       "Step 5 - Magisk" "Step 6 - Backup" "Step 7 - Flash" "Step 8+9 - Verify" \
       "$(L 'Recovery export (custom ROMs)' 'Recovery-Export (Custom-ROMs)')" "$(L 'Install ROM / GSI (guided)' 'ROM / GSI installieren (gefuehrt)')" \
@@ -1021,12 +1193,13 @@ main_menu() {
       "$(L 'Exit' 'Beenden')"
     c="$REPLY_MENU"
     case "$c" in
-      -1|20) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
-      0) status_screen ;; 1) wizard ;; 2) screen_detect ;; 3) screen_analyze ;;
-      4) screen_firmware ;; 5) screen_extract ;; 6) screen_patch ;; 7) screen_backup ;;
-      8) screen_flash ;; 9) screen_verify ;; 10) screen_export ;; 11) screen_flashsystem ;;
-      12) screen_rootmethods ;; 13) screen_twrp ;; 14) screen_compat ;; 15) screen_unlock ;; 16) screen_kernelfixes ;;
-      17) do_restore "" "" || true; pause_tt ;; 18) screen_bootkeys ;; 19) screen_tools ;;
+      -1|22) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
+      0) status_screen ;; 1) wizard ;; 2) screen_goals ;; 3) screen_resume ;;
+      4) screen_detect ;; 5) screen_analyze ;; 6) screen_firmware ;; 7) screen_extract ;;
+      8) screen_patch ;; 9) screen_backup ;; 10) screen_flash ;; 11) screen_verify ;;
+      12) screen_export ;; 13) screen_flashsystem ;; 14) screen_rootmethods ;; 15) screen_twrp ;;
+      16) screen_compat ;; 17) screen_unlock ;; 18) screen_kernelfixes ;;
+      19) do_restore "" "" || true; pause_tt ;; 20) screen_bootkeys ;; 21) screen_tools ;;
     esac
   done
 }
@@ -1037,17 +1210,23 @@ wizard() {
 # ---------------------------------------------------------------- CLI
 show_help() {
   printf 'Huawei P10 Root Manager v%s\n' "$TTVERSION"
-  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|wizard|help] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
+  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
   printf '%s\n' "$(L 'No args: TUI. Download/flash/restore need --yes.' 'Ohne Args: TUI. Download/Flash/Restore brauchen --yes.')"
 }
-CMD=""; JSON=""; YES=""; IMAGE=""; FWFILE=""; ANON=""; NOREBOOT=""; RUNMODE="safe"
+CMD=""; JSON=""; YES=""; IMAGE=""; FWFILE=""; ANON=""; NOREBOOT=""; RUNMODE="safe"; GOAL=""
 for a in "$@"; do
+  if [ -n "${WANTVAL:-}" ]; then
+    case "$WANTVAL" in
+      --image) IMAGE="$a" ;; --firmware-file) FWFILE="$a" ;;
+      --mode) RUNMODE_REQ="$a" ;; --goal) GOAL="$a" ;;
+    esac
+    WANTVAL=""
+    continue
+  fi
   case "$a" in
-    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
+    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
     --json) JSON=1 ;; --yes) YES=1 ;; --anonymize) ANON=1 ;; --no-reboot) NOREBOOT=1 ;;
-    --mode) WANTVAL="--mode" ;;
-    --image|--firmware-file) WANTVAL="$a" ;;
-    *) if [ "${WANTVAL:-}" = "--image" ]; then IMAGE="$a"; WANTVAL=""; elif [ "${WANTVAL:-}" = "--firmware-file" ]; then FWFILE="$a"; WANTVAL=""; elif [ "${WANTVAL:-}" = "--mode" ]; then RUNMODE_REQ="$a"; WANTVAL=""; fi ;;
+    --mode|--goal|--image|--firmware-file) WANTVAL="$a" ;;
   esac
 done
 RUNMODE="$(resolve_mode "$RUNMODE_REQ")"
@@ -1150,5 +1329,44 @@ case "$CMD" in
   diagnostic)
     if [ -n "$ANON" ]; then z="$(do_diagnostic --anonymize)"; else z="$(do_diagnostic)"; fi
     if [ -n "$JSON" ]; then printf '{"zip":"%s"}\n' "$z"; else printf 'ZIP: %s\n' "$z"; fi ;;
+  preflight)
+    if preflight; then printf 'PREFLIGHT READY\n'; else exit 1; fi ;;
+  recon)
+    preflight >/dev/null 2>&1 || { printf 'PREFLIGHT BLOCKED\n'; exit 1; }
+    detect_mode
+    [ "$MODE" = "android" ] && android_analysis
+    [ "$MODE" = "fastboot" ] && fastboot_analysis || true
+    if [ -n "$JSON" ]; then printf '{"mode":"%s","os":"%s","profile":"%s","storage":"%s"}\n' "$MODE" "$OS_KIND" "$PROFILE_ID" "$STORAGE"
+    else printf 'mode=%s os=%s profile=%s storage=%s\n' "$MODE" "$OS_KIND" "$PROFILE_ID" "$STORAGE"; fi ;;
+  status)
+    if preflight >/dev/null 2>&1; then pf=true; else pf=false; fi
+    g=""; [ -f "$(state_file)" ] && g="$(read_state_goal 2>/dev/null || true)"
+    printf '{"preflight_go":%s,"adb":"%s","fastboot":"%s","mode":"%s","run_mode":"%s","goal":"%s"}\n' "$pf" "$ADB_STATE" "$FB_STATE" "$MODE" "$RUNMODE" "$g" ;;
+  workflow)
+    g="${GOAL:-}"
+    if [ -z "$g" ] || [ -z "$(goal_steps "$g")" ]; then printf 'Unknown goal. Known: root custom_rom stock_rom root_custom_rom root_stock_rom root_custom_rom_recovery root_stock_rom_recovery restore_original\n'; exit 1; fi
+    if [ -n "$JSON" ]; then
+      printf '{"goal":"%s","steps":[' "$g"
+      first=1; for s in $(goal_steps "$g"); do
+        gate="pending"
+        case "$s" in *flash*) gate="flash";; *verify*|*validat*) gate="verify";; *backup*) gate="backup";; *recon*|*analy*) gate="analyze";; esac
+        st="pending"
+        if [ "$gate" != "pending" ] && ! step_gate "$gate" >/dev/null 2>&1; then st="blocked"; fi
+        [ "$first" = 1 ] || printf ','; first=0
+        printf '{"step":"%s","status":"%s"}' "$s" "$st"
+      done
+      printf ']}\n'
+    else
+      printf 'Goal: %s\n' "$g"
+      for s in $(goal_steps "$g"); do printf ' - %s\n' "$s"; done
+    fi ;;
+  resume)
+    g="$(read_state_goal)" || { printf 'No saved workflow state.\n'; exit 1; }
+    [ -z "$g" ] && { printf 'No saved workflow state.\n'; exit 1; }
+    if [ -z "$YES" ]; then printf "Resume goal '%s'? Re-run with --yes.\n" "$g"; exit 4; fi
+    run_goal "$g" || exit 1 ;;
+  root)
+    if [ -z "$YES" ]; then printf 'Root goal needs --yes (gates still enforced). Plan: workflow --goal root.\n'; exit 4; fi
+    run_goal root || exit 1 ;;
   wizard) main_menu ;;
 esac

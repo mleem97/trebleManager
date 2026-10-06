@@ -22,6 +22,15 @@ and to the planned Linux/macOS bash port (after the Windows release).
 - `core/flashing`: `Test-TTFlashReadiness` (9 checks), `Invoke-TTSafeFlash` (command derived from profile, WARNING dialog, double confirmation).
 - `core/verification`: `Invoke-TTRootVerification` (wait-for-device, `which su`, `su -c id` → only `uid=0` = ROOTED, boot alone ≠ root), `Invoke-TTRestoreFlow`, `New-TTDiagnostic` (ZIP with 10 files, `--anonymize`).
 - `core/i18n`: `$TTLang` (system UI culture) + `L "en" "de"` helper. Repo and default UI are English; German UI if the system language is German.
+- `orchestrator/P0`: tool registry (adb/fastboot required, scrcpy optional),
+  explicit device states (ready/unauthorized/offline/multiple per transport),
+  startup preflight gate (blocks the menu, never silent), per-step requirement
+  gates, explicit multi-device target selection via `ANDROID_SERIAL`.
+- `orchestrator/P1`: 8 workflow goals → planner (plan with live gate results,
+  no execution) → persistent state (`logs/workflow-state.json`) → stepwise
+  execution reusing all existing screens → controlled failure flow
+  (diagnostic/restore/abort) → resume. JSON API: `preflight`, `recon`,
+  `status` (full state), `workflow --goal` (plan), `resume`, `root`.
 - `ui`: TUI (`Show-TTMenu` arrow keys, `Show-TTHeader` with mode/profile/OS, step screens, status, bootkeys, tools, logs, wizard).
 - `cli`: dispatcher `detect|analyze|firmware|download|extract|export|patch|backup|flash|verify|restore|diagnostic|wizard|help` + `--json/--yes/--image/--firmware-file/--anonymize/--no-reboot`.
 

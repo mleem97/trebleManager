@@ -25,7 +25,7 @@ $line"
   done < "$SRC"
   eval "$block" || { bad "load: $name"; return; }
 }
-for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name compat_file compat_broken_markers compat_roms vendor_advice resolve_mode; do import_fn "$fn"; done
+for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name compat_file compat_broken_markers compat_roms vendor_advice resolve_mode goal_steps step_gate device_states; do import_fn "$fn"; done
 
 # Need TTLANG + PROFILE_ID + stubs used by imported funcs
 TTLANG="en"
@@ -96,6 +96,15 @@ rm -rf "$TMP"
 [ "$(resolve_mode unattended)" = "unattended" ] && ok "mode unattended" || bad "mode unattended"
 [ "$(resolve_mode developer)" = "developer" ] && ok "mode developer" || bad "mode developer"
 [ "$(resolve_mode yolo)" = "safe" ] && ok "mode fallback" || bad "mode fallback"
+
+# ---- 14. Goals + gates (no device here: flash blocked, detect passes) ----
+[ "$(goal_steps root | wc -w)" = "10" ] && ok "root goal 10 steps" || bad "root goal steps"
+[ -z "$(goal_steps nope)" ] && ok "unknown goal empty" || bad "unknown goal"
+PATCHED_IMAGE=""; STOCK_IMAGE=""; ADB_BIN=""; FB_BIN=""
+step_gate detect >/dev/null 2>&1 && ok "gate detect passes" || bad "gate detect"
+step_gate flash >/dev/null 2>&1 && bad "gate flash blocked" || ok "gate flash blocked"
+device_states
+[ -n "$OVERALL" ] && ok "device states ($OVERALL)" || bad "device states"
 
 # ---- 12. Immutable release: single version everywhere ----
 ROOT_D="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
