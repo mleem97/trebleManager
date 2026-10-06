@@ -44,11 +44,12 @@ param(
   [switch]$NoReboot,
   [switch]$Anonymize,
   [switch]$NoElevateCheck,
-  [switch]$Help
+  [switch]$Help,
+  [string]$Mode = "safe"
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.4.0"
+$TTVersion = "2.5.0"
 
 # Spec error cases (handled explicitly, SEARCHABLE):
 # ADB not found / No device detected / USB debugging authorization required (ADB unauthorized) /
@@ -687,6 +688,66 @@ function Get-VendorAdvice {
     return "Pie vendor: Q/R/S boot. Target Android $TargetAndroid expected to boot."
   }
   return "Vendor base '$Emui' unclassified - verify manually."
+}
+
+function Resolve-RunMode {
+  # Pure, unit-testable. safe = confirm everything; unattended = --yes auto-confirms
+  # (gates still enforced); developer = unlocks dump-* commands.
+  param([string]$Name)
+  $n = ([string]$Name).ToLower().Trim()
+  if ($n -eq "unattended" -or $n -eq "developer") { return $n }
+  return "safe"
+}
+$TTMode = Resolve-RunMode $Mode
+
+function Invoke-TTValidate {
+  # Post-flash system/hardware validation (read-only). Returns report object.
+  $items = @()
+  $add = { param($Name, $Pass, $Detail)
+    $script:__v += @(New-Object PSObject -Property @{ name = $Name; pass = [bool]$Pass; detail = [string]$Detail })
+  }
+  $script:__v = @()
+  if ($TT.Mode -ne "android") {
+    Update-TTMode | Out-Null
+    if ($TT.Mode -ne "android") {
+      & $add "ADB" $false "no android device"
+      return @{ items = $script:__v; ok = $false }
+    }
+  }
+  & $add "ADB" $true $TT.AdbSerial
+  $rel = Get-Prop "ro.build.version.release"
+  $disp = Get-Prop "ro.build.display.id"
+  & $add "OS" ($rel -ne "") "$rel / $disp"
+  $se = (Invoke-TTAdb @("shell","getenforce") -join "").Trim()
+  & $add "SELinux" ($se -ne "") $se
+  $idOut = (Invoke-TTAdb @("shell","su -c id 2>&1") -join "").Trim()
+  & $add "ROOT" ($idOut -match "uid=0") $idOut
+  $mnt = (Invoke-TTAdb @("shell","mount 2>&1") -join "`n")
+  & $add "MOUNTS-system" ($mnt -match "/system") "system mounted"
+  & $add "MOUNTS-vendor" ($mnt -match "/vendor") "vendor mounted"
+  $wifi = (Invoke-TTAdb @("shell","dumpsys wifi 2>&1 | grep -i -m1 'Wi-Fi is'") -join "").Trim()
+  & $add "WIFI" ($wifi -ne "") $wifi
+  $bt = (Invoke-TTAdb @("shell","settings get global bluetooth_on 2>&1") -join "").Trim()
+  & $add "BLUETOOTH" ($bt -eq "1" -or $bt -eq "0") "state=$bt"
+  $bat = (Invoke-TTAdb @("shell","dumpsys battery 2>&1 | grep -i -m1 level") -join "").Trim()
+  & $add "BATTERY" ($bat -ne "") $bat
+  $sens = (Invoke-TTAdb @("shell","dumpsys sensorservice 2>&1 | grep -c -i sensor") -join "").Trim()
+  & $add "SENSORS" ($sens -ne "" -and $sens -ne "0") "entries=$sens"
+  $ok = $true
+  foreach ($i in $script:__v) { if (-not $i.pass) { $ok = $false } }
+  return @{ items = $script:__v; ok = $ok }
+}
+
+function Write-ValidationReport {
+  param($Report)
+  $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+  $f = Join-Path $TTLogDir ("validation-" + $stamp + ".json")
+  (@{ tool = "trebleManager v$TTVersion"; timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss"); mode = $TT.Mode; profile = $TT.ProfileId; os = $(if ($TT.OS) { $TT.OS.Kind } else { "" }); results = $Report.items } | ConvertTo-Json -Depth 5) | Out-File $f -Encoding utf8
+  Write-TTLog ("Validation report: " + $f) "SUCCESS"
+  foreach ($i in $Report.items) {
+    Write-Host ((if ($i.pass) { " [PASS] " } else { " [FAIL] " }) + $i.name + " -- " + $i.detail) -ForegroundColor $(if ($i.pass) { "Green" } else { "Red" })
+  }
+  return $f
 }
 
 function Test-FirmwareCompatibility {
@@ -2172,6 +2233,29 @@ function Screen-Compatibility {
   Pause-TT
 }
 
+function Invoke-DeveloperDump {
+  # Developer mode only: raw device dumps for ROM research. Read-only.
+  param([string]$Kind)
+  if ($TTMode -ne "developer") {
+    Write-Host (L "Developer mode required: re-run with -Mode developer." "Developer-Modus noetig: neu starten mit -Mode developer.") -ForegroundColor Yellow
+    return $false
+  }
+  if ($TT.Mode -ne "android") { Update-TTMode | Out-Null }
+  if ($TT.Mode -ne "android") { Write-TTLog (L "No android device for dump." "Kein Android-Geraet fuer Dump.") "ERROR"; return $false }
+  $map = @{
+    "dump-partitions" = @("shell","cat","/proc/partitions");
+    "dump-properties" = @("shell","getprop");
+    "dump-vendor"     = @("shell","ls -l /vendor/etc/ 2>&1; cat /vendor/build.prop 2>&1");
+    "dump-logs"       = @("shell","logcat -d -t 200 2>&1")
+  }
+  if (-not $map.ContainsKey($Kind)) { return $false }
+  $o = (Invoke-TTAdb $map[$Kind] -join "`n")
+  $f = Join-Path $TTLogDir ($Kind + "-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".txt")
+  $o | Out-File $f -Encoding utf8
+  Write-TTLog ("Dump: " + $f) "SUCCESS"
+  return $true
+}
+
 function Screen-Tools {
   while ($true) {
     $c = Show-TTMenu (L "Tools (read-only where possible)" "Tools (read-only wo moeglich)") @(
@@ -2182,9 +2266,10 @@ function Screen-Tools {
       "adb kill-server/start-server",
       (L "Create diagnostic ZIP" "Diagnose-ZIP erzeugen"),
       (L "Mirror screen via scrcpy (optional)" "Bildschirm via scrcpy spiegeln (optional)"),
+      (L "Post-flash validation report" "Post-Flash-Validierungsbericht"),
       (L "Back" "Zurueck")
     )
-    if ($c -eq -1 -or $c -eq 7) { return }
+    if ($c -eq -1 -or $c -eq 8) { return }
     if ($c -eq 0) { Show-TTHeader "adb devices"; Write-Host ""; Write-Host ((Invoke-TTAdb @("devices","-l") -join "`n") ) -ForegroundColor White; Pause-TT }
     elseif ($c -eq 1) {
       $s = Show-TTMenu (L "Reboot target" "Reboot-Ziel") @("bootloader","recovery","fastbootd","system",(L "Cancel" "Abbrechen"))
@@ -2221,6 +2306,11 @@ function Screen-Tools {
         Write-Host (L "scrcpy not installed (optional). Get it: https://github.com/Genymobile/scrcpy" "scrcpy nicht installiert (optional). Bezug: https://github.com/Genymobile/scrcpy") -ForegroundColor Yellow
         Pause-TT
       }
+    }
+    elseif ($c -eq 7) {
+      $rep = Invoke-TTValidate
+      Write-ValidationReport $rep | Out-Null
+      Pause-TT
     }
   }
 }
@@ -2349,7 +2439,7 @@ function Start-TTTui {
 # ============================================================ CLI
 function Show-TTHelp {
   Write-Host "Huawei P10 Root Manager v$TTVersion" -ForegroundColor Cyan
-  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|verify|restore|diagnostic|wizard|help] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
+  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|wizard|help] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
   Write-Host (L "No args: TUI. Download/flash/restore need explicit confirmation (--yes = documented consent)." "Ohne Args: TUI. Download/Flash/Restore brauchen explizite Bestaetigung (--yes = dokumentierte Zustimmung).") -ForegroundColor Gray
 }
 
@@ -2550,6 +2640,15 @@ elseif ($cmd -eq "verify") {
   $r = Invoke-TTRootVerification -NoReboot:$NoReboot
   if ($Json) { ($r | ConvertTo-Json -Depth 4) | Write-Host }
   if ($r.Root -ne "ROOTED") { exit 2 }
+}
+elseif ($cmd -eq "validate") {
+  $rep = Invoke-TTValidate
+  if ($Json) { ($rep | ConvertTo-Json -Depth 5) | Write-Host }
+  else { Write-ValidationReport $rep | Out-Null }
+  if (-not $rep.ok) { exit 2 }
+}
+elseif ($cmd -eq "dump-partitions" -or $cmd -eq "dump-properties" -or $cmd -eq "dump-vendor" -or $cmd -eq "dump-logs") {
+  if (-not (Invoke-DeveloperDump $cmd)) { exit 1 }
 }
 elseif ($cmd -eq "restore") {
   $ok = Invoke-TTRestoreFlow -BackupPick $Image -ForceYes:$Yes

@@ -40,7 +40,7 @@ function Import-TTFunction {
   $block = $Src.Substring($start, ($i - $start) + 1)
   try { Invoke-Expression $block } catch { Write-Host ("Ladefehler " + $Name + ": " + $_.Exception.Message) -ForegroundColor Red; $script:Fail++ }
 }
-foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice")) {
+foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode")) {
   Import-TTFunction $fn
 }
 
@@ -162,8 +162,27 @@ $r2 = Test-RomAgainstRegistry $reg "lineage-20.0-arm64_bgN.img"
 Assert-Equal "normal lineage passes" "PASS" $r2.Status
 
 # ---- 14. Vendor advice ----
+# ---- 14. Vendor advice ----
 Assert-True "oreo risk" ((Get-VendorAdvice "EmotionUI_8.0" "13") -match "RISK")
 Assert-True "pie boots" ((Get-VendorAdvice "EmotionUI_9.1" "13") -match "expected to boot")
+
+# ---- 16. Run modes ----
+Assert-Equal "mode safe default" "safe" (Resolve-RunMode "")
+Assert-Equal "mode unattended" "unattended" (Resolve-RunMode "unattended")
+Assert-Equal "mode developer" "developer" (Resolve-RunMode "developer")
+Assert-Equal "mode unknown falls back" "safe" (Resolve-RunMode "yolo")
+
+# ---- 15. Immutable release: single version everywhere ----
+$TTRoot = Split-Path -Parent $PSScriptRoot
+$verFile = (Get-Content (Join-Path $TTRoot "VERSION") -Raw).Trim()
+$mainSrc = Get-Content (Join-Path $TTRoot "scripts/Treble-Toolkit.ps1") -Raw
+$m = [regex]::Match($mainSrc, '\$TTVersion = "([^"]+)"')
+Assert-True "ps1 version present" $m.Success
+if ($m.Success) { Assert-Equal "ps1 == VERSION" $verFile $m.Groups[1].Value }
+$readme = Get-Content (Join-Path $TTRoot "README.md") -Raw
+Assert-True "readme badge matches" ($readme -match [regex]::Escape("Version-" + $verFile))
+$cl = Get-Content (Join-Path $TTRoot "CHANGELOG.md") -Raw
+Assert-True "changelog has version" ($cl -match [regex]::Escape("## v" + $verFile))
 
 Write-Host ""
 Write-Host ("Ergebnis: " + $Pass + " PASS, " + $Fail + " FAIL") -ForegroundColor $(if ($Fail -eq 0) { "Green" } else { "Red" })

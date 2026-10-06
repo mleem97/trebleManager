@@ -7,7 +7,13 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.4.0"
+TTVERSION="2.5.0"
+# Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
+# still enforced), developer (unlocks dump-* commands).
+RUNMODE_REQ=""
+resolve_mode() { # pure: safe|unattended|developer -> itself, else safe
+  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in unattended|developer) printf '%s' "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" ;; *) printf 'safe' ;; esac
+}
 TTLANG="en"
 case "${LANG:-en}" in de*) TTLANG="de" ;; esac
 
@@ -902,12 +908,64 @@ screen_twrp() {
   twrp_flash "$img" || true
   pause_tt
 }
+validate_device() { # read-only post-flash check; prints "name|1/0|detail" lines
+  detect_mode
+  if [ "$MODE" != "android" ]; then printf 'ADB|0|no android device\n'; return 1; fi
+  local fails=0
+  printf 'ADB|1|%s\n' "$ADB_SERIAL"
+  local rel disp
+  rel="$(adb_run shell getprop ro.build.version.release 2>/dev/null | tr -d '\r\n')"
+  disp="$(adb_run shell getprop ro.build.display.id 2>/dev/null | tr -d '\r\n')"
+  if [ -n "$rel" ]; then printf 'OS|1|%s / %s\n' "$rel" "$disp"; else printf 'OS|0|empty\n'; fi
+  local se; se="$(adb_run shell getenforce 2>/dev/null | tr -d '\r\n')"
+  if [ -n "$se" ]; then printf 'SELinux|1|%s\n' "$se"; else printf 'SELinux|0|empty\n'; fi
+  local id; id="$(adb_run shell su -c id 2>&1 | tr -d '\r\n')"
+  case "$id" in *uid=0*) printf 'ROOT|1|%s\n' "$id" ;; *) printf 'ROOT|0|%s\n' "$id" ;; esac
+  local mnt; mnt="$(adb_run shell mount 2>&1)"
+  case "$mnt" in */system*) printf 'MOUNTS-system|1|mounted\n' ;; *) printf 'MOUNTS-system|0|missing\n' ;; esac
+  case "$mnt" in */vendor*) printf 'MOUNTS-vendor|1|mounted\n' ;; *) printf 'MOUNTS-vendor|0|missing\n' ;; esac
+  local wifi; wifi="$(adb_run shell dumpsys wifi 2>&1 | grep -i -m1 'Wi-Fi is' | tr -d '\r')"
+  if [ -n "$wifi" ]; then printf 'WIFI|1|%s\n' "$wifi"; else printf 'WIFI|0|empty\n'; fi
+  local bt; bt="$(adb_run shell settings get global bluetooth_on 2>&1 | tr -d '\r\n')"
+  if [ "$bt" = "1" ] || [ "$bt" = "0" ]; then printf 'BLUETOOTH|1|state=%s\n' "$bt"; else printf 'BLUETOOTH|0|%s\n' "$bt"; fi
+  local bat; bat="$(adb_run shell dumpsys battery 2>&1 | grep -i -m1 level | tr -d '\r')"
+  if [ -n "$bat" ]; then printf 'BATTERY|1|%s\n' "$bat"; else printf 'BATTERY|0|empty\n'; fi
+  local sens; sens="$(adb_run shell dumpsys sensorservice 2>&1 | grep -c -i sensor | tr -d '\r')"
+  if [ -n "$sens" ] && [ "$sens" != "0" ]; then printf 'SENSORS|1|entries=%s\n' "$sens"; else printf 'SENSORS|0|none\n'; fi
+}
+validate_checked() { # runs validate_device, prints output, returns 1 on any FAIL
+  local out rc=0
+  out="$(validate_device)"
+  printf '%s\n' "$out"
+  printf '%s' "$out" | grep -q '|0|' && rc=1
+  return "$rc"
+}
+developer_dump() { # kind -> file or refusal
+  local kind="$1"
+  if [ "$RUNMODE" != "developer" ]; then
+    printf '%s\n' "$(L 'Developer mode required: re-run with --mode developer.' 'Developer-Modus noetig: mit --mode developer starten.')"; return 1
+  fi
+  detect_mode
+  if [ "$MODE" != "android" ]; then printf '%s\n' "$(L 'No android device for dump.' 'Kein Android-Geraet fuer Dump.')"; return 1; fi
+  local out f
+  case "$kind" in
+    dump-partitions) out="$(adb_run shell cat /proc/partitions 2>&1)" ;;
+    dump-properties) out="$(adb_run shell getprop 2>&1)" ;;
+    dump-vendor) out="$(adb_run shell 'ls -l /vendor/etc/ 2>&1; cat /vendor/build.prop 2>&1')" ;;
+    dump-logs) out="$(adb_run shell 'logcat -d -t 200 2>&1')" ;;
+    *) return 1 ;;
+  esac
+  f="$LOG_DIR/$kind-$STAMP.txt"
+  printf '%s\n' "$out" > "$f"
+  log SUCCESS "Dump: $f"
+  printf '%s\n' "$f"
+}
 screen_tools() {
   while true; do
     menu "$(L 'Tools (read-only where possible)' 'Tools (read-only wo moeglich)')" \
       "adb devices -l" "$(L 'Reboot menu' 'Reboot-Menue')" "fastboot devices + getvar" "getprop dump -> logs/" \
-      "adb kill-server/start-server" "$(L 'Create diagnostic ZIP' 'Diagnose-ZIP erzeugen')" "$(L 'Mirror via scrcpy (optional)' 'Spiegeln via scrcpy (optional)')" "$(L 'Back' 'Zurueck')"
-    c="$REPLY_MENU"; [ "$c" = "-1" ] || [ "$c" = "7" ] && return
+      "adb kill-server/start-server" "$(L 'Create diagnostic ZIP' 'Diagnose-ZIP erzeugen')" "$(L 'Mirror via scrcpy (optional)' 'Spiegeln via scrcpy (optional)')" "$(L 'Post-flash validation report' 'Post-Flash-Bericht')" "$(L 'Back' 'Zurueck')"
+    c="$REPLY_MENU"; [ "$c" = "-1" ] || [ "$c" = "8" ] && return
     case "$c" in
       0) header "adb devices"; adb_run devices -l 2>&1; pause_tt ;;
       1) menu "$(L 'Reboot target' 'Reboot-Ziel')" bootloader recovery fastbootd system "$(L 'Cancel' 'Abbrechen')"
@@ -922,6 +980,21 @@ screen_tools() {
          else
            printf '%s\n' "$(L 'scrcpy not installed (optional). Get it: https://github.com/Genymobile/scrcpy' 'scrcpy nicht installiert (optional). Bezug: https://github.com/Genymobile/scrcpy')"
          fi
+         pause_tt ;;
+      7) rep="$(validate_checked)"; rc=$?
+         f="$LOG_DIR/validation-$STAMP.json"
+         printf '{"tool":"trebleManager %s","results":[' "$TTVERSION" > "$f"
+         first=1; while IFS= read -r line; do
+           n="${line%%|*}"; rest="${line#*|}"; v="${rest%%|*}"; d="${rest#*|}"
+           [ "$first" = 1 ] || printf ',' >> "$f"; first=0
+           printf '{"name":"%s","pass":%s,"detail":"%s"}' "$n" "$([ "$v" = 1 ] && printf true || printf false)" "$(printf '%s' "$d" | sed 's/"/\\"/g')" >> "$f"
+         done <<EOF
+$rep
+EOF
+         printf ']}\n' >> "$f"
+         log SUCCESS "Validation report: $f"
+         printf '%s\n' "$rep" | sed 's/^/ /'
+         [ "$rc" = 0 ] || log WARNING "$(L 'Validation found FAILs.' 'Validierung fand FAILs.')"
          pause_tt ;;
     esac
   done
@@ -964,18 +1037,20 @@ wizard() {
 # ---------------------------------------------------------------- CLI
 show_help() {
   printf 'Huawei P10 Root Manager v%s\n' "$TTVERSION"
-  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|verify|restore|diagnostic|wizard|help] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
+  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|wizard|help] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
   printf '%s\n' "$(L 'No args: TUI. Download/flash/restore need --yes.' 'Ohne Args: TUI. Download/Flash/Restore brauchen --yes.')"
 }
-CMD=""; JSON=""; YES=""; IMAGE=""; FWFILE=""; ANON=""; NOREBOOT=""
+CMD=""; JSON=""; YES=""; IMAGE=""; FWFILE=""; ANON=""; NOREBOOT=""; RUNMODE="safe"
 for a in "$@"; do
   case "$a" in
-    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|verify|restore|diagnostic|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
+    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
     --json) JSON=1 ;; --yes) YES=1 ;; --anonymize) ANON=1 ;; --no-reboot) NOREBOOT=1 ;;
+    --mode) WANTVAL="--mode" ;;
     --image|--firmware-file) WANTVAL="$a" ;;
-    *) if [ "${WANTVAL:-}" = "--image" ]; then IMAGE="$a"; WANTVAL=""; elif [ "${WANTVAL:-}" = "--firmware-file" ]; then FWFILE="$a"; WANTVAL=""; fi ;;
+    *) if [ "${WANTVAL:-}" = "--image" ]; then IMAGE="$a"; WANTVAL=""; elif [ "${WANTVAL:-}" = "--firmware-file" ]; then FWFILE="$a"; WANTVAL=""; elif [ "${WANTVAL:-}" = "--mode" ]; then RUNMODE_REQ="$a"; WANTVAL=""; fi ;;
   esac
 done
+RUNMODE="$(resolve_mode "$RUNMODE_REQ")"
 [ -z "$CMD" ] && { main_menu; exit 0; }
 find_tools; detect_mode
 case "$CMD" in
@@ -1064,6 +1139,12 @@ case "$CMD" in
     rc=$?
     [ -n "$JSON" ] && printf '{"rc":%s}\n' "$rc"
     exit "$rc" ;;
+  validate)
+    rep="$(validate_checked)"; rc=$?
+    if [ -n "$JSON" ]; then printf '{"ok":%s}\n' "$([ "$rc" = 0 ] && printf true || printf false)"; else printf '%s\n' "$rep"; fi
+    if [ "$rc" = 0 ]; then exit 0; else exit 2; fi ;;
+  dump-partitions|dump-properties|dump-vendor|dump-logs)
+    developer_dump "$CMD" || exit 1 ;;
   restore)
     if [ -n "$YES" ]; then do_restore "$IMAGE" --yes || exit 1; else do_restore "$IMAGE" "" || exit 1; fi ;;
   diagnostic)

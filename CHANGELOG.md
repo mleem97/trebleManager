@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v2.5.0
+
+- Run modes: `--mode safe|unattended|developer` (unattended still enforces all safety gates; developer unlocks dump commands)
+- Post-flash validation: `validate` (TUI Tools + CLI) with system/hardware checks + `validation-<stamp>.json` report
+- Developer dumps: `dump-partitions|properties|vendor|logs` (developer mode, read-only, for ROM research)
+- ROADMAP.md (state-machine, firmware repo, core extraction plan)
+- Immutable releases enforced: version-consistency tests, RELEASE.md, per-version branches + tags
+
 - Compatibility registry (`data/compatibility/huawei/p10/*.yaml` + JSON): researched ROM/firmware/TWRP/Magisk matrix, `compat` screen/CLI, broken-build hard block, vendor + storage advice
 - Fixed `$Args` auto-variable shadowing (bare-adb help-text bug) + help-text guard
 

@@ -69,11 +69,11 @@ CLI examples (append after `& $f` for remote runs):
 
 ## C. As release ZIP (GitHub blocked / manual upload)
 
-1. Copy `trebleManager-v2.4.0.zip` + `trebleManager-v2.4.0.zip.sha256` from any source
+1. Copy `trebleManager-v2.5.0.zip` + `trebleManager-v2.5.0.zip.sha256` from any source
    (USB stick) — no git, no GitHub needed.
 2. Verify (PowerShell):
    ```powershell
-   (Get-FileHash .\trebleManager-v2.4.0.zip -Algorithm SHA256).Hash -eq (Get-Content .\trebleManager-v2.4.0.zip.sha256)
+   (Get-FileHash .\trebleManager-v2.5.0.zip -Algorithm SHA256).Hash -eq (Get-Content .\trebleManager-v2.5.0.zip.sha256)
    ```
    Must be `True`, otherwise transfer again.
 3. Extract (path without spaces preferred, e.g. `C:\trebleManager\`),

@@ -25,7 +25,7 @@ $line"
   done < "$SRC"
   eval "$block" || { bad "load: $name"; return; }
 }
-for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name compat_file compat_broken_markers compat_roms vendor_advice; do import_fn "$fn"; done
+for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name compat_file compat_broken_markers compat_roms vendor_advice resolve_mode; do import_fn "$fn"; done
 
 # Need TTLANG + PROFILE_ID + stubs used by imported funcs
 TTLANG="en"
@@ -90,6 +90,20 @@ t="$(test_system_image "$TMP/small.img" 2>/dev/null || printf 'FAIL|small')"
 printf 'getvar:unlocked FAILED (remote: Command not allowed)\nfinished.\n' > "$TMP/fb.txt"
 grep -q "Command not allowed" "$TMP/fb.txt" && ok "huawei denied tolerated" || bad "huawei denied"
 rm -rf "$TMP"
+
+# ---- 13. Run modes ----
+[ "$(resolve_mode "")" = "safe" ] && ok "mode safe default" || bad "mode default"
+[ "$(resolve_mode unattended)" = "unattended" ] && ok "mode unattended" || bad "mode unattended"
+[ "$(resolve_mode developer)" = "developer" ] && ok "mode developer" || bad "mode developer"
+[ "$(resolve_mode yolo)" = "safe" ] && ok "mode fallback" || bad "mode fallback"
+
+# ---- 12. Immutable release: single version everywhere ----
+ROOT_D="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VER_FILE="$(tr -d ' \n\r' < "$ROOT_D/VERSION")"
+SH_VER="$(grep -m1 '^TTVERSION=' "$ROOT_D/scripts/treble-toolkit.sh" | cut -d'"' -f2)"
+[ "$SH_VER" = "$VER_FILE" ] && ok "bash == VERSION ($VER_FILE)" || bad "bash ($SH_VER) != VERSION ($VER_FILE)"
+grep -q "Version-$VER_FILE" "$ROOT_D/README.md" && ok "readme badge" || bad "readme badge"
+grep -q "## v$VER_FILE" "$ROOT_D/CHANGELOG.md" && ok "changelog entry" || bad "changelog entry"
 
 printf '\nResult: %s PASS, %s FAIL\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
