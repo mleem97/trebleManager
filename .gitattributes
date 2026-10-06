@@ -1,0 +1,6 @@
+# Zeilenenden: BAT braucht CRLF auf Windows, Rest LF-freundlich
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.yml text eol=lf
+*.md text eol=lf
