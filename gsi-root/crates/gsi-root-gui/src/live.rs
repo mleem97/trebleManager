@@ -97,8 +97,7 @@ pub fn rom_label_live(installed_id: &str) -> String {
 
 /// Known P10 model tokens, most specific first.
 const MODEL_TOKENS: &[&str] = &[
-    "VTR-L29", "VTR-L09", "VKY-L29", "VKY-L09", "VTR-AL00", "VTR-TL00", "VKY-AL00",
-    "VKY-TL00",
+    "VTR-L29", "VTR-L09", "VKY-L29", "VKY-L09", "VTR-AL00", "VTR-TL00", "VKY-AL00", "VKY-TL00",
 ];
 
 /// Derive the registry model from the installed ROM id/label.
@@ -278,7 +277,12 @@ pub fn workflow_live(log_dir: &Path) -> WorkflowLive {
         Ok(None) => {
             return empty(format!("no saved workflow ({} missing)", path.display()));
         }
-        Err(e) => return empty(format!("workflow state unreadable ({}: {e})", path.display())),
+        Err(e) => {
+            return empty(format!(
+                "workflow state unreadable ({}: {e})",
+                path.display()
+            ))
+        }
     };
     let steps: Vec<(String, String)> = wf
         .steps
@@ -389,15 +393,14 @@ pub fn newest_magisk_patched(data_dir: &Path) -> Option<PathBuf> {
 pub fn first_stock_recovery(data_dir: &Path, firmware_dir: &Path) -> Option<PathBuf> {
     let names = gsi_config::stock_recovery_names();
     let dirs = vec![data_dir.to_path_buf(), firmware_dir.to_path_buf()];
-    gsi_config::find_recovery_images(&dirs, &names).into_iter().next()
+    gsi_config::find_recovery_images(&dirs, &names)
+        .into_iter()
+        .next()
 }
 
 /// Local system image: exact registry name first, else newest `*-arm64_*`.
 pub fn local_system_image(data_dir: &Path, roms_dir: &Path) -> Option<PathBuf> {
-    gsi_config::find_system_image(
-        &[roms_dir.to_path_buf(), data_dir.to_path_buf()],
-        None,
-    )
+    gsi_config::find_system_image(&[roms_dir.to_path_buf(), data_dir.to_path_buf()], None)
 }
 
 /// Newest `*.APP` firmware container (sorted first hit, may be `None`).
@@ -534,11 +537,7 @@ pub fn ctx_note(ctx: &LiveCtx) -> String {
 ///
 /// Pure over explicit inputs: `config_dir`/`cache_dir` come from
 /// `gsi-config` in the closure and are `None` when unresolvable.
-pub fn dirs_text(
-    ctx: &LiveCtx,
-    config_dir: Option<&Path>,
-    cache_dir: Option<&Path>,
-) -> String {
+pub fn dirs_text(ctx: &LiveCtx, config_dir: Option<&Path>, cache_dir: Option<&Path>) -> String {
     let mut out = String::new();
     out.push_str(&format!("tool root: {}\n", ctx.tool_root.display()));
     out.push_str(&format!("data: {}\n", ctx.data_dir.display()));
@@ -551,9 +550,15 @@ pub fn dirs_text(
         Some(p) => out.push_str(&format!("cache: {}\n", p.display())),
         None => out.push_str("cache: unknown\n"),
     }
-    out.push_str(&format!("firmware: {}\n", ctx.data_dir.join("firmware").display()));
+    out.push_str(&format!(
+        "firmware: {}\n",
+        ctx.data_dir.join("firmware").display()
+    ));
     out.push_str(&format!("roms: {}\n", ctx.data_dir.join("roms").display()));
-    out.push_str(&format!("backups: {}\n", ctx.data_dir.join("backups").display()));
+    out.push_str(&format!(
+        "backups: {}\n",
+        ctx.data_dir.join("backups").display()
+    ));
     out
 }
 
@@ -572,7 +577,9 @@ pub fn log_files_text(log_dir: &Path) -> String {
             out.push_str(&format!(" - {} ({} bytes)\n", f.name, f.size));
         }
     }
-    out.push_str("names + sizes only; open or bundle them via the scripts (diagnostic ZIP in the TUI)\n");
+    out.push_str(
+        "names + sizes only; open or bundle them via the scripts (diagnostic ZIP in the TUI)\n",
+    );
     out
 }
 
@@ -586,7 +593,11 @@ pub fn log_files_text(log_dir: &Path) -> String {
 /// `pages_analyze::analyze_device_text`.
 pub fn analyze_device_refresh(ctx: &LiveCtx) -> String {
     let rom = installed_rom_live(&ctx.data_dir);
-    let label = if rom.id.is_empty() { "" } else { rom.label.as_str() };
+    let label = if rom.id.is_empty() {
+        ""
+    } else {
+        rom.label.as_str()
+    };
     let mut out = pages_analyze::analyze_device_text("", "", "", label);
     out.push_str(&format!("{}\n", rom.source));
     out.push_str(&format!("{}\n", ctx_note(ctx)));
@@ -596,48 +607,6 @@ pub fn analyze_device_refresh(ctx: &LiveCtx) -> String {
 /// Logs file list over the resolved log dir.
 pub fn logs_files_refresh(ctx: &LiveCtx) -> String {
     let mut out = log_files_text(&ctx.log_dir);
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
-/// Compatibility page: live registry lists plus firmware verdict.
-///
-/// The baseline is the advisory `required_base` from the registry profile;
-/// the on-device baseline (Analyze screen) overrides it when present.
-pub fn compat_refresh(ctx: &LiveCtx) -> String {
-    let rom = installed_rom_live(&ctx.data_dir);
-    let (model, defaulted) = model_from_installed(&rom.id, &rom.label);
-    let reg = registry_live(&ctx.data_dir, &model);
-    let region = firmware_region(&reg.firmware_base);
-    let verdict = gsi_registry::firmware_compat(&model, &reg.firmware_base, &region);
-    let target = reg
-        .android_targets
-        .last()
-        .map(|(a, _)| a.to_string())
-        .unwrap_or_default();
-    let advice = gsi_registry::vendor_advice("", &target);
-    let mut out = pages_flows::compat_text(
-        &model,
-        &reg.firmware_base,
-        &region,
-        &verdict.status,
-        &verdict.reasons,
-        &advice,
-        &reg.recommended,
-        &reg.broken,
-        &reg.firmware_base,
-    );
-    if defaulted {
-        out.push_str("model note: no VTR/VKY token in the saved system; profile defaulted to VTR-L29\n");
-    }
-    out.push_str(&format!("profile: {}\n", reg.profile));
-    if reg.firmware_base.trim().is_empty() {
-        out.push_str("firmware note: no advisory baseline in the registry profile\n");
-    } else {
-        out.push_str("firmware note: baseline is the advisory required_base; the on-phone baseline (Analyze) wins\n");
-    }
-    out.push_str(&format!("{}\n", reg.note));
-    out.push_str(&format!("{}\n", rom.source));
     out.push_str(&format!("{}\n", ctx_note(ctx)));
     out
 }
@@ -666,7 +635,11 @@ pub fn status_refresh(ctx: &LiveCtx) -> String {
     let (model, _) = model_from_installed(&rom.id, &rom.label);
     let reg = registry_live(&ctx.data_dir, &model);
     let wf = workflow_live(&ctx.log_dir);
-    let installed_label = if rom.id.is_empty() { "" } else { rom.label.as_str() };
+    let installed_label = if rom.id.is_empty() {
+        ""
+    } else {
+        rom.label.as_str()
+    };
     let stock = first_stock_recovery(&ctx.data_dir, &ctx.data_dir.join("firmware"))
         .map(|p| p.display().to_string())
         .unwrap_or_default();
@@ -707,7 +680,11 @@ pub fn status_refresh(ctx: &LiveCtx) -> String {
 pub fn wizard_refresh(ctx: &LiveCtx) -> String {
     let rom = installed_rom_live(&ctx.data_dir);
     let wf = workflow_live(&ctx.log_dir);
-    let installed_label = if rom.id.is_empty() { "" } else { rom.label.as_str() };
+    let installed_label = if rom.id.is_empty() {
+        ""
+    } else {
+        rom.label.as_str()
+    };
     let steps: Vec<String> = gsi_state::goal_steps(&wf.goal);
     let patch_note = if rom.id.is_empty() {
         String::new()
@@ -813,87 +790,6 @@ pub fn verify_refresh(ctx: &LiveCtx) -> String {
     out
 }
 
-/// Backup page: live model, dest preview, and advisory firmware.
-pub fn backup_refresh(ctx: &LiveCtx) -> String {
-    let rom = installed_rom_live(&ctx.data_dir);
-    let (model, _) = model_from_installed(&rom.id, &rom.label);
-    let reg = registry_live(&ctx.data_dir, &model);
-    let dest = ctx
-        .data_dir
-        .join("backups")
-        .join(&model)
-        .join("recovery_ramdisk")
-        .display()
-        .to_string();
-    let mut out = pages_backup::backup_text("recovery_ramdisk", &dest, &model, &reg.firmware_base);
-    out.push_str(&format!("{}\n", reg.note));
-    out.push_str(&format!("{}\n", rom.source));
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
-/// Flash-system page: local image check plus registry block lookup.
-pub fn flash_system_refresh(ctx: &LiveCtx) -> String {
-    let rom = installed_rom_live(&ctx.data_dir);
-    let (model, _) = model_from_installed(&rom.id, &rom.label);
-    let reg = registry_live(&ctx.data_dir, &model);
-    let roms = ctx.data_dir.join("roms");
-    let image = local_system_image(&ctx.data_dir, &roms);
-    let (image_path, image_note, image_ok) = match &image {
-        Some(p) => {
-            let chk = gsi_config::test_system_image(p);
-            let note = format!(
-                "local size check: {} ({} bytes, need >= 500 MiB)",
-                if chk.pass { "PASS" } else { "FAIL" },
-                chk.size_bytes
-            );
-            (p.display().to_string(), note, chk.pass)
-        }
-        None => (String::new(), "no local system image (*-arm64_*.img) found".to_string(), false),
-    };
-    let mut blocked_marker = String::new();
-    if !rom.label.trim().is_empty() {
-        let hay = format!("{} {}", rom.id, rom.label).to_ascii_lowercase();
-        for b in &reg.broken {
-            let name = b.split(" -- ").next().unwrap_or(b).trim().to_lowercase();
-            if !name.is_empty() && hay.contains(&name) {
-                blocked_marker = name;
-                break;
-            }
-        }
-    }
-    let registry_blocked = !blocked_marker.is_empty();
-    let failed: Vec<String> = Vec::new();
-    let mut out = pages_flash::flash_system_text(
-        &image_path,
-        &image_note,
-        &blocked_marker,
-        false,
-        false,
-        image_ok,
-        registry_blocked,
-        false,
-        false,
-        "UNCLEAR",
-        0,
-        "",
-        &failed,
-    );
-    out.push_str(&format!("{}\n", reg.note));
-    out.push_str(&format!("{}\n", rom.source));
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
-/// Wipe page: static plan plus live context (no auto-confirm, ever).
-pub fn wipe_refresh(ctx: &LiveCtx) -> String {
-    let rom = installed_rom_live(&ctx.data_dir);
-    let mut out = pages_flash::wipe_text(false, false, false);
-    out.push_str(&format!("{}\n", rom.source));
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
 /// Unlock page: static guidance plus live context.
 pub fn unlock_refresh(ctx: &LiveCtx) -> String {
     let rom = installed_rom_live(&ctx.data_dir);
@@ -948,127 +844,11 @@ pub fn restore_refresh(ctx: &LiveCtx) -> String {
     out
 }
 
-/// Reinstall page: live model over the static checklist.
-pub fn reinstall_refresh(ctx: &LiveCtx) -> String {
-    let rom = installed_rom_live(&ctx.data_dir);
-    let (model, _) = model_from_installed(&rom.id, &rom.label);
-    let mut out = pages_backup::reinstall_text(&model, "recovery_ramdisk");
-    out.push_str(&format!("{}\n", rom.source));
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
-/// Resume page: saved goal and saved steps, rendered as text lines.
-pub fn resume_refresh(ctx: &LiveCtx) -> String {
-    let wf = workflow_live(&ctx.log_dir);
-    let lines: String = wf
-        .steps
-        .iter()
-        .map(|(id, st)| format!("{id} [{st}]"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    let mut out = pages_backup::resume_text(&wf.goal, &lines);
-    out.push_str(&format!("{}\n", wf.note));
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
 /// Bootkeys page: persisted boot mode when one was saved.
 pub fn bootkeys_refresh(ctx: &LiveCtx) -> String {
     let wf = workflow_live(&ctx.log_dir);
     let mut out = pages_backup::bootkeys_text(&wf.boot_mode);
     out.push_str(&format!("{}\n", wf.note));
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
-/// Extract page: newest `UPDATE.APP` plus its header magic.
-pub fn extract_refresh(ctx: &LiveCtx) -> String {
-    let firmware = ctx.data_dir.join("firmware");
-    let app = first_update_app(&firmware);
-    let (name, is_app, header) = match &app {
-        Some(p) => (
-            p.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string(),
-            true,
-            header_hex(p),
-        ),
-        None => (String::new(), false, String::new()),
-    };
-    let entries: Vec<&str> = Vec::new();
-    let mut out = pages_media::extract_text(&name, &entries, is_app, &header);
-    if app.is_none() {
-        out.push_str(&format!("searched: {}\n", firmware.display()));
-    }
-    out.push_str("entries note: container listing runs in the extractor tools, not here\n");
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
-/// Download page: registry ROMs, Magisk APK state, and cache dir.
-pub fn download_refresh(ctx: &LiveCtx) -> String {
-    let rom = installed_rom_live(&ctx.data_dir);
-    let (model, _) = model_from_installed(&rom.id, &rom.label);
-    let reg = registry_live(&ctx.data_dir, &model);
-    let rom_refs: Vec<&str> = reg.recommended.iter().map(|s| s.as_str()).collect();
-    let fw_refs: Vec<&str> = Vec::new();
-    let magisk = newest_magisk_apk(&ctx.data_dir);
-    let magisk_status = match &magisk {
-        Some(p) => {
-            let size = std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
-            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("magisk.apk");
-            format!("{name} cached ({size} bytes)")
-        }
-        None => String::new(),
-    };
-    let cache = ctx.data_dir.join("firmware").display().to_string();
-    let mut out = pages_media::download_text(&rom_refs, &fw_refs, &magisk_status, &cache);
-    out.push_str(&format!("{}\n", reg.note));
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
-/// Firmware page: advisory baseline plus live compat verdict.
-pub fn firmware_refresh(ctx: &LiveCtx) -> String {
-    let rom = installed_rom_live(&ctx.data_dir);
-    let (model, _) = model_from_installed(&rom.id, &rom.label);
-    let reg = registry_live(&ctx.data_dir, &model);
-    let region = firmware_region(&reg.firmware_base);
-    let verdict = gsi_registry::firmware_compat(&model, &reg.firmware_base, &region);
-    let reasons: Vec<&str> = verdict.reasons.iter().map(|s| s.as_str()).collect();
-    let status = if verdict.status.trim().is_empty() {
-        "FAIL"
-    } else {
-        verdict.status.as_str()
-    };
-    let mut out = pages_media::firmware_text(&model, &reg.firmware_base, &region, status, &reasons);
-    out.push_str("baseline note: advisory required_base; the on-phone baseline (Analyze) wins\n");
-    out.push_str(&format!("{}\n", reg.note));
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
-/// Export page: newest ROM package plus its image-kind probe.
-pub fn export_refresh(ctx: &LiveCtx) -> String {
-    let roms = ctx.data_dir.join("roms");
-    let pkg = newest_rom_package(&roms);
-    let (name, kind) = match &pkg {
-        Some(p) => {
-            let n = p.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
-            let k = match gsi_config::detect_image_kind(p) {
-                gsi_config::ImageKind::Boot => "boot",
-                gsi_config::ImageKind::System => "system",
-                gsi_config::ImageKind::Unknown => "unknown",
-            };
-            (n, k.to_string())
-        }
-        None => (String::new(), "unknown".to_string()),
-    };
-    let note_refs: Vec<&str> = Vec::new();
-    let mut out = pages_media::export_text(&name, &kind, "", &note_refs);
-    if pkg.is_none() {
-        out.push_str(&format!("searched: {}\n", roms.display()));
-    }
-    out.push_str("plan note: the plan branch (rom-zip/rom-tar/wrapper/direct-img) is resolved by the export planner in the CLI\n");
     out.push_str(&format!("{}\n", ctx_note(ctx)));
     out
 }
@@ -1084,20 +864,6 @@ pub fn kernel_refresh(ctx: &LiveCtx) -> String {
     out
 }
 
-/// TWRP page: newest TWRP image plus saved slot and profile state.
-pub fn twrp_refresh(ctx: &LiveCtx) -> String {
-    let rom = installed_rom_live(&ctx.data_dir);
-    let wf = workflow_live(&ctx.log_dir);
-    let image = newest_twrp_image(&ctx.data_dir)
-        .map(|p| p.display().to_string())
-        .unwrap_or_default();
-    let mut out = pages_media::twrp_text(&image, &wf.slot, !rom.id.is_empty());
-    out.push_str(&format!("{}\n", wf.note));
-    out.push_str(&format!("{}\n", rom.source));
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
 /// Root-methods page: saved selection; the table lives script-side.
 pub fn rootmethods_refresh(ctx: &LiveCtx) -> String {
     let rom = installed_rom_live(&ctx.data_dir);
@@ -1105,46 +871,6 @@ pub fn rootmethods_refresh(ctx: &LiveCtx) -> String {
     let mut out = pages_flows::rootmethods_text(&methods, &rom.id);
     out.push_str("methods note: the ordered method table lives in the scripts; the GUI only shows the saved selection\n");
     out.push_str(&format!("{}\n", rom.source));
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
-/// Patch page: patch-base rule derived from the saved system.
-pub fn patch_refresh(ctx: &LiveCtx) -> String {
-    let rom = installed_rom_live(&ctx.data_dir);
-    let hay = format!("{} {}", rom.id, rom.label).to_ascii_lowercase();
-    let source = if rom.id.trim().is_empty() {
-        ""
-    } else if rom.id.trim() == "stock" {
-        "stock"
-    } else if hay.contains("gsi")
-        || hay.contains("lineage")
-        || hay.contains("treble")
-        || hay.contains("trebledroid")
-    {
-        "stock-gsi"
-    } else if rom.id.starts_with("rom:") {
-        "rom"
-    } else {
-        ""
-    };
-    let stock = first_stock_recovery(&ctx.data_dir, &ctx.data_dir.join("firmware"))
-        .map(|p| p.display().to_string())
-        .unwrap_or_default();
-    let label = if rom.id.is_empty() { "" } else { rom.label.as_str() };
-    let mut out = pages_flows::patch_text(source, &stock, label, "recovery_ramdisk");
-    if source.is_empty() && !rom.id.is_empty() {
-        out.push_str("source note: saved system matched no patch-base rule; pick the system again (System page)\n");
-    }
-    out.push_str(&format!("{}\n", rom.source));
-    out.push_str(&format!("{}\n", ctx_note(ctx)));
-    out
-}
-
-/// Persist page: static plan (live install needs uid=0 on-device).
-pub fn persist_refresh(ctx: &LiveCtx) -> String {
-    let files: Vec<String> = Vec::new();
-    let mut out = pages_flows::persist_text("/data/adb/service.d", &files, "", true);
     out.push_str(&format!("{}\n", ctx_note(ctx)));
     out
 }
@@ -1323,7 +1049,10 @@ mod tests {
         );
         let wf = workflow_live(&ctx.log_dir);
         assert_eq!(wf.goal, "root");
-        assert_eq!(wf.steps, vec![("reconnaissance".to_string(), "done".to_string())]);
+        assert_eq!(
+            wf.steps,
+            vec![("reconnaissance".to_string(), "done".to_string())]
+        );
         assert_eq!(wf.slot, "magisk");
         assert_eq!(wf.boot_mode, "cheat");
         assert_eq!(saved_step_status(&wf.steps, "reconnaissance"), "done");
@@ -1391,7 +1120,7 @@ mod tests {
         let out = unwritable_dirs(&[ctx.data_dir.join("nope")]);
         assert_eq!(out.len(), 1);
         assert!(out[0].contains("missing or not writable"));
-        let ok = unwritable_dirs(&[ctx.data_dir.clone()]);
+        let ok = unwritable_dirs(std::slice::from_ref(&ctx.data_dir));
         assert!(ok.is_empty());
     }
 
@@ -1410,18 +1139,7 @@ mod tests {
     }
 
     #[test]
-    fn compat_refresh_uses_registry() {
-        let (_root, ctx) = tool_tree("compat");
-        seed_registry(&ctx);
-        let t = compat_refresh(&ctx);
-        assert!(t.contains("model: VTR-L29"));
-        assert!(t.contains("[+] LineageOS 20"));
-        assert!(t.contains("status: PASS"));
-        assert!(t.contains("registry:"));
-    }
-
-    #[test]
-    fn goals_status_wizard_resume_bootkeys_roundtrip() {
+    fn goals_status_wizard_bootkeys_roundtrip() {
         let (_root, ctx) = tool_tree("gsw");
         seed_registry(&ctx);
         write(&ctx.data_dir.join("installed-rom.txt"), b"stock");
@@ -1439,9 +1157,6 @@ mod tests {
         let w = wizard_refresh(&ctx);
         assert!(w.contains("Your system: Stock EMUI"));
         assert!(w.contains("Goal: root"));
-        let r = resume_refresh(&ctx);
-        assert!(r.contains("goal: root"));
-        assert!(r.contains("reconnaissance [done]"));
         let b = bootkeys_refresh(&ctx);
         assert!(b.contains("Vol-Up + Power until Huawei logo"));
         assert!(b.contains("persisted boot mode: unknown"));
@@ -1460,10 +1175,6 @@ mod tests {
         let v = verify_refresh(&ctx);
         assert!(v.contains("Result: NOT_ROOTED"));
         assert!(v.contains("needs a device"));
-        let b = backup_refresh(&ctx);
-        assert!(b.contains("Backup plan"));
-        assert!(b.contains("backups"));
-        assert!(b.contains("VTR-L29"));
     }
 
     #[test]
@@ -1471,39 +1182,17 @@ mod tests {
         let (_root, ctx) = tool_tree("mf");
         seed_registry(&ctx);
         write(&ctx.data_dir.join("installed-rom.txt"), b"stock");
-        assert!(extract_refresh(&ctx).contains("no archive given"));
-        let d = download_refresh(&ctx);
-        assert!(d.contains("LineageOS 20"));
-        assert!(d.contains("no download started here"));
-        let fw = firmware_refresh(&ctx);
-        assert!(fw.contains("compatibility: PASS"));
-        assert!(fw.contains("C432"));
-        let ex = export_refresh(&ctx);
-        assert!(ex.contains("rom: none"));
         let k = kernel_refresh(&ctx);
         assert!(k.contains("Proto8"));
-        let tw = twrp_refresh(&ctx);
-        assert!(tw.contains("SHARE the recovery_ramdisk slot"));
-        assert!(tw.contains("verified"));
         let rm = rootmethods_refresh(&ctx);
         assert!(rm.contains("Current: stock"));
-        let p = patch_refresh(&ctx);
-        assert!(p.contains("EXPERIMENTAL - refused in GUI"));
-        assert!(p.contains("stock UPDATE.APP recovery image"));
-        let ps = persist_refresh(&ctx);
-        assert!(ps.contains("uid=0"));
         let rs = romselect_refresh(&ctx);
         assert!(rs.contains("Stock EMUI  <-- current") || rs.contains("[1] Stock EMUI"));
         assert!(rs.contains("LineageOS 20"));
         assert!(restore_refresh(&ctx).contains("no backup with original.img found"));
-        assert!(reinstall_refresh(&ctx).contains("Full reinstall checklist"));
-        assert!(wipe_refresh(&ctx).contains("Wipe plan"));
         assert!(unlock_refresh(&ctx).contains("PotatoNV"));
         let pre = preflight_refresh(&ctx);
         assert!(pre.contains("Device states right now"));
-        let fs = flash_system_refresh(&ctx);
-        assert!(fs.contains("System flash plan"));
-        assert!(fs.contains("DO NOT FLASH"));
         let lf = logs_files_refresh(&ctx);
         assert!(lf.contains("log files"));
     }

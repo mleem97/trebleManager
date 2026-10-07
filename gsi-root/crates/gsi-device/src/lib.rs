@@ -77,11 +77,7 @@ pub fn read_slot(state_file: &Path) -> SlotRecord {
 }
 
 /// Write the slot record, preserving every other key in the state file.
-pub fn write_slot(
-    state_file: &Path,
-    occupant: SlotOccupant,
-    detail: &str,
-) -> Result<(), String> {
+pub fn write_slot(state_file: &Path, occupant: SlotOccupant, detail: &str) -> Result<(), String> {
     let mut map: BTreeMap<String, serde_json::Value> = match std::fs::read_to_string(state_file) {
         Ok(t) => serde_json::from_str(&t).unwrap_or_default(),
         Err(_) => BTreeMap::new(),
@@ -97,8 +93,7 @@ pub fn write_slot(
     if let Some(parent) = state_file.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
     }
-    let text =
-        serde_json::to_string_pretty(&map).map_err(|e| format!("json: {e}"))?;
+    let text = serde_json::to_string_pretty(&map).map_err(|e| format!("json: {e}"))?;
     std::fs::write(state_file, text).map_err(|e| format!("write: {e}"))?;
     Ok(())
 }
@@ -134,10 +129,8 @@ pub fn plan_switch(
     magisk_image: Option<&str>,
     twrp_image: Option<&str>,
 ) -> SwitchPlan {
-    let mut warnings = vec![
-        "TWRP and Magisk share the recovery_ramdisk slot (mutual overwrite)."
-            .to_string(),
-    ];
+    let mut warnings =
+        vec!["TWRP and Magisk share the recovery_ramdisk slot (mutual overwrite).".to_string()];
     if current == SlotOccupant::Unknown {
         warnings.push(
             "current occupant unknown (fresh/trustworthy only after a tool flash) — verify before flashing.".to_string(),
@@ -204,8 +197,7 @@ mod tests {
     use std::io::Write;
 
     fn tmp_state(content: &str) -> std::path::PathBuf {
-        static N: std::sync::atomic::AtomicUsize =
-            std::sync::atomic::AtomicUsize::new(0);
+        static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let n = N.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let mut p = std::env::temp_dir();
         p.push(format!("gsi-device-test-{n}.json"));
@@ -257,10 +249,20 @@ mod tests {
     #[test]
     fn switch_matrix() {
         // same -> noop
-        let pl = plan_switch(SlotOccupant::Magisk, SlotOccupant::Magisk, Some("m"), Some("t"));
+        let pl = plan_switch(
+            SlotOccupant::Magisk,
+            SlotOccupant::Magisk,
+            Some("m"),
+            Some("t"),
+        );
         assert_eq!(pl.action, SwitchAction::AlreadyThere);
         // twrp -> magisk with image: flash + shared-slot warning
-        let pl = plan_switch(SlotOccupant::Twrp, SlotOccupant::Magisk, Some("m.img"), None);
+        let pl = plan_switch(
+            SlotOccupant::Twrp,
+            SlotOccupant::Magisk,
+            Some("m.img"),
+            None,
+        );
         assert_eq!(
             pl.action,
             SwitchAction::Flash {

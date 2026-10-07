@@ -33,6 +33,11 @@ root via Vol-Up + Power boot cheat → verify uid=0
 The existing GSI (`system`/`vendor`) is never touched. `FAILED (remote: Command not allowed)`
 from Huawei fastboot is treated as a Huawei quirk, never as proof of lock.
 
+Suite frontends (same core): GUI-first Slint desktop app (`docs/GUI.md`), PowerShell/bash
+TUI (`docs/TUI.md`), and CLI (`docs/CLI.md`) — goals and safety gates are shared
+(`docs/WORKFLOWS.md`, `docs/UI-ARCHITECTURE.md`). The Rust GUI/TUI/CLI build on the
+same domain crates; unproven steps refuse honestly as EXPERIMENTAL.
+
 ## Compatibility
 
 | Device | Model | Arch | State |
@@ -362,7 +367,9 @@ Treble-Toolkit.ps1 detect|devices|analyze|firmware|download|extract|export|patch
 Wizard order: Detect → Analyze → Firmware → Extract → Patch → Backup → Flash → Reboot+Verify.
 ROM path additionally: `export` → `flash-system` (guided, verified profiles only).
 Flash/restore/system-flash need double confirmation (`FLASH`+`YES` / `RESTORE`+`YES`, CLI: `--yes`).
-Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md), [FAQ.md](FAQ.md).
+Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md), [FAQ.md](FAQ.md),
+suite docs: [docs/GUI.md](docs/GUI.md), [docs/TUI.md](docs/TUI.md), [docs/CLI.md](docs/CLI.md),
+[docs/WORKFLOWS.md](docs/WORKFLOWS.md), [docs/UI-ARCHITECTURE.md](docs/UI-ARCHITECTURE.md).
 
 ## Repository Layout
 
@@ -459,6 +466,11 @@ Root via Vol-Up + Power Boot-Cheat → Verify uid=0
 Das existierende GSI (`system`/`vendor`) wird nie angefasst. `FAILED (remote:
 Command not allowed)` aus Huawei-Fastboot gilt als Huawei-Quirk, nie als
 Lock-Beweis.
+
+Suite-Frontends (gleicher Core): GUI-first Slint-Desktop-App (`docs/GUI.md`),
+PowerShell-/Bash-TUI (`docs/TUI.md`) und CLI (`docs/CLI.md`) — Goals und Safety-Gates
+sind geteilt (`docs/WORKFLOWS.md`, `docs/UI-ARCHITECTURE.md`). Unbewiesene Steps
+werden ehrlich als EXPERIMENTAL abgelehnt.
 
 ## Kompatibilität
 
@@ -766,7 +778,9 @@ Wizard-Reihenfolge: Detect → Analyze (mit ROM-Frage) → Ziel in Alltagssprach
 (gefuehrt, nur verifizierte Profile). Flash/Restore/System-Flash brauchen
 Doppel-Bestätigung (`FLASH`+`YES` / `RESTORE`+`YES`, CLI: `--yes`).
 Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md),
-[FAQ.md](FAQ.md).
+[FAQ.md](FAQ.md), Suite-Docs: [docs/GUI.md](docs/GUI.md), [docs/TUI.md](docs/TUI.md),
+[docs/CLI.md](docs/CLI.md), [docs/WORKFLOWS.md](docs/WORKFLOWS.md),
+[docs/UI-ARCHITECTURE.md](docs/UI-ARCHITECTURE.md).
 
 ## Repository-Layout
 

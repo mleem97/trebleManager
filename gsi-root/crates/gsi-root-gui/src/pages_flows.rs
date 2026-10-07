@@ -35,6 +35,7 @@
 ///
 /// Empty `recommended` means no tested builds are listed; empty
 /// `firmware_reasons` falls back to a neutral line. Nothing is guessed.
+#[allow(clippy::too_many_arguments)] // explicit inputs by design: no hidden state, all caller-measured and tested
 pub fn compat_text(
     model: &str,
     firmware_baseline: &str,
@@ -315,7 +316,9 @@ pub fn romselect_text(
     } else {
         out.push_str(&format!("\nPhone runs: {cur}\n"));
     }
-    out.push_str("Rule: full device ROM -> base from its package; GSI or stock -> stock recovery.\n");
+    out.push_str(
+        "Rule: full device ROM -> base from its package; GSI or stock -> stock recovery.\n",
+    );
     out
 }
 
@@ -342,6 +345,7 @@ pub fn help_text(version: &str) -> String {
 /// Android release, mode, firmware baseline, installed system, stock and
 /// patched images, backup, shared slot, and recovery_ramdisk state.
 /// Missing values render as `missing` or `unknown`, never guessed.
+#[allow(clippy::too_many_arguments)] // explicit inputs by design: no hidden state, all caller-measured and tested
 pub fn status_text(
     profile: &str,
     os_kind: &str,
@@ -415,7 +419,9 @@ pub fn status_text(
         out.push_str(&format!("Backup         : {}\n", backup.trim()));
     }
     if slot.trim().is_empty() {
-        out.push_str("Slot (recovery_ramdisk): unknown (TWRP/Magisk share it, last flashed wins)\n");
+        out.push_str(
+            "Slot (recovery_ramdisk): unknown (TWRP/Magisk share it, last flashed wins)\n",
+        );
     } else {
         out.push_str(&format!(
             "Slot (recovery_ramdisk): {}  (TWRP/Magisk share it, last flashed wins)\n",
@@ -551,7 +557,12 @@ mod tests {
 
     #[test]
     fn patch_golden_rom_rule_and_refusal() {
-        let t = patch_text("rom", "/data/recovery/rom-boot.img", "Custom Device Build", "recovery_ramdisk");
+        let t = patch_text(
+            "rom",
+            "/data/recovery/rom-boot.img",
+            "Custom Device Build",
+            "recovery_ramdisk",
+        );
         assert!(t.contains("MUST come from this ROM package"));
         assert!(t.contains("/data/recovery/rom-boot.img"));
         assert!(t.contains("EXPERIMENTAL - refused in GUI"));
@@ -559,7 +570,12 @@ mod tests {
 
     #[test]
     fn patch_golden_gsi_rule() {
-        let t = patch_text("stock-gsi", "/data/stock.img", "Lineage 20", "recovery_ramdisk");
+        let t = patch_text(
+            "stock-gsi",
+            "/data/stock.img",
+            "Lineage 20",
+            "recovery_ramdisk",
+        );
         assert!(t.contains("GSI never touches recovery"));
         assert!(t.contains("EXPERIMENTAL - refused in GUI"));
     }
@@ -568,7 +584,10 @@ mod tests {
     fn persist_golden_plan() {
         let t = persist_text(
             "/data/adb/service.d",
-            &strings(&["000-treblemanager-aptouch.sh", "000-treblemanager-smartpa.sh"]),
+            &strings(&[
+                "000-treblemanager-aptouch.sh",
+                "000-treblemanager-smartpa.sh",
+            ]),
             "Removable: delete the two files.",
             true,
         );
@@ -624,7 +643,10 @@ mod tests {
         let t = wizard_text(
             "Stock EMUI",
             "Root only",
-            &strings(&["Stock firmware (find + download)", "Magisk patch (on your phone)"]),
+            &strings(&[
+                "Stock firmware (find + download)",
+                "Magisk patch (on your phone)",
+            ]),
             &strings(&["stock UPDATE.APP extract - not needed"]),
             "GSI detected: recovery is untouched stock.",
         );

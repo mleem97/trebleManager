@@ -5,7 +5,7 @@ Jede Script-Funktion mit Implementierungsort (PS1/Bash), Rust-Gegenstück und Po
 ## Pre-Rust-Ära (v2.1.0 – v2.17.x) / pre-Rust era
 
 Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BAT-Launcher) ohne Rust und ohne Cargo-Pflicht. Ihr dokumentiertes Verhalten (Wizard, Safety-Gates, Registries, CLI, Diagnostik) ist eingefroren und bleibt gültig — 0 % in den Tabellen unten ist dort die Script-Referenz, kein Mangel. Releases up to and including v2.17.x are script-only with no Rust dependency; their documented behavior stays valid as-is.
-## Gesamt: 258 Script-Funktionen, 444 Rust-`pub fn`, Schnitt 100 %
+## Gesamt: 258 Script-Funktionen, 559 Rust-`pub fn`, Schnitt 100 %
 
 > Interaktive TUI-Anteile (0 %) wandern in die Slint-GUI (Phase 9), nicht 1:1.
 
@@ -310,4 +310,4 @@ Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BA
 
 ## Rust-Seite (portierbar, ohne Duplikate)
 
-`pub fn` insgesamt: 444 (treble_core + gsi-root-Crates + gsi-device/parse, gsi-fs, gsi-tool, gsi-update, gsi-workflow, gsi-config).
+`pub fn` insgesamt: 559 (treble_core + gsi-root-Crates + gsi-device/parse, gsi-fs, gsi-tool, gsi-update, gsi-workflow, gsi-config).

@@ -1,0 +1,140 @@
+import { Button, TextEdit, ComboBox } from "std-widgets.slint";
+
+export component FlashCenter inherits VerticalLayout {
+    in-out property <string> result;
+    in-out property <string> target-select: "recovery_ramdisk";
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text { text: "Flash"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+    Text { text: "10-step flow display: device, image, analyze, target, compat, backup, safety, confirm, execute, verify (read-only). Live flash needs typed FLASH then YES."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    HorizontalLayout {
+        spacing: 8px;
+        Text { text: "Target:"; font-size: 13px; color: #b9bfd2; vertical-alignment: center; }
+        ComboBox {
+            model: ["recovery_ramdisk", "system"];
+            current-value <=> target-select;
+        }
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("flash-center refresh");
+            }
+        }
+    }
+    Text { text: "Target list is fixed (recovery_ramdisk, system); free text is never accepted."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component FlashProgressCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text { text: "Flash Progress"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+    Text { text: "Phase list: preflight, backup, verify, flash, reboot, verification plus stdout and stderr view (read-only). Cancel is unsafe once flash starts."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("flash-progress-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+    Text { text: "On failure (navigation hints, no action here): View Details (open Logs page) / Restore Backup (open Restore plan) / Save Report (use diagnostic bundle)."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+}
+
+export component SystemFlashCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text { text: "System Flash"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+    Text { text: "System-flash plan preview (read-only). Researched-broken builds block hard; live flash needs typed FLASH then YES."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("system-flash-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component TwrpCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text { text: "TWRP"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+    Text { text: "TWRP plan preview (read-only). TWRP and Magisk share the recovery_ramdisk slot: last flashed wins. Flash is gated."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("twrp-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component WipeCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text { text: "Wipe"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+    Text { text: "Wipe plan preview (read-only, userdata only). Type WIPE then YES on a live fastboot device only; backup is required first."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("wipe-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+    Text { text: "Typed-confirm display: type WIPE (1/2) then type YES (2/2). Fallback is stock eRecovery (Vol-Up 3s) wipe on the phone."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+}

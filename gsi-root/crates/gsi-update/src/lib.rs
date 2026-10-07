@@ -51,9 +51,7 @@ pub fn latest_tag(repo: &str) -> Result<String, String> {
         .set("Accept", "application/vnd.github+json")
         .call()
         .map_err(|e| format!("api: {e}"))?;
-    let text = resp
-        .into_string()
-        .map_err(|e| format!("body: {e}"))?;
+    let text = resp.into_string().map_err(|e| format!("body: {e}"))?;
     parse_tag(&text).ok_or_else(|| "no tag_name in response".to_string())
 }
 
@@ -131,10 +129,13 @@ fn staged_install_copy(current: &Path, staged: &Path) -> Result<(), String> {
 /// Self-install: copy the running binary to the user bin dir.
 /// PATH persistence happens only with explicit consent (caller side `--yes`).
 pub fn self_install(bin_dir: &Path) -> Result<PathBuf, String> {
-    let current =
-        std::env::current_exe().map_err(|e| format!("current exe: {e}"))?;
+    let current = std::env::current_exe().map_err(|e| format!("current exe: {e}"))?;
     std::fs::create_dir_all(bin_dir).map_err(|e| format!("mkdir: {e}"))?;
-    let name = if cfg!(windows) { "gsi-root.exe" } else { "gsi-root" };
+    let name = if cfg!(windows) {
+        "gsi-root.exe"
+    } else {
+        "gsi-root"
+    };
     let dest = bin_dir.join(name);
     if let Ok(same) = same_file(&current, &dest) {
         if same {
@@ -286,10 +287,7 @@ fn extract_json_string(scope: &str, key: &str) -> Option<String> {
         return None;
     }
     // Bare value (versionCode is often a number): take a digit run.
-    let run: String = val
-        .chars()
-        .take_while(|c| c.is_ascii_digit())
-        .collect();
+    let run: String = val.chars().take_while(|c| c.is_ascii_digit()).collect();
     if run.is_empty() {
         None
     } else {
@@ -331,8 +329,8 @@ pub fn magisk_stable_url(registry_text: Option<&str>) -> String {
 
 /// Parse `stable.json` body (pure, fixture-testable, no network).
 pub fn parse_magisk_stable(body: &str) -> Result<MagiskStable, String> {
-    let magisk =
-        extract_object(body, "magisk").ok_or_else(|| "no magisk object in stable.json".to_string())?;
+    let magisk = extract_object(body, "magisk")
+        .ok_or_else(|| "no magisk object in stable.json".to_string())?;
     let version = extract_json_string(&magisk, "version")
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| "no magisk.version in stable.json".to_string())?;
@@ -363,9 +361,7 @@ pub fn fetch_magisk_stable(url: &str) -> Result<MagiskStable, String> {
         .set("Accept", "application/json")
         .call()
         .map_err(|e| format!("stable.json: {e}"))?;
-    let text = resp
-        .into_string()
-        .map_err(|e| format!("body: {e}"))?;
+    let text = resp.into_string().map_err(|e| format!("body: {e}"))?;
     parse_magisk_stable(&text)
 }
 
@@ -411,9 +407,7 @@ pub fn newest_matching_file(dir: &Path, pattern: &str) -> Option<PathBuf> {
         if !hit {
             continue;
         }
-        let mtime = std::fs::metadata(&path)
-            .and_then(|m| m.modified())
-            .ok();
+        let mtime = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
         let key = (mtime, name.to_string());
         let replace = match &best {
             None => true,
@@ -478,10 +472,7 @@ pub fn magisk_info(apk_path: &Path) -> Result<MagiskInfo, String> {
         .map_err(|e| format!("meta: {e}"))?
         .len();
     let sha256 = sha256_file(apk_path)?;
-    let name = apk_path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
+    let name = apk_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
     Ok(MagiskInfo {
         path: apk_path.to_path_buf(),
         version: magisk_version_from_filename(name),
@@ -523,10 +514,7 @@ fn strip_rom_id_prefix(pick: &str) -> &str {
 
 /// Resolve `pick` against `rom_downloads`: 1-based number or exact label
 /// (`rom:` id prefix accepted). Mirrors `Invoke-RomDownload` / `download_rom`.
-pub fn resolve_rom_download(
-    entries: &[RomEntry],
-    pick: &str,
-) -> Result<RomDownload, String> {
+pub fn resolve_rom_download(entries: &[RomEntry], pick: &str) -> Result<RomDownload, String> {
     let list = rom_downloads(entries);
     if list.is_empty() {
         return Err("no downloadable ROMs in registry".to_string());
@@ -537,7 +525,10 @@ pub fn resolve_rom_download(
             .parse()
             .map_err(|_| format!("bad ROM number: {pick}"))?;
         if idx == 0 || idx > list.len() {
-            return Err(format!("ROM number {idx} out of range (1..={})", list.len()));
+            return Err(format!(
+                "ROM number {idx} out of range (1..={})",
+                list.len()
+            ));
         }
         let d = &list[idx - 1];
         return Ok(d.clone());
@@ -618,8 +609,7 @@ fn sidecar_path(path: &Path) -> PathBuf {
 /// `verify_download` sidecar writing). Returns the digest.
 pub fn write_hash_sidecar(path: &Path) -> Result<String, String> {
     let digest = sha256_file(path)?;
-    std::fs::write(sidecar_path(path), digest.as_bytes())
-        .map_err(|e| format!("sidecar: {e}"))?;
+    std::fs::write(sidecar_path(path), digest.as_bytes()).map_err(|e| format!("sidecar: {e}"))?;
     Ok(digest)
 }
 
@@ -627,16 +617,13 @@ pub fn write_hash_sidecar(path: &Path) -> Result<String, String> {
 /// insensitive). Returns the digest on match.
 pub fn verify_hash_sidecar(path: &Path) -> Result<String, String> {
     let computed = sha256_file(path)?;
-    let raw = std::fs::read_to_string(sidecar_path(path))
-        .map_err(|e| format!("sidecar: {e}"))?;
+    let raw = std::fs::read_to_string(sidecar_path(path)).map_err(|e| format!("sidecar: {e}"))?;
     let expected = raw.split_whitespace().next().unwrap_or("");
     if expected.is_empty() {
         return Err("sidecar empty".to_string());
     }
     if !computed.eq_ignore_ascii_case(expected) {
-        return Err(format!(
-            "hash mismatch: got {computed}, want {expected}"
-        ));
+        return Err(format!("hash mismatch: got {computed}, want {expected}"));
     }
     Ok(computed)
 }
@@ -665,7 +652,11 @@ pub fn verify_downloaded_firmware(path: &Path) -> Result<FirmwareCheck, String> 
                 .to_string(),
         );
     }
-    if path.to_string_lossy().to_ascii_lowercase().ends_with(".zip") {
+    if path
+        .to_string_lossy()
+        .to_ascii_lowercase()
+        .ends_with(".zip")
+    {
         notes.push("ZIP: UPDATE.APP content check needs unzip - verify manually.".to_string());
     } else {
         notes.push("Not a ZIP - unpack / UPDATE.APP search manually.".to_string());
@@ -708,9 +699,7 @@ pub fn bootstrap_release(tag: &str) -> Result<BootstrapRelease, String> {
         return Err(format!("bad bootstrap tag: {tag}"));
     }
     let zip_name = format!("{BOOTSTRAP_ASSET_PREFIX}{tag}.zip");
-    let zip_url = format!(
-        "https://github.com/{BOOTSTRAP_REPO}/releases/download/{tag}/{zip_name}"
-    );
+    let zip_url = format!("https://github.com/{BOOTSTRAP_REPO}/releases/download/{tag}/{zip_name}");
     let sha_url = format!("{zip_url}.sha256");
     Ok(BootstrapRelease {
         tag: tag.to_string(),
@@ -790,7 +779,9 @@ fn pump_copy(
         let mut buf = [0u8; 65536];
         let mut done: u64 = 0;
         loop {
-            let n = reader.read(&mut buf).map_err(|e| format!("download: {e}"))?;
+            let n = reader
+                .read(&mut buf)
+                .map_err(|e| format!("download: {e}"))?;
             if n == 0 {
                 break;
             }
@@ -830,8 +821,7 @@ pub fn download_to_with_progress(
 ) -> Result<(), String> {
     let operation = format!("download {url}");
     if is_file_url(url) {
-        let mut inp =
-            std::fs::File::open(file_url_path(url)).map_err(|e| format!("read: {e}"))?;
+        let mut inp = std::fs::File::open(file_url_path(url)).map_err(|e| format!("read: {e}"))?;
         let total = inp.metadata().map(|m| m.len()).unwrap_or(0);
         return pump_copy(&mut inp, dest, total, reporter, &operation);
     }
@@ -1046,10 +1036,7 @@ pub fn fetch_rom_image_with_progress(
     reporter: Option<&dyn Fn(ProgressEvent)>,
 ) -> Result<RomImageValidation, String> {
     download_file_with_progress(url, dest, reporter)?;
-    let name = dest
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
+    let name = dest.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let effective: PathBuf = match gsi_archive::classify(name) {
         gsi_archive::ArchiveKind::GzipSingle | gsi_archive::ArchiveKind::XzSingle => {
             let parent = dest.parent().unwrap_or(Path::new("."));
@@ -1113,8 +1100,8 @@ pub fn bootstrap_install_from_zip(
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("bootstrap.zip");
-    let rels = gsi_archive::extract_auto(fname, &data, dest_dir)
-        .map_err(|e| format!("extract: {e}"))?;
+    let rels =
+        gsi_archive::extract_auto(fname, &data, dest_dir).map_err(|e| format!("extract: {e}"))?;
     let mut out: Vec<PathBuf> = rels.iter().map(|r| dest_dir.join(r)).collect();
     out.sort();
     emit_progress(reporter, ProgressEvent::Completed);
@@ -1137,8 +1124,7 @@ pub fn bootstrap_install(
     let sha_dest = sidecar_path(&zip_dest);
     match download_to(&rel.sha_url, &sha_dest) {
         Ok(()) => {
-            let raw =
-                std::fs::read_to_string(&sha_dest).map_err(|e| format!("sidecar: {e}"))?;
+            let raw = std::fs::read_to_string(&sha_dest).map_err(|e| format!("sidecar: {e}"))?;
             let token = raw.split_whitespace().next().unwrap_or("");
             if token.is_empty() {
                 return Err("sha256 asset empty".to_string());
@@ -1246,10 +1232,7 @@ mod tests {
             magisk_stable_url(Some(reg)),
             "https://example.invalid/x/stable.json"
         );
-        assert_eq!(
-            magisk_stable_url(None),
-            MAGISK_STABLE_DEFAULT_URL
-        );
+        assert_eq!(magisk_stable_url(None), MAGISK_STABLE_DEFAULT_URL);
         assert_eq!(magisk_stable_url(Some("{}")), MAGISK_STABLE_DEFAULT_URL);
         assert_eq!(magisk_stable_url(Some("")), MAGISK_STABLE_DEFAULT_URL);
     }
@@ -1342,7 +1325,9 @@ mod tests {
         let entries = load_profile();
         let list = rom_downloads(&entries);
         assert!(!list.is_empty());
-        assert!(list.iter().all(|d| !d.url.is_empty() && !d.label.is_empty()));
+        assert!(list
+            .iter()
+            .all(|d| !d.url.is_empty() && !d.label.is_empty()));
         // 1-based number resolves.
         let first = resolve_rom_download(&entries, "1").unwrap();
         assert_eq!(first.label, list[0].label);
@@ -1350,8 +1335,10 @@ mod tests {
         let label = "LineageOS 20 UNOFFICIAL (20251021)";
         let hit = resolve_rom_download(&entries, label).unwrap();
         assert!(hit.url.contains("lineage-20.0-20251021"));
-        assert_eq!(rom_download_filename(&hit).unwrap(),
-            "lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed.img.gz");
+        assert_eq!(
+            rom_download_filename(&hit).unwrap(),
+            "lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed.img.gz"
+        );
         // rom: id prefix accepted; unknown / out-of-range rejected.
         assert!(resolve_rom_download(&entries, &format!("rom:{label}")).is_ok());
         assert!(resolve_rom_download(&entries, "nope-nope").is_err());
@@ -1380,12 +1367,8 @@ mod tests {
     #[test]
     fn target_config_resolves_for_label() {
         let entries = load_profile();
-        let cfg = resolve_target_config(
-            &entries,
-            "LineageOS 20 UNOFFICIAL (20251021)",
-            "EMUI 9.1",
-        )
-        .unwrap();
+        let cfg = resolve_target_config(&entries, "LineageOS 20 UNOFFICIAL (20251021)", "EMUI 9.1")
+            .unwrap();
         assert_eq!(cfg.gsi, "arm64_bgN");
         assert_eq!(cfg.firmware_base, "EMUI 9.1");
         assert!(cfg.system_url.contains("lineage-20.0-20251021"));
@@ -1429,7 +1412,9 @@ mod tests {
     fn bootstrap_names_for_tag() {
         let b = bootstrap_release("v1.2.3").unwrap();
         assert_eq!(b.zip_name, "trebleManager-v1.2.3.zip");
-        assert!(b.zip_url.contains("/releases/download/v1.2.3/trebleManager-v1.2.3.zip"));
+        assert!(b
+            .zip_url
+            .contains("/releases/download/v1.2.3/trebleManager-v1.2.3.zip"));
         assert!(b.sha_url.ends_with(".sha256"));
         let cached = bootstrap_cached_file(Path::new("/c"), "v1.2.3", "scripts/x.ps1");
         assert_eq!(cached, Path::new("/c/v1.2.3/scripts/x.ps1"));
@@ -1502,7 +1487,10 @@ mod tests {
         for w in progs.windows(2) {
             assert!(w[1].0 >= w[0].0);
         }
-        assert!(download_to_with_progress("file:///no/such/file.img.gz", &d.join("x.gz"), None).is_err());
+        assert!(
+            download_to_with_progress("file:///no/such/file.img.gz", &d.join("x.gz"), None)
+                .is_err()
+        );
         std::fs::remove_dir_all(&d).ok();
     }
 
@@ -1528,10 +1516,9 @@ mod tests {
 
     /// gzip (mtime=0) of `ANDROID!` + version byte + filler (98 bytes raw).
     const TEST_BOOT_GZ: &[u8] = &[
-        31, 139, 8, 0, 0, 0, 0, 0, 2, 255, 115, 244, 115, 9, 242, 247, 116, 81, 100,
-        118, 242, 247, 15, 113, 113, 12, 113, 212, 53, 48, 52, 50, 54, 49, 53, 51,
-        183, 176, 116, 116, 114, 118, 113, 117, 99, 160, 16, 0, 0, 5, 63, 145, 148,
-        98, 0, 0, 0,
+        31, 139, 8, 0, 0, 0, 0, 0, 2, 255, 115, 244, 115, 9, 242, 247, 116, 81, 100, 118, 242, 247,
+        15, 113, 113, 12, 113, 212, 53, 48, 52, 50, 54, 49, 53, 51, 183, 176, 116, 116, 114, 118,
+        113, 117, 99, 160, 16, 0, 0, 5, 63, 145, 148, 98, 0, 0, 0,
     ];
 
     fn sparse_fixture() -> Vec<u8> {
@@ -1619,7 +1606,10 @@ mod tests {
             ImageKind::Boot,
         )
         .unwrap();
-        assert!(matches!(r3, RomImageValidation::Corrupt { .. }), "got {r3:?}");
+        assert!(
+            matches!(r3, RomImageValidation::Corrupt { .. }),
+            "got {r3:?}"
+        );
         // corrupt: unclear content (plain text, expected system).
         let unk = d.join("unk.img");
         std::fs::write(&unk, b"hello, not an image").unwrap();
@@ -1630,14 +1620,21 @@ mod tests {
             ImageKind::System,
         )
         .unwrap();
-        assert!(matches!(r4, RomImageValidation::Corrupt { .. }), "got {r4:?}");
+        assert!(
+            matches!(r4, RomImageValidation::Corrupt { .. }),
+            "got {r4:?}"
+        );
         // pure helper: missing file is corrupt, download failure is Err.
         assert!(matches!(
             validate_rom_image(&d.join("nope.img"), ImageKind::Boot),
             RomImageValidation::Corrupt { .. }
         ));
-        assert!(fetch_rom_image("ftp://example.invalid/f.img.gz", &d.join("z.gz"), ImageKind::Boot)
-            .is_err());
+        assert!(fetch_rom_image(
+            "ftp://example.invalid/f.img.gz",
+            &d.join("z.gz"),
+            ImageKind::Boot
+        )
+        .is_err());
         std::fs::remove_dir_all(&d).ok();
     }
 
@@ -1645,19 +1642,17 @@ mod tests {
 
     /// Stored (uncompressed) zip: scripts/treble-toolkit.sh + README.md.
     const TEST_BOOTSTRAP_ZIP: &[u8] = &[
-        80, 75, 3, 4, 20, 0, 0, 0, 0, 0, 72, 69, 71, 93, 47, 58, 218, 233, 18, 0, 0,
-        0, 18, 0, 0, 0, 25, 0, 0, 0, 115, 99, 114, 105, 112, 116, 115, 47, 116, 114,
-        101, 98, 108, 101, 45, 116, 111, 111, 108, 107, 105, 116, 46, 115, 104, 35,
-        33, 47, 98, 105, 110, 47, 115, 104, 10, 101, 99, 104, 111, 32, 104, 105, 10,
-        80, 75, 3, 4, 20, 0, 0, 0, 0, 0, 72, 69, 71, 93, 97, 19, 161, 131, 9, 0, 0,
-        0, 9, 0, 0, 0, 9, 0, 0, 0, 82, 69, 65, 68, 77, 69, 46, 109, 100, 35, 32, 116,
-        114, 101, 98, 108, 101, 10, 80, 75, 1, 2, 20, 3, 20, 0, 0, 0, 0, 0, 72, 69,
-        71, 93, 47, 58, 218, 233, 18, 0, 0, 0, 18, 0, 0, 0, 25, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 128, 1, 0, 0, 0, 0, 115, 99, 114, 105, 112, 116, 115, 47, 116,
-        114, 101, 98, 108, 101, 45, 116, 111, 111, 108, 107, 105, 116, 46, 115, 104,
-        80, 75, 1, 2, 20, 3, 20, 0, 0, 0, 0, 0, 72, 69, 71, 93, 97, 19, 161, 131, 9,
-        0, 0, 0, 9, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 1, 73, 0, 0, 0,
-        82, 69, 65, 68, 77, 69, 46, 109, 100, 80, 75, 5, 6, 0, 0, 0, 0, 2, 0, 2, 0,
+        80, 75, 3, 4, 20, 0, 0, 0, 0, 0, 72, 69, 71, 93, 47, 58, 218, 233, 18, 0, 0, 0, 18, 0, 0,
+        0, 25, 0, 0, 0, 115, 99, 114, 105, 112, 116, 115, 47, 116, 114, 101, 98, 108, 101, 45, 116,
+        111, 111, 108, 107, 105, 116, 46, 115, 104, 35, 33, 47, 98, 105, 110, 47, 115, 104, 10,
+        101, 99, 104, 111, 32, 104, 105, 10, 80, 75, 3, 4, 20, 0, 0, 0, 0, 0, 72, 69, 71, 93, 97,
+        19, 161, 131, 9, 0, 0, 0, 9, 0, 0, 0, 9, 0, 0, 0, 82, 69, 65, 68, 77, 69, 46, 109, 100, 35,
+        32, 116, 114, 101, 98, 108, 101, 10, 80, 75, 1, 2, 20, 3, 20, 0, 0, 0, 0, 0, 72, 69, 71,
+        93, 47, 58, 218, 233, 18, 0, 0, 0, 18, 0, 0, 0, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128,
+        1, 0, 0, 0, 0, 115, 99, 114, 105, 112, 116, 115, 47, 116, 114, 101, 98, 108, 101, 45, 116,
+        111, 111, 108, 107, 105, 116, 46, 115, 104, 80, 75, 1, 2, 20, 3, 20, 0, 0, 0, 0, 0, 72, 69,
+        71, 93, 97, 19, 161, 131, 9, 0, 0, 0, 9, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128,
+        1, 73, 0, 0, 0, 82, 69, 65, 68, 77, 69, 46, 109, 100, 80, 75, 5, 6, 0, 0, 0, 0, 2, 0, 2, 0,
         126, 0, 0, 0, 121, 0, 0, 0, 0, 0,
     ];
 
@@ -1675,10 +1670,7 @@ mod tests {
             std::fs::read(out.join("scripts/treble-toolkit.sh")).unwrap(),
             b"#!/bin/sh\necho hi\n"
         );
-        assert_eq!(
-            std::fs::read(out.join("README.md")).unwrap(),
-            b"# treble\n"
-        );
+        assert_eq!(std::fs::read(out.join("README.md")).unwrap(), b"# treble\n");
         assert!(files.iter().all(|p| p.is_file()));
         // sha as sidecar-style first token also verifies.
         let out_b = d.join("out-b");
@@ -1690,20 +1682,21 @@ mod tests {
             2
         );
         // wrong sha aborts honestly.
-        assert!(bootstrap_install_from_zip(&zip, &d.join("out-c"), Some("deadbeef"), None)
-            .is_err());
+        assert!(
+            bootstrap_install_from_zip(&zip, &d.join("out-c"), Some("deadbeef"), None).is_err()
+        );
         // corrupt zip aborts.
         let cz = d.join("c.zip");
         std::fs::write(&cz, b"not a zip at all................").unwrap();
         assert!(bootstrap_install_from_zip(&cz, &d.join("out-d"), None, None).is_err());
         // missing zip aborts.
-        assert!(bootstrap_install_from_zip(&d.join("no.zip"), &d.join("out-e"), None, None)
-            .is_err());
+        assert!(
+            bootstrap_install_from_zip(&d.join("no.zip"), &d.join("out-e"), None, None).is_err()
+        );
         // events: Started .. Completed.
         let seen: RefCell<Vec<ProgressEvent>> = RefCell::new(Vec::new());
         let cb = |ev: ProgressEvent| seen.borrow_mut().push(ev);
-        let files2 =
-            bootstrap_install_from_zip(&zip, &d.join("out-f"), None, Some(&cb)).unwrap();
+        let files2 = bootstrap_install_from_zip(&zip, &d.join("out-f"), None, Some(&cb)).unwrap();
         assert_eq!(files2.len(), 2);
         let ev = seen.borrow();
         assert!(matches!(ev.first(), Some(ProgressEvent::Started { .. })));

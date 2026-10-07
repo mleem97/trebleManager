@@ -1,0 +1,191 @@
+import { Button, TextEdit } from "std-widgets.slint";
+
+export component BackupCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Backup";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Saved backups by model and date with verified states and hashes (read-only). Device dump needs a live device.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("backup-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component CreateBackupCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Create Backup";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Backup plan plus requirements (read-only). The dump step needs a live device and is refused here.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("create-backup-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component RestoreViewCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Restore";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Verify-first flow: select, verify, target, preflight, review, typed RESTORE, execute, verify (read-only). Live flash refused without a device.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("restore-view-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component ReinstallCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Reinstall";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Full reinstall checklist (read-only). Wipe and flash refused without a device.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("reinstall-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component ResumeCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Resume";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Saved workflow goal and step states (read-only). Execution stays in the guided runner.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("resume-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}

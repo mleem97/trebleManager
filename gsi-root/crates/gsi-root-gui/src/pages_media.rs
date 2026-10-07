@@ -100,7 +100,9 @@ pub fn extract_text(
         }
     }
     out.push_str("preview only: nothing extracted, nothing written\n");
-    out.push_str("extractors (manual, into data/tools/): huawei_firmware_extractor.py / splitupdate\n");
+    out.push_str(
+        "extractors (manual, into data/tools/): huawei_firmware_extractor.py / splitupdate\n",
+    );
     out.push_str("keep exact name RECOVERY_RAMDIS.img vs RECOVERY_RAMDISK.img, do NOT rename\n");
     out
 }
@@ -238,12 +240,7 @@ pub fn firmware_text(
 /// `plan_kind` is the planner branch (direct-img/rom-zip/rom-tar/wrapper).
 /// `notes` are planner hints. GSI/system images are refused honestly;
 /// repack/write stays open and is never executed here.
-pub fn export_text(
-    rom_file: &str,
-    image_kind: &str,
-    plan_kind: &str,
-    notes: &[&str],
-) -> String {
+pub fn export_text(rom_file: &str, image_kind: &str, plan_kind: &str, notes: &[&str]) -> String {
     let mut out = String::new();
     if rom_file.trim().is_empty() {
         out.push_str("rom: none (drop .zip/.tar.gz/.img.gz/.img.xz/.img into data/roms/)\n");
@@ -291,7 +288,9 @@ pub fn kernel_text(kernel_notes: &[&str], fix_notes: &[&str]) -> String {
     out.push_str("kernels (permissive SELinux for some GSIs):\n");
     if kernel_notes.is_empty() {
         out.push_str(" - Some GSIs need permissive SELinux, custom kernel required\n");
-        out.push_str(" - EMUI 8: Proto8 (all P10) or HyperPlus (EU/Global, or CN only with UFS chip)\n");
+        out.push_str(
+            " - EMUI 8: Proto8 (all P10) or HyperPlus (EU/Global, or CN only with UFS chip)\n",
+        );
         out.push_str(" - EMUI 9 CN: Pangu kernel\n");
         out.push_str(" - KernelSU: v0.9.2 only, NOT v0.9.5+\n");
     } else {
@@ -341,7 +340,9 @@ pub fn twrp_text(twrp_image: &str, slot_state: &str, profile_verified: bool) -> 
         out.push('\n');
     }
     out.push_str("sources (device-exact only): XDA P10 Plus TWRP 3.2.1-0 (oreo)\n");
-    out.push_str("WARNING: TWRP and Magisk-recovery SHARE the recovery_ramdisk slot (mutual overwrite)\n");
+    out.push_str(
+        "WARNING: TWRP and Magisk-recovery SHARE the recovery_ramdisk slot (mutual overwrite)\n",
+    );
     out.push_str("backup: back up the current slot first\n");
     out.push_str("NEVER wipe userdata in TWRP (use stock recovery); boot TWRP with Vol-Up held\n");
     if profile_verified {

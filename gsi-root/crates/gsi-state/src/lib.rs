@@ -202,10 +202,7 @@ pub fn write_root_state(
     if clean.is_empty() {
         return Err("root state: empty state".to_string());
     }
-    let mut map = match read_object(state_file)? {
-        Some(m) => m,
-        None => BTreeMap::new(),
-    };
+    let mut map = read_object(state_file)?.unwrap_or_default();
     let keep = map
         .get("last_root")
         .and_then(|v| v.as_object())
@@ -230,10 +227,7 @@ pub fn write_root_state(
             lr.insert("boot_mode".to_string(), serde_json::Value::String(b));
         }
     }
-    map.insert(
-        "last_root".to_string(),
-        serde_json::Value::Object(lr),
-    );
+    map.insert("last_root".to_string(), serde_json::Value::Object(lr));
     map.insert(
         "updated".to_string(),
         serde_json::Value::String(now_stamp()),
@@ -303,20 +297,14 @@ pub fn read_state_goal(path: &Path) -> Result<Option<String>, String> {
 pub fn write_workflow_state(path: &Path, state: &WorkflowFile) -> Result<(), String> {
     let mut clone = state.clone();
     clone.updated = now_stamp();
-    let value =
-        serde_json::to_value(&clone).map_err(|e| format!("json: {e}"))?;
+    let value = serde_json::to_value(&clone).map_err(|e| format!("json: {e}"))?;
     let map: BTreeMap<String, serde_json::Value> =
         serde_json::from_value(value).map_err(|e| format!("json: {e}"))?;
     write_object(path, &map)
 }
 
 /// `write_state` (bash): set goal + upsert one step, keep other keys.
-pub fn write_step_state(
-    path: &Path,
-    goal: &str,
-    step: &str,
-    status: &str,
-) -> Result<(), String> {
+pub fn write_step_state(path: &Path, goal: &str, step: &str, status: &str) -> Result<(), String> {
     let g = goal.trim();
     let s = step.trim();
     if g.is_empty() {
@@ -489,7 +477,7 @@ fn goal_steps_static(goal: &str) -> &'static [&'static str] {
 
 /// All known goal ids.
 pub fn goal_ids() -> Vec<String> {
-    vec![
+    [
         "root",
         "custom_rom",
         "stock_rom",
@@ -601,7 +589,10 @@ mod tests {
         let f = installed_rom_file(&d);
         assert_eq!(f, d.join("data").join("installed-rom.txt"));
         write_installed_rom(&f, "  rom:TrebleDroid  ").unwrap();
-        assert_eq!(read_installed_rom(&f).unwrap(), Some("rom:TrebleDroid".to_string()));
+        assert_eq!(
+            read_installed_rom(&f).unwrap(),
+            Some("rom:TrebleDroid".to_string())
+        );
         // Raw file content is the bare token (script shape).
         assert_eq!(std::fs::read_to_string(&f).unwrap(), "rom:TrebleDroid");
     }
@@ -744,7 +735,7 @@ mod tests {
         // Spot-check exact script order for two goals.
         assert_eq!(
             goal_steps("stock_rom"),
-            vec![
+            [
                 "reconnaissance",
                 "firmware_selection",
                 "firmware_validation",
@@ -768,7 +759,10 @@ mod tests {
         let p = new_workflow_plan("root").unwrap();
         assert_eq!(p.goal, "root");
         assert_eq!(p.steps.len(), goal_steps("root").len());
-        assert!(p.steps.iter().all(|s| s.disposition == StepDisposition::Ready));
+        assert!(p
+            .steps
+            .iter()
+            .all(|s| s.disposition == StepDisposition::Ready));
         assert!(new_workflow_plan("unknown-goal").is_err());
         // Gate buckets mirror New-WorkflowPlan mapping.
         assert_eq!(step_gate("root_flash"), Some("flash".to_string()));

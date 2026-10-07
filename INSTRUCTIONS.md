@@ -4,6 +4,11 @@ Covers repo `mleem97/trebleManager` (branch `main`). Everything also works **wit
 GitHub access** once the ZIP has been transferred once (USB stick). Internet is only
 needed afterwards for optional firmware/Magisk downloads.
 
+Suite docs (same core, GUI-first + TUI + CLI): [docs/GUI.md](docs/GUI.md),
+[docs/TUI.md](docs/TUI.md), [docs/CLI.md](docs/CLI.md) (full command reference),
+[docs/WORKFLOWS.md](docs/WORKFLOWS.md), [docs/UI-ARCHITECTURE.md](docs/UI-ARCHITECTURE.md).
+Steps below stay valid.
+
 ## 0. Requirements (all paths)
 
 - Windows 10/11, PowerShell 5.1 (built in) or PowerShell 7
@@ -109,6 +114,11 @@ CLI examples (append after `& $f` for remote runs):
 Gilt für Repo `mleem97/trebleManager` (Branch `main`). Alles geht auch **ohne
 GitHub-Zugang**, sobald das ZIP einmal übertragen wurde (USB-Stick). Internet
 ist danach nur noch für optionale Firmware-/Magisk-Downloads nötig.
+
+Suite-Docs (gleicher Core, GUI-first + TUI + CLI): [docs/GUI.md](docs/GUI.md),
+[docs/TUI.md](docs/TUI.md), [docs/CLI.md](docs/CLI.md) (volle Command-Referenz),
+[docs/WORKFLOWS.md](docs/WORKFLOWS.md), [docs/UI-ARCHITECTURE.md](docs/UI-ARCHITECTURE.md).
+Steps unten bleiben gültig.
 
 ## 0. Voraussetzungen (alle Wege)
 

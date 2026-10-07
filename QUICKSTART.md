@@ -2,6 +2,9 @@
 
 Fastest safe path from zero to verified root on Huawei P10 (VTR-L29).
 
+Suite frontends share one core: GUI-first Slint app (`docs/GUI.md`), PowerShell/bash
+TUI (this page), CLI (`docs/CLI.md`). Goal flows: `docs/WORKFLOWS.md`. Steps below stay valid.
+
 ## 1. Check (2 minutes, read-only)
 
 CMD: put `p10-magisk-check-FIXED.bat` next to `adb.exe`, double-click.
@@ -58,6 +61,9 @@ bash tests/test-parsers.sh
 ```
 
 Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [CONTRIBUTING.md](CONTRIBUTING.md).
+Suite docs: [docs/GUI.md](docs/GUI.md), [docs/TUI.md](docs/TUI.md),
+[docs/CLI.md](docs/CLI.md), [docs/WORKFLOWS.md](docs/WORKFLOWS.md),
+[docs/UI-ARCHITECTURE.md](docs/UI-ARCHITECTURE.md).
 
 ---
 
@@ -65,6 +71,9 @@ Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Deutsch — Schnellstart
 
 Schnellster sicherer Weg von null zu verifiziertem Root auf Huawei P10 (VTR-L29).
+
+Suite-Frontends teilen einen Core: GUI-first Slint-App (`docs/GUI.md`), PowerShell-/Bash-TUI
+(diese Seite), CLI (`docs/CLI.md`). Goal-Flows: `docs/WORKFLOWS.md`. Steps unten bleiben gültig.
 
 ## 1. Check (2 Minuten, read-only)
 
@@ -122,3 +131,6 @@ bash tests/test-parsers.sh
 ```
 
 Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [CONTRIBUTING.md](CONTRIBUTING.md).
+Suite-Docs: [docs/GUI.md](docs/GUI.md), [docs/TUI.md](docs/TUI.md),
+[docs/CLI.md](docs/CLI.md), [docs/WORKFLOWS.md](docs/WORKFLOWS.md),
+[docs/UI-ARCHITECTURE.md](docs/UI-ARCHITECTURE.md).

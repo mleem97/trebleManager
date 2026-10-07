@@ -35,6 +35,25 @@ Pure logic is mirrored in Rust (`core/treble_core`, `gsi-root/` crates,
 - `ui`: TUI (`Show-TTMenu` arrow keys, `Show-TTHeader` with mode/profile/OS, step screens, status, bootkeys, tools, logs, wizard).
 - `cli`: dispatcher `detect|analyze|firmware|download|extract|export|patch|backup|flash|verify|restore|diagnostic|wizard|help` + `--json/--yes/--image/--firmware-file/--anonymize/--no-reboot`.
 
+## Service / domain / infra (Rust suite)
+
+Frontends (PowerShell TUI/CLI, Slint GUI `gsi-root-gui`, Rust CLI `gsi-root-cli`,
+Rust TUI stub `gsi-root-tui`) share one core — no frontend owns logic
+(see [docs/UI-ARCHITECTURE.md](docs/UI-ARCHITECTURE.md)):
+
+- Service facade: `gsi-app` (stub today; GUI/TUI/CLI build on it once filled in).
+- Domain: `gsi-workflow` (typed steps, single definition), `gsi-gates`
+  (preflight/gates/compat/patch-base), `gsi-registry` (YAML/JSON matrix),
+  `gsi-state` (`workflow-state.json`, installed ROM, slot), `gsi-root-core`
+  (`Maturity`: Verified/Documented/Experimental/Unsupported), `gsi-device`,
+  `gsi-image`/`gsi-android`, `gsi-archive`/`gsi-fs` (read-only), `gsi-diag`,
+  `gsi-update`, `gsi-config`, `gsi-i18n`.
+- Infra: `gsi-exec` (injected executor, double confirm tokens `FLASH`+`YES` /
+  `RESTORE`+`YES`, refused before any call without them), `gsi-tool` (managed
+  adb/fastboot/extractor binding, never shell scripts), `gsi-edl` (MSM8953
+  builders plus refusing live transport; stub-tested, live proof in
+  FIELD-EVIDENCE only).
+
 ## OS independence
 
 `Get-OSClassification` classifies from getprop (any OS): TrebleDroid GSI, Lineage GSI,
@@ -115,6 +134,21 @@ als Migrations-Ziel; die Modul-Regionen unten mappen 1:1.
 - `ui`: TUI (`Show-TTMenu` Pfeiltasten, `Show-TTHeader` mit Modus/Profil/OS,
   Step-Screens, Status, Bootkeys, Tools, Logs, Wizard).
 - `cli`: Dispatcher + `--json/--yes/--image/--firmware-file/--anonymize/--no-reboot`.
+
+## Service / Domain / Infra (Rust-Suite)
+
+Frontends (PowerShell-TUI/CLI, Slint-GUI `gsi-root-gui`, Rust-CLI `gsi-root-cli`,
+Rust-TUI-Stub `gsi-root-tui`) teilen einen Core — kein Frontend besitzt Logik
+(siehe [docs/UI-ARCHITECTURE.md](docs/UI-ARCHITECTURE.md)):
+
+- Service-Fassade: `gsi-app` (heute Stub).
+- Domain: `gsi-workflow` (typisierte Steps, einzige Definition), `gsi-gates`,
+  `gsi-registry`, `gsi-state`, `gsi-root-core` (`Maturity`), `gsi-device`,
+  `gsi-image`/`gsi-android`, `gsi-archive`/`gsi-fs` (read-only), `gsi-diag`,
+  `gsi-update`, `gsi-config`, `gsi-i18n`.
+- Infra: `gsi-exec` (injizierter Executor, Doppel-Confirm-Tokens `FLASH`+`YES` /
+  `RESTORE`+`YES`), `gsi-tool` (gemanagtes adb/fastboot-Binding), `gsi-edl`
+  (MSM8953-Builder plus ablehnender Live-Transport; stub-getestet).
 
 ## OS-Unabhängigkeit
 

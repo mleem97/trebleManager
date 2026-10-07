@@ -18,6 +18,8 @@ members = [
     "crates/gsi-i18n",
     "crates/gsi-exec",
     "crates/gsi-edl",
+    "crates/gsi-app",
+    "crates/gsi-root-tui",
     "crates/gsi-tool",
     "crates/gsi-root-gui",
 ]

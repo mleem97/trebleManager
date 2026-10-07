@@ -1,0 +1,223 @@
+import { Button, LineEdit, TextEdit } from "std-widgets.slint";
+
+export component ToolsCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Tools";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Managed external tools with path, version, source and status (read-only). Missing tools render MISSING, never faked.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("tools-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component UpdatesCenter inherits Rectangle {
+    in-out property <string> result;
+    in-out property <string> repo;
+    callback refresh() -> string;
+    callback check-update(string) -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Updates";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Current and latest versions plus status (read-only preview). Check runs shell-side over the network.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            LineEdit {
+                placeholder-text: "owner/repo";
+                text <=> repo;
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: "Check now";
+                clicked => {
+                    result = check-update(repo);
+                    append-log("updates-center check " + repo);
+                }
+            }
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("updates-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component LogsCenter inherits Rectangle {
+    in-out property <string> result;
+    in-out property <string> level;
+    in-out property <string> query;
+    in-out property <bool> anonymize;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Logs";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Log files with level filter and search (read-only). Export and clear run shell-side; the anonymize toggle only changes the display.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            LineEdit {
+                placeholder-text: "level (info/warn/error)";
+                text <=> level;
+                horizontal-stretch: 1;
+            }
+            LineEdit {
+                placeholder-text: "search";
+                text <=> query;
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("logs-center refresh");
+                }
+            }
+        }
+        Text {
+            text: anonymize ? "Anonymize: on" : "Anonymize: off";
+            font-size: 12px;
+            color: #8a90a3;
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component SettingsCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Settings";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Language, paths, tools and safety groups with values (read-only display). Nothing is written here.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("settings-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component HelpCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Help";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Quickstart, troubleshooting and about (read-only).";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("help-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}

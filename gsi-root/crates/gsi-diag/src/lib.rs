@@ -84,19 +84,13 @@ fn redact_device_column(line: &str) -> String {
     if sep >= tok_end {
         return line.to_string();
     }
-    let second = match line.get(sep..tok_end) {
-        Some(s) => s,
-        None => "",
-    };
+    let second = line.get(sep..tok_end).unwrap_or_default();
     let low = second.to_ascii_lowercase();
     let known = STATES.iter().any(|s| low == *s);
     if !known {
         return line.to_string();
     }
-    let first = match line.get(start..end) {
-        Some(s) => s,
-        None => "",
-    };
+    let first = line.get(start..end).unwrap_or_default();
     if first == REDACTED || first.is_empty() {
         return line.to_string();
     }
@@ -106,15 +100,9 @@ fn redact_device_column(line: &str) -> String {
         return line.to_string();
     }
     let mut out = String::new();
-    out.push_str(match line.get(..start) {
-        Some(s) => s,
-        None => "",
-    });
+    out.push_str(line.get(..start).unwrap_or_default());
     out.push_str(REDACTED);
-    out.push_str(match line.get(end..) {
-        Some(s) => s,
-        None => "",
-    });
+    out.push_str(line.get(end..).unwrap_or_default());
     out
 }
 
@@ -872,9 +860,7 @@ mod tests {
         p.push(format!("gsi-diag-test-{tag}-{}-{n}", std::process::id()));
         match std::fs::create_dir_all(&p) {
             Ok(()) => {}
-            Err(e) => {
-                assert!(false, "mkdir: {e}");
-            }
+            Err(e) => panic!("mkdir: {e}"),
         }
         p
     }
@@ -887,21 +873,12 @@ mod tests {
                     let mut buf = Vec::new();
                     match f.read_to_end(&mut buf) {
                         Ok(_) => buf,
-                        Err(e) => {
-                            assert!(false, "read entry: {e}");
-                            Vec::new()
-                        }
+                        Err(e) => panic!("read entry: {e}"),
                     }
                 }
-                Err(e) => {
-                    assert!(false, "missing entry {name}: {e}");
-                    Vec::new()
-                }
+                Err(e) => panic!("missing entry {name}: {e}"),
             },
-            Err(e) => {
-                assert!(false, "open zip: {e}");
-                Vec::new()
-            }
+            Err(e) => panic!("open zip: {e}"),
         }
     }
 
@@ -909,10 +886,7 @@ mod tests {
         let cursor = Cursor::new(bytes.to_vec());
         match zip::ZipArchive::new(cursor) {
             Ok(archive) => archive.file_names().map(|s| s.to_string()).collect(),
-            Err(e) => {
-                assert!(false, "open zip: {e}");
-                Vec::new()
-            }
+            Err(e) => panic!("open zip: {e}"),
         }
     }
 
@@ -924,10 +898,7 @@ mod tests {
         ];
         let bytes = match build_diagnostic_zip(&texts, None, false) {
             Ok(b) => b,
-            Err(e) => {
-                assert!(false, "build: {e}");
-                Vec::new()
-            }
+            Err(e) => panic!("build: {e}"),
         };
         assert!(!bytes.is_empty());
         assert_eq!(
@@ -948,27 +919,18 @@ mod tests {
         let texts = [("adb.txt", "ABCD1234\tdevice"), ("note.txt", "plain")];
         let bytes = match build_diagnostic_zip(&texts, None, true) {
             Ok(b) => b,
-            Err(e) => {
-                assert!(false, "build: {e}");
-                Vec::new()
-            }
+            Err(e) => panic!("build: {e}"),
         };
         let adb = read_zip_entry(&bytes, "adb.txt");
         let adb_s = match String::from_utf8(adb) {
             Ok(s) => s,
-            Err(e) => {
-                assert!(false, "utf8: {e}");
-                String::new()
-            }
+            Err(e) => panic!("utf8: {e}"),
         };
         assert!(adb_s.contains(REDACTED));
         assert!(!adb_s.contains("ABCD1234"));
         let raw = match build_diagnostic_zip(&texts, None, false) {
             Ok(b) => b,
-            Err(e) => {
-                assert!(false, "build: {e}");
-                Vec::new()
-            }
+            Err(e) => panic!("build: {e}"),
         };
         let adb_raw = read_zip_entry(&raw, "adb.txt");
         assert_eq!(adb_raw, b"ABCD1234\tdevice".to_vec());
@@ -979,36 +941,24 @@ mod tests {
         let dir = unique_dir("files");
         match std::fs::write(dir.join("log.txt"), b"log line") {
             Ok(()) => {}
-            Err(e) => {
-                assert!(false, "write: {e}");
-            }
+            Err(e) => panic!("write: {e}"),
         }
         match std::fs::create_dir_all(dir.join("sub")) {
             Ok(()) => {}
-            Err(e) => {
-                assert!(false, "mkdir sub: {e}");
-            }
+            Err(e) => panic!("mkdir sub: {e}"),
         }
         match std::fs::write(dir.join("sub").join("inner.txt"), b"inner") {
             Ok(()) => {}
-            Err(e) => {
-                assert!(false, "write: {e}");
-            }
+            Err(e) => panic!("write: {e}"),
         }
         let texts = [("device.json", "{}")];
         let bytes = match build_diagnostic_zip(&texts, Some(dir.as_path()), false) {
             Ok(b) => b,
-            Err(e) => {
-                assert!(false, "build: {e}");
-                Vec::new()
-            }
+            Err(e) => panic!("build: {e}"),
         };
         assert_eq!(read_zip_entry(&bytes, "log.txt"), b"log line".to_vec());
         assert_eq!(read_zip_entry(&bytes, "sub/inner.txt"), b"inner".to_vec());
-        match std::fs::remove_dir_all(&dir) {
-            Ok(()) => {}
-            Err(_) => {}
-        }
+        if let Ok(()) = std::fs::remove_dir_all(&dir) {}
     }
 
     #[test]
@@ -1044,16 +994,7 @@ mod tests {
     fn backup_plan_and_refusal() {
         let plan = match plan_backup("recovery_ramdisk", "/tmp/d", "", "9.1.0") {
             Ok(p) => p,
-            Err(e) => {
-                assert!(false, "plan: {e}");
-                BackupPlan {
-                    partition: String::new(),
-                    dest_dir: String::new(),
-                    model: String::new(),
-                    firmware: String::new(),
-                    source: String::new(),
-                }
-            }
+            Err(e) => panic!("plan: {e}"),
         };
         assert_eq!(plan.model, "VTR-L29");
         assert_eq!(plan.source, "firmware-extracted");
@@ -1062,8 +1003,7 @@ mod tests {
         assert!(meta.contains("\"model\":\"VTR-L29\""));
         let err = match exec_backup(&plan) {
             Ok(_) => {
-                assert!(false, "exec must refuse");
-                String::new()
+                panic!("exec must refuse");
             }
             Err(e) => e,
         };
@@ -1077,22 +1017,14 @@ mod tests {
     fn planner_branch_matrix() {
         let ok = match plan_export("boot.img", "boot") {
             Ok(p) => p,
-            Err(e) => {
-                assert!(false, "plan: {e}");
-                ExportPlan {
-                    kind: String::new(),
-                    base_name: String::new(),
-                    notes: Vec::new(),
-                }
-            }
+            Err(e) => panic!("plan: {e}"),
         };
         assert_eq!(ok.kind, "direct-img");
         assert_eq!(ok.base_name, "boot");
         assert!(plan_export("lineage.img", "system").is_err());
         let sys_err = match plan_export("lineage.img", "system") {
             Ok(_) => {
-                assert!(false, "system must refuse");
-                String::new()
+                panic!("system must refuse");
             }
             Err(e) => e,
         };
@@ -1100,53 +1032,25 @@ mod tests {
         assert!(plan_export("blob.img", "unknown").is_err());
         let zip_plan = match plan_export("custom-rom.zip", "unknown") {
             Ok(p) => p,
-            Err(e) => {
-                assert!(false, "plan: {e}");
-                ExportPlan {
-                    kind: String::new(),
-                    base_name: String::new(),
-                    notes: Vec::new(),
-                }
-            }
+            Err(e) => panic!("plan: {e}"),
         };
         assert_eq!(zip_plan.kind, "rom-zip");
         assert_eq!(zip_plan.base_name, "custom-rom");
         for name in ["rom.tar", "rom.tar.gz", "rom.tgz", "rom.tar.xz"] {
             let p = match plan_export(name, "unknown") {
                 Ok(p) => p,
-                Err(e) => {
-                    assert!(false, "plan {name}: {e}");
-                    ExportPlan {
-                        kind: String::new(),
-                        base_name: String::new(),
-                        notes: Vec::new(),
-                    }
-                }
+                Err(e) => panic!("plan {name}: {e}"),
             };
             assert_eq!(p.kind, "rom-tar");
         }
         let gz = match plan_export("sys.img.gz", "boot") {
             Ok(p) => p,
-            Err(e) => {
-                assert!(false, "plan: {e}");
-                ExportPlan {
-                    kind: String::new(),
-                    base_name: String::new(),
-                    notes: Vec::new(),
-                }
-            }
+            Err(e) => panic!("plan: {e}"),
         };
         assert_eq!(gz.kind, "wrapper-gz");
         let xz = match plan_export("sys.img.xz", "boot") {
             Ok(p) => p,
-            Err(e) => {
-                assert!(false, "plan: {e}");
-                ExportPlan {
-                    kind: String::new(),
-                    base_name: String::new(),
-                    notes: Vec::new(),
-                }
-            }
+            Err(e) => panic!("plan: {e}"),
         };
         assert_eq!(xz.kind, "wrapper-xz");
         assert!(plan_export("sys.img.gz", "system").is_err());
@@ -1189,10 +1093,7 @@ mod tests {
     fn developer_dump_kinds_and_host_entry() {
         let name = match developer_dump_filename("dump-partitions", "20240101-120000") {
             Ok(n) => n,
-            Err(e) => {
-                assert!(false, "filename: {e}");
-                String::new()
-            }
+            Err(e) => panic!("filename: {e}"),
         };
         assert_eq!(name, "dump-partitions-20240101-120000.txt");
         assert!(developer_dump_filename("dump-bogus", "20240101-120000").is_err());
@@ -1215,10 +1116,7 @@ mod tests {
         let texts = [(entry_name.as_str(), entry_text.as_str())];
         let bytes = match build_diagnostic_zip(&texts, None, false) {
             Ok(b) => b,
-            Err(e) => {
-                assert!(false, "build: {e}");
-                Vec::new()
-            }
+            Err(e) => panic!("build: {e}"),
         };
         assert!(zip_names(&bytes).contains(&"host.txt".to_string()));
     }
@@ -1228,21 +1126,15 @@ mod tests {
         let dir = unique_dir("logs");
         match std::fs::write(dir.join("b.log"), b"12345") {
             Ok(()) => {}
-            Err(e) => {
-                assert!(false, "write: {e}");
-            }
+            Err(e) => panic!("write: {e}"),
         }
         match std::fs::write(dir.join("a.log"), b"12") {
             Ok(()) => {}
-            Err(e) => {
-                assert!(false, "write: {e}");
-            }
+            Err(e) => panic!("write: {e}"),
         }
         match std::fs::create_dir_all(dir.join("sub")) {
             Ok(()) => {}
-            Err(e) => {
-                assert!(false, "mkdir sub: {e}");
-            }
+            Err(e) => panic!("mkdir sub: {e}"),
         }
         let files = list_log_files(dir.as_path());
         assert_eq!(files.len(), 2);
@@ -1254,16 +1146,19 @@ mod tests {
         let missing = dir.join("nope");
         let empty = list_log_files(missing.as_path());
         assert!(empty.is_empty());
-        match std::fs::remove_dir_all(&dir) {
-            Ok(()) => {}
-            Err(_) => {}
-        }
+        if let Ok(()) = std::fs::remove_dir_all(&dir) {}
     }
 
     #[test]
     fn log_filename_golden() {
-        assert_eq!(log_filename("20240101-120000"), "toolkit-20240101-120000.log");
-        assert_eq!(log_filename("20261231-235959"), "toolkit-20261231-235959.log");
+        assert_eq!(
+            log_filename("20240101-120000"),
+            "toolkit-20240101-120000.log"
+        );
+        assert_eq!(
+            log_filename("20261231-235959"),
+            "toolkit-20261231-235959.log"
+        );
     }
 
     #[test]
@@ -1274,18 +1169,15 @@ mod tests {
         let stamp = "2024-01-01 12:00:00";
         match write_log_line(dir.as_path(), &name, stamp, "INFO hello") {
             Ok(p) => assert_eq!(p, dir.join(&name)),
-            Err(e) => assert!(false, "write: {e}"),
+            Err(e) => panic!("write: {e}"),
         }
         match write_log_line(dir.as_path(), &name, "2024-01-01 12:00:01", "ERROR boom") {
             Ok(_) => {}
-            Err(e) => assert!(false, "append: {e}"),
+            Err(e) => panic!("append: {e}"),
         }
         let raw = match std::fs::read(dir.join(&name)) {
             Ok(b) => b,
-            Err(e) => {
-                assert!(false, "read: {e}");
-                Vec::new()
-            }
+            Err(e) => panic!("read: {e}"),
         };
         assert_eq!(
             raw,
@@ -1296,10 +1188,7 @@ mod tests {
         assert!(write_log_line(dir.as_path(), "a/b.log", stamp, "x").is_err());
         assert!(write_log_line(dir.as_path(), &name, "", "x").is_err());
         assert!(write_log_line(dir.as_path(), &name, stamp, "a\nb").is_err());
-        match std::fs::remove_dir_all(&dir) {
-            Ok(()) => {}
-            Err(_) => {}
-        }
+        if let Ok(()) = std::fs::remove_dir_all(&dir) {}
     }
 
     #[test]

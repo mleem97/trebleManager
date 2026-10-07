@@ -1,0 +1,115 @@
+import { Button, LineEdit, TextEdit } from "std-widgets.slint";
+
+export component ImagesCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text {
+        text: "Images Center";
+        font-size: 22px;
+        font-weight: 700;
+        color: #e8eaf0;
+    }
+    Text {
+        text: "Installed, available, downloaded and local image tables (read-only). Empty lists render honest empty states. No download or extraction starts here.";
+        font-size: 12px;
+        color: #8a90a3;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("images refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component AnalyzerCenter inherits VerticalLayout {
+    in-out property <string> path;
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text {
+        text: "Analyzer Center";
+        font-size: 22px;
+        font-weight: 700;
+        color: #e8eaf0;
+    }
+    Text {
+        text: "Image analysis (read-only). Paste the path below; drag and drop is not supported in Slint. Shows container, block size, chunks, blocks, engine, maturity and warnings.";
+        font-size: 12px;
+        color: #8a90a3;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        LineEdit {
+            placeholder-text: "/path/to/system.img (.gz supported by core later)";
+            text <=> path;
+            horizontal-stretch: 1;
+        }
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("analyzer refresh " + path);
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component CompatCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text {
+        text: "Compat Center";
+        font-size: 22px;
+        font-weight: 700;
+        color: #e8eaf0;
+    }
+    Text {
+        text: "Compatibility verdicts (read-only). Device, per-area PASS, WARN, FAIL with reasons, prerequisites, limitations and the recommended workflow.";
+        font-size: 12px;
+        color: #8a90a3;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("compat-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}

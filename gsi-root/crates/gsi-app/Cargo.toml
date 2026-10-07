@@ -1,0 +1,27 @@
+[package]
+name = "gsi-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Application service layer: one shared API for GUI, TUI and CLI over the domain crates."
+
+[lib]
+name = "gsi_app"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+gsi-device = { path = "../gsi-device" }
+gsi-image = { path = "../gsi-image" }
+gsi-archive = { path = "../gsi-archive" }
+gsi-tool = { path = "../gsi-tool" }
+gsi-config = { path = "../gsi-config" }
+gsi-state = { path = "../gsi-state" }
+gsi-gates = { path = "../gsi-gates" }
+gsi-workflow = { path = "../gsi-workflow" }
+gsi-exec = { path = "../gsi-exec" }
+gsi-update = { path = "../gsi-update" }
+gsi-diag = { path = "../gsi-diag" }
+gsi-registry = { path = "../gsi-registry" }
+gsi-i18n = { path = "../gsi-i18n" }

@@ -1,0 +1,327 @@
+import { LineEdit } from "std-widgets.slint";
+
+export global Theme {
+    in-out property <color> bg: #0F1115;
+    in-out property <color> surface: #161A21;
+    in-out property <color> elevated: #1C222B;
+    in-out property <color> border: #2A313C;
+    in-out property <color> text: #F1F3F5;
+    in-out property <color> muted: #9AA3AF;
+    in-out property <color> primary: #4F8CFF;
+    in-out property <color> success: #35C759;
+    in-out property <color> warning: #FFB020;
+    in-out property <color> danger: #FF453A;
+    in-out property <color> info: #64D2FF;
+}
+
+export component Card inherits Rectangle {
+    in-out property <string> title;
+    in-out property <string> subtitle;
+    background: Theme.surface;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: Theme.border;
+    VerticalLayout {
+        padding: 12px;
+        spacing: 6px;
+        if title != "": Text {
+            text: title;
+            font-size: 15px;
+            font-weight: 700;
+            color: Theme.text;
+            wrap: word-wrap;
+        }
+        if subtitle != "": Text {
+            text: subtitle;
+            font-size: 12px;
+            color: Theme.muted;
+            wrap: word-wrap;
+        }
+        @children
+    }
+}
+
+export component StatusBadge inherits Rectangle {
+    in-out property <string> text;
+    in-out property <string> kind;
+    property <color> badge-color: kind == "ok" ? Theme.success : kind == "warn" ? Theme.warning : kind == "error" ? Theme.danger : kind == "info" ? Theme.info : Theme.muted;
+    property <string> badge-icon: kind == "ok" ? "✓" : kind == "warn" ? "!" : kind == "error" ? "X" : kind == "info" ? "i" : "?";
+    background: Theme.elevated;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: badge-color;
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        spacing: 6px;
+        alignment: start;
+        Text {
+            text: badge-icon;
+            font-size: 13px;
+            font-weight: 700;
+            color: badge-color;
+            vertical-alignment: center;
+        }
+        Text {
+            text: text;
+            font-size: 13px;
+            color: Theme.text;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component Banner inherits Rectangle {
+    in-out property <string> text;
+    in-out property <string> kind;
+    property <color> banner-color: kind == "warn" ? Theme.warning : kind == "error" ? Theme.danger : kind == "success" ? Theme.success : Theme.info;
+    property <string> banner-icon: kind == "warn" ? "!" : kind == "error" ? "X" : kind == "success" ? "✓" : "i";
+    background: Theme.elevated;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: banner-color;
+    HorizontalLayout {
+        padding: 10px;
+        spacing: 8px;
+        alignment: start;
+        Text {
+            text: banner-icon;
+            font-size: 14px;
+            font-weight: 700;
+            color: banner-color;
+            vertical-alignment: top;
+        }
+        Text {
+            text: text;
+            font-size: 13px;
+            color: Theme.text;
+            wrap: word-wrap;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component PrimaryButton inherits Rectangle {
+    in-out property <string> text;
+    in-out property <bool> enabled: true;
+    callback clicked;
+    background: enabled ? Theme.primary : Theme.elevated;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: enabled ? Theme.primary : Theme.border;
+    min-height: 32px;
+    min-width: 90px;
+    TouchArea {
+        enabled: enabled;
+        clicked => { root.clicked(); }
+        HorizontalLayout {
+            padding-left: 12px;
+            padding-right: 12px;
+            padding-top: 6px;
+            padding-bottom: 6px;
+            alignment: center;
+            Text {
+                text: text;
+                font-size: 13px;
+                font-weight: 700;
+                color: enabled ? Theme.text : Theme.muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+export component DangerButton inherits Rectangle {
+    in-out property <string> text;
+    in-out property <bool> enabled: true;
+    callback clicked;
+    background: enabled ? Theme.danger : Theme.elevated;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: enabled ? Theme.danger : Theme.border;
+    min-height: 32px;
+    min-width: 90px;
+    TouchArea {
+        enabled: enabled;
+        clicked => { root.clicked(); }
+        HorizontalLayout {
+            padding-left: 12px;
+            padding-right: 12px;
+            padding-top: 6px;
+            padding-bottom: 6px;
+            alignment: center;
+            Text {
+                text: text;
+                font-size: 13px;
+                font-weight: 700;
+                color: enabled ? Theme.text : Theme.muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+export component SafetyDialog inherits Rectangle {
+    in-out property <string> title;
+    in-out property <string> message;
+    in-out property <string> expected;
+    in-out property <string> input;
+    callback confirmed;
+    callback cancelled;
+    property <bool> matched: input == expected && expected != "";
+    background: Theme.elevated;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: Theme.border;
+    VerticalLayout {
+        padding: 14px;
+        spacing: 8px;
+        Text {
+            text: title;
+            font-size: 15px;
+            font-weight: 700;
+            color: Theme.text;
+            wrap: word-wrap;
+        }
+        Text {
+            text: message;
+            font-size: 12px;
+            color: Theme.muted;
+            wrap: word-wrap;
+        }
+        Text {
+            text: "Type \"" + expected + "\" to confirm:";
+            font-size: 12px;
+            color: Theme.text;
+            wrap: word-wrap;
+        }
+        LineEdit {
+            text <=> input;
+            placeholder-text: expected;
+        }
+        Text {
+            text: matched ? "✓ Phrase matches. Continue is enabled." : "? Phrase does not match yet.";
+            font-size: 12px;
+            color: matched ? Theme.success : Theme.muted;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: end;
+            DangerButton {
+                text: "Cancel";
+                clicked => { root.cancelled(); }
+            }
+            PrimaryButton {
+                text: "Continue";
+                enabled: matched;
+                clicked => { root.confirmed(); }
+            }
+        }
+    }
+}
+
+export component Stepper inherits Rectangle {
+    in-out property <[string]> steps;
+    in-out property <int> current;
+    background: transparent;
+    VerticalLayout {
+        spacing: 4px;
+        for s[i] in steps: HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            Rectangle {
+                width: 24px;
+                height: 24px;
+                border-radius: 12px;
+                background: i < current ? Theme.success : i == current ? Theme.primary : Theme.elevated;
+                border-width: 1px;
+                border-color: i < current ? Theme.success : i == current ? Theme.primary : Theme.border;
+                Text {
+                    text: i < current ? "✓" : (i + 1);
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: Theme.text;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+            Text {
+                text: s + (i < current ? " [done]" : i == current ? " [current]" : " [pending]");
+                font-size: 13px;
+                color: i == current ? Theme.text : Theme.muted;
+                vertical-alignment: center;
+                wrap: word-wrap;
+                horizontal-stretch: 1;
+            }
+        }
+    }
+}
+
+export component EmptyState inherits Rectangle {
+    in-out property <string> title;
+    in-out property <string> message;
+    in-out property <string> action-text;
+    callback action;
+    background: transparent;
+    VerticalLayout {
+        padding: 16px;
+        spacing: 8px;
+        alignment: center;
+        Text {
+            text: "?";
+            font-size: 28px;
+            font-weight: 700;
+            color: Theme.muted;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: title;
+            font-size: 15px;
+            font-weight: 700;
+            color: Theme.text;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+        Text {
+            text: message;
+            font-size: 12px;
+            color: Theme.muted;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+        if action-text != "": HorizontalLayout {
+            alignment: center;
+            PrimaryButton {
+                text: action-text;
+                clicked => { root.action(); }
+            }
+        }
+    }
+}
+
+export component PageHeader inherits Rectangle {
+    in-out property <string> title;
+    in-out property <string> subtitle;
+    background: transparent;
+    VerticalLayout {
+        spacing: 4px;
+        Text {
+            text: title;
+            font-size: 22px;
+            font-weight: 700;
+            color: Theme.text;
+        }
+        if subtitle != "": Text {
+            text: subtitle;
+            font-size: 12px;
+            color: Theme.muted;
+            wrap: word-wrap;
+        }
+    }
+}

@@ -56,19 +56,22 @@ impl Ext4 {
         let blocks_per_group = u32le(&sb, 32) as u64;
         let inodes_per_group = u32le(&sb, 40) as u64;
         let inode_size = u16le(&sb, 88);
-        if !(128..=1024).contains(&inode_size) || inode_size % 8 != 0 {
+        if !(128..=1024).contains(&inode_size) || !inode_size.is_multiple_of(8) {
             return Err("implausible inode size".to_string());
         }
         let feat_incompat = u32le(&sb, 96);
         let is_64bit = feat_incompat & 0x80 != 0;
         let desc_size = if is_64bit {
             let d = u16le(&sb, 254);
-            if d == 0 { 64 } else { d }
+            if d == 0 {
+                64
+            } else {
+                d
+            }
         } else {
             32
         };
-        let total_blocks =
-            u32le(&sb, 4) as u64 | ((u32le(&sb, 328) as u64) << 32);
+        let total_blocks = u32le(&sb, 4) as u64 | ((u32le(&sb, 328) as u64) << 32);
         let groups = total_blocks.div_ceil(blocks_per_group.max(1));
         Ok(Self {
             f,
@@ -88,9 +91,7 @@ impl Ext4 {
         self.f
             .seek(SeekFrom::Start(off))
             .map_err(|e| format!("seek: {e}"))?;
-        self.f
-            .read_exact(buf)
-            .map_err(|e| format!("read: {e}"))?;
+        self.f.read_exact(buf).map_err(|e| format!("read: {e}"))?;
         Ok(())
     }
 
@@ -164,10 +165,9 @@ impl Ext4 {
                 }
                 // ee_block(4) ee_len(2) ee_start_hi(2) ee_start_lo(4)
                 let len = u16le(node, o + 4) as u64;
-                let start = u32le(node, o + 8) as u64
-                    | ((u16le(node, o + 6) as u64) << 32);
+                let start = u32le(node, o + 8) as u64 | ((u16le(node, o + 6) as u64) << 32);
                 // len 0x8000+ means uninitialized; cap sane length anyway.
-                let len = (len & 0x7FFF).max(1).min(1 << 20);
+                let len = (len & 0x7FFF).clamp(1, 1 << 20);
                 for b in 0..len {
                     out.push(start + b);
                 }
@@ -216,9 +216,11 @@ impl Ext4 {
         }
         let size = u32le(&raw, 4) as usize;
         if size < 60 {
-            let end = raw[40..].iter().position(|&c| c == 0).unwrap_or(size.min(60));
-            return String::from_utf8(raw[40..40 + end].to_vec())
-                .map_err(|e| format!("utf8: {e}"));
+            let end = raw[40..]
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(size.min(60));
+            return String::from_utf8(raw[40..40 + end].to_vec()).map_err(|e| format!("utf8: {e}"));
         }
         let mut data = Vec::new();
         for b in self.file_blocks(ino)? {
@@ -251,8 +253,7 @@ impl Ext4 {
                     break;
                 }
                 if e_ino != 0 && o + 8 + name_len <= blk.len() {
-                    let name =
-                        String::from_utf8_lossy(&blk[o + 8..o + 8 + name_len]).to_string();
+                    let name = String::from_utf8_lossy(&blk[o + 8..o + 8 + name_len]).to_string();
                     if name != "." && name != ".." {
                         out.push((e_ino, name, ftype));
                     }
@@ -345,7 +346,7 @@ impl Ext4 {
                     String::from_utf8_lossy(&area[pp + 16..pp + 16 + nl])
                 );
                 entries.push((pp, nm, vo, vs));
-                pp += ((16 + nl + 3) / 4) * 4;
+                pp += (16 + nl).div_ceil(4) * 4;
             }
             for (eo, nm, vo, vs) in &entries {
                 if nm != "security.selinux" || *vs == 0 || *vs > 4096 {
@@ -402,7 +403,7 @@ mod tests {
         let nblocks = 10usize;
         let mut img = vec![0u8; nblocks * bs];
         // superblock at 1024
-        put32(&mut img, 1024 + 0, 16); // inodes_count
+        put32(&mut img, 1024, 16); // inodes_count
         put32(&mut img, 1024 + 4, nblocks as u32); // blocks_count_lo
         put32(&mut img, 1024 + 20, 1); // first_data_block
         put32(&mut img, 1024 + 24, 0); // log_block_size -> 1K
@@ -410,7 +411,7 @@ mod tests {
         put32(&mut img, 1024 + 40, 16); // inodes_per_group
         put16(&mut img, 1024 + 56, 0xEF53); // magic
         put16(&mut img, 1024 + 88, 128); // inode_size
-        // group desc at block 2
+                                         // group desc at block 2
         put32(&mut img, 2 * bs + 8, 5); // inode table block
         let mut inode = |ino: usize, mode: u16, size: u32, flags: u32, blocks: &[(u64, u64)]| {
             let off = 5 * bs + (ino - 1) * 128;
@@ -438,7 +439,7 @@ mod tests {
         let mut d = 0usize;
         let mut dent = |ino: u32, name: &[u8]| {
             put32(&mut img, 7 * bs + d, ino);
-            let reclen = ((8 + name.len() + 3) / 4) * 4;
+            let reclen = (8 + name.len()).div_ceil(4) * 4;
             put16(&mut img, 7 * bs + d + 4, reclen as u16);
             img[7 * bs + d + 6] = name.len() as u8;
             img[7 * bs + d + 7] = if name == b"link" { 7 } else { 1 };
@@ -539,8 +540,7 @@ mod tests {
                 return;
             }
         };
-        let mut fs =
-            Ext4::open(std::path::Path::new(&path)).expect("real image must open");
+        let mut fs = Ext4::open(std::path::Path::new(&path)).expect("real image must open");
         assert_eq!(fs.sb.block_size, 4096);
         let names: Vec<String> = fs
             .read_dir(2)

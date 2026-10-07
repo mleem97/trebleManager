@@ -107,7 +107,10 @@ pub fn byname(raw: &str) -> Vec<ByName> {
             }
             let name = left.split_whitespace().last().unwrap_or("").to_string();
             if !name.is_empty() {
-                out.push(ByName { name, target: target.to_string() });
+                out.push(ByName {
+                    name,
+                    target: target.to_string(),
+                });
             }
         }
     }
@@ -232,7 +235,9 @@ mod tests {
         let v = byname("recovery_ramdisk -> /dev/block/mmcblk0p30\nboot -> /dev/block/mmcblk0p28\nsystem -> /dev/block/mmcblk0p60");
         assert!(v.iter().any(|e| e.name == "recovery_ramdisk"));
         assert!(v.iter().any(|e| e.name == "boot"));
-        let v2 = byname("lrwxrwxrwx 1 root root 16 2026-10-07 01:45 recovery_ramdisk -> /dev/block/sdd37");
+        let v2 = byname(
+            "lrwxrwxrwx 1 root root 16 2026-10-07 01:45 recovery_ramdisk -> /dev/block/sdd37",
+        );
         assert_eq!(v2.len(), 1);
         assert_eq!(v2[0].target, "/dev/block/sdd37");
     }

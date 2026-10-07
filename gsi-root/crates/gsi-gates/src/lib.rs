@@ -84,7 +84,10 @@ pub fn step_gate(input: &GateInput) -> StepGate {
         reasons.push("no device connected".to_string());
     }
     if needs_android(step.as_str()) && input.states.adb.trim() != "ADB_READY" {
-        reasons.push(format!("need Android/ADB (now: {})", input.states.adb.trim()));
+        reasons.push(format!(
+            "need Android/ADB (now: {})",
+            input.states.adb.trim()
+        ));
     }
     if needs_fastboot(step.as_str()) && input.states.fastboot.trim() != "FASTBOOT_READY" {
         reasons.push(format!(
@@ -142,7 +145,11 @@ pub struct FlashReadiness {
 }
 
 fn check(name: &str, pass: bool) -> ReadinessCheck {
-    let detail = if pass { "ok".to_string() } else { "missing".to_string() };
+    let detail = if pass {
+        "ok".to_string()
+    } else {
+        "missing".to_string()
+    };
     ReadinessCheck {
         name: name.to_string(),
         pass,
@@ -154,10 +161,7 @@ fn check(name: &str, pass: bool) -> ReadinessCheck {
 pub fn check_readiness(parts: &ReadinessParts) -> FlashReadiness {
     let checks = vec![
         check("Model matches (VTR/VKY)", parts.model_ok),
-        check(
-            "Profile verified (flash allowed)",
-            parts.profile_verified,
-        ),
+        check("Profile verified (flash allowed)", parts.profile_verified),
         check("Partition exists", parts.partition_ok),
         check("Image exists (patched)", parts.image_exists),
         check("Image hash known (SHA-256)", parts.hash_known),
@@ -165,10 +169,7 @@ pub fn check_readiness(parts: &ReadinessParts) -> FlashReadiness {
         check("Firmware compatibility established", parts.firmware_ok),
         check("Backup available (original.img)", parts.backup_ok),
         check("Fastboot device connected", parts.fastboot_ok),
-        check(
-            "Patched != stock (no fake patch)",
-            parts.differs_from_stock,
-        ),
+        check("Patched != stock (no fake patch)", parts.differs_from_stock),
     ];
     let mut go = true;
     for c in checks.iter() {
@@ -369,7 +370,9 @@ pub fn failure_message(outcome: &FailureOutcome, step: &str, detail: &str) -> St
             format!("Step '{s}' blocked/failed -> DIAGNOSTIC collected. Detail: {d}")
         }
         FailureOutcome::RestoreRequired => {
-            format!("Step '{s}' failed -> RESTORE_REQUIRED. Restore original before retry. Detail: {d}")
+            format!(
+                "Step '{s}' failed -> RESTORE_REQUIRED. Restore original before retry. Detail: {d}"
+            )
         }
         FailureOutcome::Restored => {
             format!("Step '{s}' recovered -> RESTORED from backup. Detail: {d}")
@@ -432,7 +435,9 @@ pub fn root_method_name(id: &str) -> Result<String, String> {
             return Ok(m.name);
         }
     }
-    Err(format!("unknown root method: '{id}' (known: magisk-recovery, magisk-twrp, phh-su, kernelsu)"))
+    Err(format!(
+        "unknown root method: '{id}' (known: magisk-recovery, magisk-twrp, phh-su, kernelsu)"
+    ))
 }
 
 /// Methods with preferred first (mirrors `Get-PreferredRootMethod`).
@@ -613,10 +618,7 @@ pub fn os_classify(
         kind = "Stock-EMUI-8".to_string();
     } else if is_stock {
         kind = "Stock-EMUI/Harmony-Basis".to_string();
-    } else if blob_has(&blob, "havoc")
-        || blob_has(&blob, "crdroid")
-        || blob_has(&blob, "arrow")
-    {
+    } else if blob_has(&blob, "havoc") || blob_has(&blob, "crdroid") || blob_has(&blob, "arrow") {
         kind = "Custom-ROM (non-GSI)".to_string();
     }
     let variant = gsi_variant_of(&blob);
@@ -639,7 +641,9 @@ pub fn os_classify(
         notes.push("Stock: EMUI version directly readable, baseline verifiable.".to_string());
     }
     if !supported {
-        notes.push(format!("Android release '{rel}' untested (8-14 supported)."));
+        notes.push(format!(
+            "Android release '{rel}' untested (8-14 supported)."
+        ));
     }
     let detail = format!("{model} / {pname} / Android {rel} ({display})");
     OsClassification {
@@ -662,9 +666,8 @@ pub fn os_classify(
 /// Returns `Err` when no `Uid:` line or value is unreadable (honest, no guess).
 pub fn admin_from_proc_status(content: &str) -> Result<bool, String> {
     for line in content.lines() {
-        let t = line.trim_start();
-        if t.starts_with("Uid:") {
-            let rest = t["Uid:".len()..].trim();
+        if let Some(rest) = line.trim_start().strip_prefix("Uid:") {
+            let rest = rest.trim();
             let mut first = String::new();
             for ch in rest.chars() {
                 if ch.is_ascii_digit() {
@@ -684,7 +687,10 @@ pub fn admin_from_proc_status(content: &str) -> Result<bool, String> {
             }
         }
     }
-    Err("honest: no Uid line in injected status; cannot determine admin without OS query".to_string())
+    Err(
+        "honest: no Uid line in injected status; cannot determine admin without OS query"
+            .to_string(),
+    )
 }
 
 /// Windows guidance (UAC stays OS-side; this crate never elevates).
@@ -816,19 +822,37 @@ mod tests {
         if let Ok(pb) = stock {
             assert!(pb.source == "stock");
         }
-        let gsi = patch_base("rom:Lineage 20", "/tmp/a/stock.img", "", "arm64_bgN", "boot");
+        let gsi = patch_base(
+            "rom:Lineage 20",
+            "/tmp/a/stock.img",
+            "",
+            "arm64_bgN",
+            "boot",
+        );
         assert!(gsi.is_ok());
         if let Ok(pb) = gsi {
             assert!(pb.source == "stock-gsi");
         }
-        let rom = patch_base("rom:Custom Device Build", "", "/tmp/a/rom-boot.img", "", "boot");
+        let rom = patch_base(
+            "rom:Custom Device Build",
+            "",
+            "/tmp/a/rom-boot.img",
+            "",
+            "boot",
+        );
         assert!(rom.is_ok());
         if let Ok(pb) = rom {
             assert!(pb.source == "rom");
         }
         let refused = patch_base("stock", "/tmp/a/stock.img", "", "", "system");
         assert!(refused.is_err());
-        let refused2 = patch_base("rom:Lineage 20", "/tmp/a/stock.img", "", "arm64_bgN", "system");
+        let refused2 = patch_base(
+            "rom:Lineage 20",
+            "/tmp/a/stock.img",
+            "",
+            "arm64_bgN",
+            "system",
+        );
         assert!(refused2.is_err());
         let missing_stock = patch_base("stock", "", "", "", "boot");
         assert!(missing_stock.is_err());
@@ -854,7 +878,7 @@ mod tests {
     fn root_table_lookups() {
         let ids = root_method_ids();
         assert!(ids.len() == 4);
-        assert!(ids.get(0).map(|s| s.as_str()) == Some("magisk-recovery"));
+        assert!(ids.first().map(|s| s.as_str()) == Some("magisk-recovery"));
         let n = root_method_name("magisk-recovery");
         assert!(n.is_ok());
         if let Ok(name) = n {
@@ -864,7 +888,7 @@ mod tests {
         assert!(bad.is_err());
         let ordered = preferred_root_methods();
         assert!(ordered.len() == 4);
-        if let Some(first) = ordered.get(0) {
+        if let Some(first) = ordered.first() {
             assert!(first.preferred);
             assert!(first.id == "magisk-recovery");
         }
@@ -874,7 +898,13 @@ mod tests {
 
     #[test]
     fn os_classify_samples() {
-        let s = os_classify("VTR-L29", "VTR-L29", "VTR-L29 9.1.0.297(C432E5R1P9)", "9", "EmotionUI_9.1");
+        let s = os_classify(
+            "VTR-L29",
+            "VTR-L29",
+            "VTR-L29 9.1.0.297(C432E5R1P9)",
+            "9",
+            "EmotionUI_9.1",
+        );
         assert!(s.kind == "Stock-EMUI-9.1");
         assert!(s.is_stock);
         assert!(!s.is_gsi);
@@ -887,7 +917,13 @@ mod tests {
         );
         assert!(g.is_gsi);
         assert!(g.kind == "Lineage-GSI");
-        let t = os_classify("trebledroid", "trebledroid", "trebledroid 13 arm64_bvN", "13", "");
+        let t = os_classify(
+            "trebledroid",
+            "trebledroid",
+            "trebledroid 13 arm64_bvN",
+            "13",
+            "",
+        );
         assert!(t.kind == "TrebleDroid-GSI");
         let u = os_classify("", "", "", "", "");
         assert!(u.kind == "Unknown");
@@ -932,12 +968,15 @@ mod tests {
         let r2 = preflight(&bad);
         assert!(!r2.go);
         assert!(r2.blocks.len() >= 2);
-        assert!(normalize_firmware_baseline("  VTR-L29   9.1.0.297(C432E5R1P9)  ") == "VTR-L29 9.1.0.297(C432E5R1P9)");
-        assert!(firmware_baseline_from_parts("VTR-L29 9.1.0.275", "C432", "") != "");
+        assert!(
+            normalize_firmware_baseline("  VTR-L29   9.1.0.297(C432E5R1P9)  ")
+                == "VTR-L29 9.1.0.297(C432E5R1P9)"
+        );
+        assert!(!firmware_baseline_from_parts("VTR-L29 9.1.0.275", "C432", "").is_empty());
         assert!(firmware_baseline_from_parts("a", "b", "  custom   base ") == "custom base");
         assert!(target_partition("VTR-L29") == "recovery_ramdisk");
         assert!(target_partition("VKY-L29") == "recovery_ramdisk");
-        assert!(target_partition("GENERIC-TREBLE") == "");
+        assert!(target_partition("GENERIC-TREBLE").is_empty());
         assert!(is_forbidden_partition("system"));
         assert!(!is_forbidden_partition("recovery_ramdisk"));
     }

@@ -67,7 +67,10 @@ pub fn parse_sparse_header(path: &Path) -> Option<SparseHeader> {
     }
     let u16le = |o: usize| u16::from(h[o]) | (u16::from(h[o + 1]) << 8);
     let u32le = |o: usize| {
-        u32::from(h[o]) | (u32::from(h[o + 1]) << 8) | (u32::from(h[o + 2]) << 16) | (u32::from(h[o + 3]) << 24)
+        u32::from(h[o])
+            | (u32::from(h[o + 1]) << 8)
+            | (u32::from(h[o + 2]) << 16)
+            | (u32::from(h[o + 3]) << 24)
     };
     if u16le(4) != 1 || u16le(8) != 28 || u16le(10) != 12 {
         return None; // major version / header sizes mismatch

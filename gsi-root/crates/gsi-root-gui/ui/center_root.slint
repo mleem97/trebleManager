@@ -1,0 +1,157 @@
+import { Button, TextEdit } from "std-widgets.slint";
+
+export component RootCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text { text: "Root Status"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+    Text { text: "Current state plus honesty badge (read-only). EXPERIMENTAL until hardware POC; never shown as Ready."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("root-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component MethodsCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text { text: "Root Methods"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+    Text { text: "Method cards from the gates table: name, recommended tag, compatibility and risk plus select note (read-only). No method invented."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("methods-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component MagiskCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text { text: "Magisk"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+    Text { text: "Prepare, verify, hash and plan flows (read-only). EXPERIMENTAL banner where plan-only; live flash needs typed FLASH then YES."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("magisk-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component PatchCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text { text: "Patch"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+    Text { text: "Patch-base rule plus honest EXPERIMENTAL refusal (read-only). Patching is refused without a hardware POC."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("patch-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component VerifyRootCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text { text: "Verify Root"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+    Text { text: "uid=0 checklist (read-only). Only uid=0 counts; boot alone is not root. Live adb checks need a device."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("verify-root-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component PersistCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text { text: "Persist"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+    Text { text: "Persist plan plus removability (read-only). Live install needs uid=0; every rooted boot still needs the Vol-Up trick."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("persist-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}

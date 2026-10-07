@@ -87,7 +87,9 @@ pub fn restore_text(backup_dir: &str, partition: &str, backup_has_original: bool
         out.push_str("gate: no target partition\n");
     } else {
         out.push_str(&format!("partition: {part}\n"));
-        out.push_str(&format!("flash detail: fastboot flash {part} original.img\n"));
+        out.push_str(&format!(
+            "flash detail: fastboot flash {part} original.img\n"
+        ));
     }
     if backup_has_original {
         out.push_str("gate: original.img present\n");
@@ -132,14 +134,18 @@ pub fn reinstall_text(model: &str, partition: &str) -> String {
     out.push_str("Full reinstall checklist (read-only, nothing executed)\n");
     out.push_str(&format!("model: {mdl}\n"));
     out.push_str(&format!("slot partition: {part}\n"));
-    out.push_str("chain: ROM choice -> backup reminder -> optional wipe -> flash -> reboot -> verify\n");
+    out.push_str(
+        "chain: ROM choice -> backup reminder -> optional wipe -> flash -> reboot -> verify\n",
+    );
     out.push_str("goal steps (full_reinstall): reconnaissance, compatibility, firmware, rom_validation, backup, wipe, flash_system, reboot, validate\n");
     out.push_str("[1] Custom ROM / GSI image: wipe userdata first is optional (double-confirmed), then flash-system path\n");
     out.push_str("[2] Stock full firmware path: full firmware for exact model and region, flash via HiSuite (official, recommended) or service flow\n");
     out.push_str("stock scope: this tool cannot unpack UPDATE.APP system images itself; an already extracted SYSTEM.img can go through Install ROM\n");
     out.push_str("wipe: double-confirmed WIPE + YES, userdata only, system stays; fallback is stock eRecovery (Vol-Up 3s) wipe on the phone\n");
     out.push_str("after flash: eRecovery wipe data/factory reset, then first boot and verify\n");
-    out.push_str("refused: wipe and flash need a live device and explicit on-device confirms; plan only\n");
+    out.push_str(
+        "refused: wipe and flash need a live device and explicit on-device confirms; plan only\n",
+    );
     out
 }
 
@@ -183,13 +189,17 @@ pub fn resume_text(goal: &str, steps_text: &str) -> String {
 pub fn bootkeys_text(boot_mode: &str) -> String {
     let mut out = String::new();
     out.push_str("Huawei boot mechanism (read-only guide, no device change)\n");
-    out.push_str("- Magisk boot: Vol-Up + Power until Huawei logo, then release (Magisk boot cheat)\n");
+    out.push_str(
+        "- Magisk boot: Vol-Up + Power until Huawei logo, then release (Magisk boot cheat)\n",
+    );
     out.push_str("- Without trick: stock boot (no root); behavior NOT persistent\n");
     out.push_str("- Set persistent byte: warning screen -> eRecovery (Vol-Up 3s) -> confirm Wipe/Factory Reset + reboot -> boots Magisk root (wipe is NOT executed)\n");
     out.push_str("- Clear byte: remove /dload, power off -> Vol-Up + Vol-Down + Power until logo -> EMUI OS Upgrade not successful -> reboot -> clean\n");
     out.push_str("- /dload must NOT be on storage, else EMUI updater starts instead of recovery\n");
     out.push_str("- Never use Pixel / A-B guides on this device\n");
-    out.push_str("- SET/CLEAR/verify are manual on-device steps with double confirmation in the scripts\n");
+    out.push_str(
+        "- SET/CLEAR/verify are manual on-device steps with double confirmation in the scripts\n",
+    );
     let bm = boot_mode.trim();
     if bm.is_empty() {
         out.push_str("persisted boot mode: unknown (no saved state)\n");
@@ -239,7 +249,11 @@ mod tests {
 
     #[test]
     fn restore_renders_gate_and_steps() {
-        let t = restore_text("backups/VTR-L29/recovery_ramdisk/20261007-080000", "recovery_ramdisk", true);
+        let t = restore_text(
+            "backups/VTR-L29/recovery_ramdisk/20261007-080000",
+            "recovery_ramdisk",
+            true,
+        );
         assert!(t.contains("Restore plan"));
         assert!(t.contains("original.img present"));
         assert!(t.contains("fastboot flash recovery_ramdisk original.img"));
@@ -260,7 +274,9 @@ mod tests {
     fn reinstall_renders_chain() {
         let t = reinstall_text("VTR-L29", "recovery_ramdisk");
         assert!(t.contains("Full reinstall checklist"));
-        assert!(t.contains("ROM choice -> backup reminder -> optional wipe -> flash -> reboot -> verify"));
+        assert!(t.contains(
+            "ROM choice -> backup reminder -> optional wipe -> flash -> reboot -> verify"
+        ));
         assert!(t.contains("Custom ROM / GSI"));
         assert!(t.contains("HiSuite"));
         assert!(t.contains("UPDATE.APP"));

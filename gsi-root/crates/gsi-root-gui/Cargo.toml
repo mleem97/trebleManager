@@ -20,6 +20,7 @@ gsi-state = { path = "../gsi-state" }
 gsi-registry = { path = "../gsi-registry" }
 gsi-diag = { path = "../gsi-diag" }
 gsi-workflow = { path = "../gsi-workflow" }
+gsi-gates = { path = "../gsi-gates" }
 slint.workspace = true
 
 [build-dependencies]

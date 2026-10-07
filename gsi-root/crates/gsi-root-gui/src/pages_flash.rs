@@ -33,7 +33,13 @@
 /// `okay` counts `OKAY` lines, `total_time` is the `Total time:` value,
 /// `failed` carries trimmed `FAILED` / `remote:` / `error` lines (at most
 /// the first three are shown). `what` labels the operation.
-fn verdict_text(verdict: &str, what: &str, okay: u32, total_time: &str, failed: &[String]) -> String {
+fn verdict_text(
+    verdict: &str,
+    what: &str,
+    okay: u32,
+    total_time: &str,
+    failed: &[String],
+) -> String {
     let w = if what.trim().is_empty() {
         "flash".to_string()
     } else {
@@ -49,13 +55,8 @@ fn verdict_text(verdict: &str, what: &str, okay: u32, total_time: &str, failed: 
         s
     } else if v == "FAILED" {
         let mut s = String::from("FLASH RESULT: FAILED - nothing claimed as done.\n");
-        let mut n: u32 = 0;
-        for f in failed.iter() {
-            if n >= 3 {
-                break;
-            }
+        for f in failed.iter().take(3) {
             s.push_str(&format!(" ! {f}\n"));
-            n += 1;
         }
         s.push_str("Hints: 'Command not allowed' = Huawei refused (retry, cable, TROUBLESHOOTING). 'too large' = image bigger than partition. Full output is in the log.\n");
         s
@@ -129,7 +130,12 @@ pub fn flash_text(
         "ok",
         "missing",
     ));
-    out.push_str(&readiness_line("Partition exists", partition_ok, "ok", "missing"));
+    out.push_str(&readiness_line(
+        "Partition exists",
+        partition_ok,
+        "ok",
+        "missing",
+    ));
     out.push_str(&readiness_line(
         "Image exists (patched)",
         image_exists,
@@ -215,7 +221,9 @@ pub fn flash_text(
     out.push_str("steps:\n");
     out.push_str(" - safety-check: readiness gate (10 checks) must pass\n");
     out.push_str(" - backup: mandatory backup-first: original.img\n");
-    out.push_str(" - warn-bootchain: modifies boot chain; system/vendor untouched; userdata NEVER wiped\n");
+    out.push_str(
+        " - warn-bootchain: modifies boot chain; system/vendor untouched; userdata NEVER wiped\n",
+    );
     if confirm_flash {
         out.push_str(" - confirm-flash: type FLASH (1/2): given\n");
     } else {
@@ -226,7 +234,9 @@ pub fn flash_text(
     } else {
         out.push_str(" - confirm-yes: type YES (2/2): missing\n");
     }
-    out.push_str(&format!(" - flash: fastboot flash {part} <patched> (destructive, Phase 8 only)\n"));
+    out.push_str(&format!(
+        " - flash: fastboot flash {part} <patched> (destructive, Phase 8 only)\n"
+    ));
     out.push_str(" - record-slot: slot holds magisk after OK\n");
     if !confirm_flash {
         out.push_str("gate: missing first confirmation (FLASH)\n");
@@ -322,8 +332,13 @@ pub fn flash_system_text(
     if !confirm_yes {
         out.push_str("gate: missing second confirmation (YES)\n");
     }
-    let ready =
-        !image.trim().is_empty() && image_ok && !registry_blocked && profile_verified && fastboot_ready && confirm_flash && confirm_yes;
+    let ready = !image.trim().is_empty()
+        && image_ok
+        && !registry_blocked
+        && profile_verified
+        && fastboot_ready
+        && confirm_flash
+        && confirm_yes;
     if ready {
         out.push_str("READY: all gates pass (flash still not executed here).\n");
     } else {
@@ -332,7 +347,9 @@ pub fn flash_system_text(
     out.push_str("WARNING\n");
     out.push_str("You are about to REPLACE the Android system (fastboot flash system).\n");
     out.push_str("Back up internal storage first. userdata is NOT wiped automatically.\n");
-    out.push_str("Afterwards: eRecovery wipe data/factory reset, then first boot (takes a while).\n");
+    out.push_str(
+        "Afterwards: eRecovery wipe data/factory reset, then first boot (takes a while).\n",
+    );
     out.push_str("steps:\n");
     out.push_str(" - system-image-check: test_system_image must PASS\n");
     out.push_str(" - registry-check: researched-broken builds block hard\n");
@@ -351,7 +368,13 @@ pub fn flash_system_text(
     out.push_str(" - require-fastboot: abort unless fastboot mode\n");
     out.push_str(" - flash-system: fastboot flash system <gsi> (destructive, Phase 8 only)\n");
     out.push_str("Next on OK: fastboot reboot -> eRecovery (Vol-Up 3s) -> wipe data/factory reset -> first setup.\n");
-    out.push_str(&verdict_text(verdict, "flash system", okay, total_time, failed));
+    out.push_str(&verdict_text(
+        verdict,
+        "flash system",
+        okay,
+        total_time,
+        failed,
+    ));
     out.push_str("refused: live fastboot flash is Phase 8 work; plan only, nothing written\n");
     out
 }
@@ -415,10 +438,14 @@ pub fn unlock_text() -> String {
     out.push_str(" - 1. PotatoNV testpoint method per its official tutorial: https://github.com/mashed-potatoes/PotatoNV\n");
     out.push_str(" - 2. Boot the engineering image to special fastboot, choose 'Disable FBLock' (unlocks USER LOCK).\n");
     out.push_str(" - 3. Reboot to normal fastboot (shows unlocked, but NOT fully). PotatoNV shows a random 16-digit code.\n");
-    out.push_str(" - 4. Run: fastboot oem unlock XXXXXXXXXXXXXXXX  (your code) - now fully unlocked.\n");
+    out.push_str(
+        " - 4. Run: fastboot oem unlock XXXXXXXXXXXXXXXX  (your code) - now fully unlocked.\n",
+    );
     out.push_str(" - This tool NEVER runs unlock commands itself.\n");
     out.push_str("Already booting a GSI? Then unlock is done - continue with step 2.\n");
-    out.push_str("refused: unlock is a manual on-device act; this view only documents the wiki steps\n");
+    out.push_str(
+        "refused: unlock is a manual on-device act; this view only documents the wiki steps\n",
+    );
     out
 }
 
@@ -437,7 +464,9 @@ pub fn verify_text(which_su: &str, su_id: &str, magisk_v: &str, checks: &[String
     out.push_str("Reboot + verify plan (read-only, nothing executed)\n");
     out.push_str("Huawei boot procedure (mandatory, otherwise no root):\n");
     out.push_str(" - Vol-Up + Power until Huawei logo, then release (Magisk boot cheat).\n");
-    out.push_str(" - Without trick it boots stock (no root). If needed open Magisk app and grant root.\n");
+    out.push_str(
+        " - Without trick it boots stock (no root). If needed open Magisk app and grant root.\n",
+    );
     out.push_str("steps:\n");
     out.push_str(" - reboot-to-android\n");
     out.push_str(" - vol-up-power-boot-cheat\n");
@@ -474,7 +503,9 @@ pub fn verify_text(which_su: &str, su_id: &str, magisk_v: &str, checks: &[String
     if verdict == "ROOTED" {
         out.push_str("ROOT DETECTED (uid=0).\n");
     } else if verdict == "INCONCLUSIVE" {
-        out.push_str("su present but no uid=0 (approval / Magisk app / first boot?). INCONCLUSIVE.\n");
+        out.push_str(
+            "su present but no uid=0 (approval / Magisk app / first boot?). INCONCLUSIVE.\n",
+        );
     } else {
         out.push_str("No root verifiable. Repeat boot trick + check Magisk app.\n");
     }
@@ -503,6 +534,7 @@ pub fn verify_text(which_su: &str, su_id: &str, magisk_v: &str, checks: &[String
 /// `unwritable_dirs` / `missing_files` / `hash_problems` list the failing
 /// entries. `adb_state` / `fastboot_state` are the current device states
 /// shown for context. Empty blocks render the READY form.
+#[allow(clippy::too_many_arguments)] // explicit inputs by design: no hidden state, all caller-measured and tested
 pub fn preflight_blocked_text(
     adb_path: &str,
     fastboot_path: &str,
@@ -554,7 +586,9 @@ pub fn preflight_blocked_text(
             out.push_str(&format!(" [NOT READY] {b}\n"));
         }
         out.push_str("Fix: run the setup now? It asks for paths or installs into user PATH (scrcpy optional).\n");
-        out.push_str("No local setup file (remote run): place adb/fastboot on PATH, then restart.\n");
+        out.push_str(
+            "No local setup file (remote run): place adb/fastboot on PATH, then restart.\n",
+        );
     }
     let adb = if adb_state.trim().is_empty() {
         "unknown".to_string()
@@ -566,7 +600,9 @@ pub fn preflight_blocked_text(
     } else {
         fastboot_state.trim().to_string()
     };
-    out.push_str(&format!("Device states right now:\n ADB: {adb} | Fastboot: {fb}\n"));
+    out.push_str(&format!(
+        "Device states right now:\n ADB: {adb} | Fastboot: {fb}\n"
+    ));
     out
 }
 

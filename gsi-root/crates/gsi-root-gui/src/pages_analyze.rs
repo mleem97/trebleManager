@@ -98,7 +98,9 @@ pub fn analyze_device_text(
     } else {
         out.push_str(&format!("Phone runs: {label}\n"));
     }
-    out.push_str("refused: live adb analysis beyond injected transcripts is Phase 8 work; render only\n");
+    out.push_str(
+        "refused: live adb analysis beyond injected transcripts is Phase 8 work; render only\n",
+    );
     out
 }
 

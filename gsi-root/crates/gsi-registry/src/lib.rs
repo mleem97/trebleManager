@@ -163,7 +163,8 @@ pub fn target_androids(entries: &[RomEntry]) -> Vec<(i64, usize)> {
 }
 
 fn android_of(e: &RomEntry) -> i64 {
-    for cand in [&e.android] {
+    {
+        let cand = &e.android;
         let s = str_val(cand);
         if let Ok(n) = s.parse::<i64>() {
             if n > 0 {
@@ -229,35 +230,47 @@ pub fn firmware_compat(model: &str, firmware: &str, region: &str) -> CompatVerdi
     // Model family strict.
     if mo.starts_with("VTR") && !fw.contains("VTR") {
         status = "FAIL".to_string();
-        reasons.push(format!("Firmware contains no VTR (P10), device is {model}."));
+        reasons.push(format!(
+            "Firmware contains no VTR (P10), device is {model}."
+        ));
     }
     if mo.starts_with("VKY") && !fw.contains("VKY") {
         status = "FAIL".to_string();
-        reasons.push(format!("Firmware contains no VKY (P10 Plus), device is {model}."));
+        reasons.push(format!(
+            "Firmware contains no VKY (P10 Plus), device is {model}."
+        ));
     }
     // Submodel WARN.
     if mo == "VTR-L29" && fw.contains("VTR-L09") && !fw.contains("VTR-L29") {
         if status == "PASS" {
             status = "WARN".to_string();
         }
-        reasons.push("Submodel mismatch: device L29, firmware L09 -> double-check CUST/region.".to_string());
+        reasons.push(
+            "Submodel mismatch: device L29, firmware L09 -> double-check CUST/region.".to_string(),
+        );
     }
     if mo == "VTR-L09" && fw.contains("VTR-L29") && !fw.contains("VTR-L09") {
         if status == "PASS" {
             status = "WARN".to_string();
         }
-        reasons.push("Submodel mismatch: device L09, firmware L29 -> double-check CUST/region.".to_string());
+        reasons.push(
+            "Submodel mismatch: device L09, firmware L29 -> double-check CUST/region.".to_string(),
+        );
     }
     // Region Cxxx.
     let mut fw_cust = String::new();
     if let Some(pos) = fw.find("(C") {
         let tail = &fw[pos + 1..];
-        let digits: String = tail[1..].chars().take_while(|c| c.is_ascii_digit()).collect();
+        let digits: String = tail[1..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
         if !digits.is_empty() {
             fw_cust = format!("C{digits}");
         }
     }
-    if !region.is_empty() && !fw_cust.is_empty() && region.to_uppercase() != fw_cust.to_uppercase() {
+    if !region.is_empty() && !fw_cust.is_empty() && region.to_uppercase() != fw_cust.to_uppercase()
+    {
         if status == "PASS" {
             status = "WARN".to_string();
         }
@@ -272,17 +285,23 @@ pub fn firmware_compat(model: &str, firmware: &str, region: &str) -> CompatVerdi
         if status == "PASS" {
             status = "WARN".to_string();
         }
-        reasons.push("EMUI 9.0 instead of 9.1 -> method possible, but prefer full 9.1 firmware.".to_string());
+        reasons.push(
+            "EMUI 9.0 instead of 9.1 -> method possible, but prefer full 9.1 firmware.".to_string(),
+        );
     } else if fw.contains("8.") {
         if status == "PASS" {
             status = "WARN".to_string();
         }
-        reasons.push("EMUI 8 base -> different boot chain possible, see wiki/kernel notes.".to_string());
+        reasons.push(
+            "EMUI 8 base -> different boot chain possible, see wiki/kernel notes.".to_string(),
+        );
     } else {
         if status == "PASS" {
             status = "WARN".to_string();
         }
-        reasons.push("EMUI version not recognizable from firmware string -> verify manually.".to_string());
+        reasons.push(
+            "EMUI version not recognizable from firmware string -> verify manually.".to_string(),
+        );
     }
     if reasons.is_empty() {
         reasons.push("Base check passed.".to_string());
@@ -303,7 +322,9 @@ pub fn vendor_advice(emui: &str, target_android: &str) -> String {
         return format!("Oreo vendor: Q/8.1 problematic, P good. Target Android {target_android} on Oreo vendor = RISK (see registry vendor_boot).");
     }
     if emui.contains("9.") {
-        return format!("Pie vendor: Q/R/S boot. Target Android {target_android} expected to boot.");
+        return format!(
+            "Pie vendor: Q/R/S boot. Target Android {target_android} expected to boot."
+        );
     }
     format!("Vendor base '{emui}' unclassified - verify manually.")
 }
@@ -342,16 +363,14 @@ pub fn target_config(entry: &RomEntry, firmware_base: &str) -> TargetConfig {
 /// Load ROM entries from a profile JSON file.
 pub fn load_roms(profile_json: &Path) -> Result<Vec<RomEntry>, String> {
     let text = std::fs::read_to_string(profile_json).map_err(|e| format!("read: {e}"))?;
-    let v: serde_json::Value =
-        serde_json::from_str(&text).map_err(|e| format!("json: {e}"))?;
+    let v: serde_json::Value = serde_json::from_str(&text).map_err(|e| format!("json: {e}"))?;
     let arr = v
         .get("roms")
         .and_then(|r| r.as_array())
         .ok_or_else(|| "no roms array".to_string())?;
     let mut out = Vec::new();
     for r in arr {
-        let e: RomEntry =
-            serde_json::from_value(r.clone()).map_err(|e| format!("entry: {e}"))?;
+        let e: RomEntry = serde_json::from_value(r.clone()).map_err(|e| format!("entry: {e}"))?;
         out.push(e);
     }
     Ok(out)
@@ -475,9 +494,7 @@ pub fn parse_tools_block(value: &serde_json::Value) -> ToolsBlock {
                 note: str_field(p, "note"),
             }
         })
-        .filter(|p| {
-            !p.url_pattern.is_empty() || !p.source.is_empty() || !p.provides.is_empty()
-        });
+        .filter(|p| !p.url_pattern.is_empty() || !p.source.is_empty() || !p.provides.is_empty());
     let mut extractors = Vec::new();
     if let Some(arr) = tools.get("extractors").and_then(|x| x.as_array()) {
         for e in arr {
@@ -512,8 +529,7 @@ pub fn parse_tools_block(value: &serde_json::Value) -> ToolsBlock {
 /// Load the `tools` block from a profile JSON file.
 pub fn tools_block(profile_json: &Path) -> Result<ToolsBlock, String> {
     let text = std::fs::read_to_string(profile_json).map_err(|e| format!("read: {e}"))?;
-    let v: serde_json::Value =
-        serde_json::from_str(&text).map_err(|e| format!("json: {e}"))?;
+    let v: serde_json::Value = serde_json::from_str(&text).map_err(|e| format!("json: {e}"))?;
     Ok(parse_tools_block(&v))
 }
 
@@ -522,7 +538,11 @@ fn normalize_os_token(os: &str) -> String {
     let low = os.trim().to_lowercase();
     if low.contains("linux") {
         "linux".to_string()
-    } else if low.contains("darwin") || low.contains("macos") || low == "mac" || low.contains("mac_") {
+    } else if low.contains("darwin")
+        || low.contains("macos")
+        || low == "mac"
+        || low.contains("mac_")
+    {
         "darwin".to_string()
     } else {
         "windows".to_string()
@@ -607,12 +627,10 @@ pub fn entry_by_label<'a>(entries: &'a [RomEntry], label: &str) -> Option<&'a Ro
     if let Some(rest) = want.strip_prefix("rom:") {
         want = rest.trim();
     }
-    for e in entries {
-        if entry_label(e) == want {
-            return Some(e);
-        }
-    }
-    None
+    entries
+        .iter()
+        .find(|&e| entry_label(e) == want)
+        .map(|v| v as _)
 }
 
 /// Chained resolver: android -> system -> variant -> target config.
@@ -822,17 +840,20 @@ pub fn test_rom_against_registry(
         }
     }
     let found = entry_by_label(entries, want);
-    let entry = match found {
-        Some(e) => Some(e),
-        None => None,
-    };
+    let entry = found;
     if entry.is_none() {
         if let Some(nm) = marker_hit {
-            reasons.push(format!("BLOCKED: '{nm}' is researched BROKEN (marker hit)."));
+            reasons.push(format!(
+                "BLOCKED: '{nm}' is researched BROKEN (marker hit)."
+            ));
         }
         reasons.push(format!("unknown system '{want}': no registry entry"));
         let fw = firmware_compat("", firmware_base, "");
-        reasons.push(format!("firmware: {} ({})", fw.status, fw.reasons.join("; ")));
+        reasons.push(format!(
+            "firmware: {} ({})",
+            fw.status,
+            fw.reasons.join("; ")
+        ));
         return GateVerdict {
             pass: false,
             reasons,
@@ -849,7 +870,11 @@ pub fn test_rom_against_registry(
     };
     let mut pass = true;
     if e.status == "broken" {
-        let r = if e.reason.is_empty() { e.note.clone() } else { e.reason.clone() };
+        let r = if e.reason.is_empty() {
+            e.note.clone()
+        } else {
+            e.reason.clone()
+        };
         if r.is_empty() {
             reasons.push(format!("BLOCKED: '{}' is researched BROKEN.", e.name));
         } else {
@@ -967,7 +992,7 @@ mod tests {
                 .filter(|e| e.variant == "UNOFFICIAL")
                 .collect();
             assert!(!unofficial.is_empty(), "UNOFFICIAL entry expected");
-            assert_eq!(android_of(&unofficial[0]), 13);
+            assert_eq!(android_of(unofficial[0]), 13);
         }
     }
 
@@ -1082,8 +1107,7 @@ mod tests {
         assert_eq!(c2.variant, "vndklite");
         let err_a = resolve_chain(&e, 10, "LineageOS 20", "").expect_err("bad android");
         assert!(err_a.contains("android"), "got: {err_a}");
-        let err_s =
-            resolve_chain(&e, 13, "Nope 99", "").expect_err("bad system");
+        let err_s = resolve_chain(&e, 13, "Nope 99", "").expect_err("bad system");
         assert!(err_s.contains("system"), "got: {err_s}");
         let err_v = resolve_chain(&e, 13, "LineageOS 20", "nope").expect_err("bad variant");
         assert!(err_v.contains("variant"), "got: {err_v}");
@@ -1115,8 +1139,7 @@ mod tests {
                 .iter()
                 .find(|s| s.contains("UNOFFICIAL"))
                 .expect("UNOFFICIAL system expected");
-            let cfg =
-                resolve_chain(&entries, 13, sys, "UNOFFICIAL").expect("chain must resolve");
+            let cfg = resolve_chain(&entries, 13, sys, "UNOFFICIAL").expect("chain must resolve");
             assert_eq!(cfg.android, 13);
             assert_eq!(cfg.variant, "UNOFFICIAL");
             assert_eq!(cfg.gsi, "arm64_bgN");
@@ -1143,9 +1166,15 @@ mod tests {
     #[test]
     fn profile_model_static_table() {
         // Mirrors bash profile_variant PROFILE_ID text exactly.
-        assert_eq!(profile_variant_for_model("VTR-L29"), "Global market (UFS storage)");
+        assert_eq!(
+            profile_variant_for_model("VTR-L29"),
+            "Global market (UFS storage)"
+        );
         assert_eq!(profile_variant_for_model("VTR-L09"), "Europe (UFS storage)");
-        assert_eq!(profile_variant_for_model("VKY-L29"), "Global market Plus (UFS storage)");
+        assert_eq!(
+            profile_variant_for_model("VKY-L29"),
+            "Global market Plus (UFS storage)"
+        );
         assert_eq!(
             profile_variant_for_model("VTR-AL00"),
             "China, no SIM restriction (eMMC or UFS - check!)"
@@ -1154,7 +1183,10 @@ mod tests {
             profile_variant_for_model("VTR-TL00"),
             "China Mobile customized (eMMC or UFS - check!)"
         );
-        assert_eq!(profile_variant_for_model("VKY-L09"), "Europe Plus (UFS storage)");
+        assert_eq!(
+            profile_variant_for_model("VKY-L09"),
+            "Europe Plus (UFS storage)"
+        );
         assert_eq!(
             profile_variant_for_model("VKY-AL00"),
             "China Plus, no SIM restriction (eMMC or UFS - check!)"
@@ -1163,7 +1195,10 @@ mod tests {
             profile_variant_for_model("VKY-TL00"),
             "China Mobile Plus customized (eMMC or UFS - check!)"
         );
-        assert_eq!(profile_variant_for_model("UNKNOWN"), "Fallback (analyze only)");
+        assert_eq!(
+            profile_variant_for_model("UNKNOWN"),
+            "Fallback (analyze only)"
+        );
         // Mirrors bash profile_verified allowlist (VTR-L29|VTR-L09|VKY-L29).
         for m in ["VTR-L29", "VTR-L09", "VKY-L29"] {
             assert!(profile_model_verified(m), "{m}");
@@ -1199,19 +1234,16 @@ mod tests {
     #[test]
     fn gate_fixture() {
         let e = sample();
-        let good = test_rom_against_registry(
-            "LineageOS 20",
-            &e,
-            "VTR-L29 9.1.0.297(C432E5R1P9)",
-            "9.1",
-        );
+        let good =
+            test_rom_against_registry("LineageOS 20", &e, "VTR-L29 9.1.0.297(C432E5R1P9)", "9.1");
         assert!(good.pass, "reasons: {:?}", good.reasons);
         let light_lbl = entry_label(&e[2]);
         assert!(light_lbl.to_lowercase().contains("light"));
         let bad = test_rom_against_registry(&light_lbl, &e, "VTR-L29 9.1.0.297(C432E5R1P9)", "9.1");
         assert!(!bad.pass);
         assert!(bad.reasons.iter().any(|r| r.contains("BLOCKED")));
-        let unknown = test_rom_against_registry("Nope 99", &e, "VTR-L29 9.1.0.297(C432E5R1P9)", "9.1");
+        let unknown =
+            test_rom_against_registry("Nope 99", &e, "VTR-L29 9.1.0.297(C432E5R1P9)", "9.1");
         assert!(!unknown.pass);
         let nofw = test_rom_against_registry("LineageOS 20", &e, "", "9.1");
         assert!(!nofw.pass);
@@ -1225,12 +1257,8 @@ mod tests {
                 .into_iter()
                 .find(|s| s.contains("UNOFFICIAL"))
                 .expect("UNOFFICIAL expected");
-            let good = test_rom_against_registry(
-                &sys,
-                &entries,
-                "VTR-L29 9.1.0.297(C432E5R1P9)",
-                "9.1",
-            );
+            let good =
+                test_rom_against_registry(&sys, &entries, "VTR-L29 9.1.0.297(C432E5R1P9)", "9.1");
             assert!(good.pass, "{prof}: {:?}", good.reasons);
             let light: Vec<_> = entries
                 .iter()
@@ -1238,14 +1266,21 @@ mod tests {
                 .collect();
             assert!(!light.is_empty(), "{prof} light broken expected");
             let lbl = entry_label(light[0]);
-            let blocked = test_rom_against_registry(&lbl, &entries, "VTR-L29 9.1.0.297(C432E5R1P9)", "9.1");
+            let blocked =
+                test_rom_against_registry(&lbl, &entries, "VTR-L29 9.1.0.297(C432E5R1P9)", "9.1");
             assert!(!blocked.pass, "{prof} light must block");
         }
         let bq = load_roms(&bq_profile_path()).expect("bq must load");
-        let good = test_rom_against_registry(&entry_label(&bq[2]), &bq, "BardockPro-EU Oreo stock", "8.1");
-        assert!(good.pass, "bq variant-dependent passes with WARN: {:?}", good.reasons);
+        let good =
+            test_rom_against_registry(&entry_label(&bq[2]), &bq, "BardockPro-EU Oreo stock", "8.1");
+        assert!(
+            good.pass,
+            "bq variant-dependent passes with WARN: {:?}",
+            good.reasons
+        );
         let broken_lbl = entry_label(&bq[0]);
-        let blocked = test_rom_against_registry(&broken_lbl, &bq, "BardockPro-EU Oreo stock", "8.1");
+        let blocked =
+            test_rom_against_registry(&broken_lbl, &bq, "BardockPro-EU Oreo stock", "8.1");
         assert!(!blocked.pass);
     }
 }

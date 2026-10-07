@@ -68,8 +68,7 @@ pub fn gunzip_bytes(data: &[u8]) -> Result<Vec<u8>, String> {
 /// Decompress xz bytes (capped). Pure, testable without files.
 pub fn unxz_bytes(data: &[u8]) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
-    lzma_rs::xz_decompress(&mut &data[..], &mut out)
-        .map_err(|e| format!("unxz: {e:?}"))?;
+    lzma_rs::xz_decompress(&mut &data[..], &mut out).map_err(|e| format!("unxz: {e:?}"))?;
     if out.len() as u64 > MAX_OUTPUT {
         return Err("output exceeds cap".to_string());
     }
@@ -107,9 +106,7 @@ pub fn decompress_single(archive: &Path, dest_dir: &Path) -> Result<PathBuf, Str
         .and_then(|n| n.to_str())
         .ok_or_else(|| "bad file name".to_string())?;
     let lower = name.to_lowercase();
-    let stem = if lower.ends_with(".gz") {
-        &name[..name.len() - 3]
-    } else if lower.ends_with(".xz") {
+    let stem = if lower.ends_with(".gz") || lower.ends_with(".xz") {
         &name[..name.len() - 3]
     } else {
         return Err("not a single-file archive (.gz/.xz)".to_string());
@@ -152,7 +149,7 @@ fn extract_tar_bytes(raw: &[u8], dest_dir: &Path) -> Result<Vec<PathBuf>, String
         return Err("output exceeds cap".to_string());
     }
     std::fs::create_dir_all(dest_dir).map_err(|e| format!("mkdir: {e}"))?;
-    let mut ar = tar::Archive::new(&raw[..]);
+    let mut ar = tar::Archive::new(raw);
     // Safety: refuse absolute paths and `..` escapes (never write outside dest).
     let mut out = Vec::new();
     for entry in ar.entries().map_err(|e| format!("tar: {e}"))? {
@@ -161,11 +158,14 @@ fn extract_tar_bytes(raw: &[u8], dest_dir: &Path) -> Result<Vec<PathBuf>, String
             .path()
             .map_err(|e| format!("tar path: {e}"))?
             .to_path_buf();
-        if rel.is_absolute() || rel.components().any(|c| c == std::path::Component::ParentDir) {
+        if rel.is_absolute()
+            || rel
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+        {
             return Err(format!("unsafe tar path: {}", rel.display()));
         }
-        e.unpack_in(dest_dir)
-            .map_err(|e| format!("unpack: {e}"))?;
+        e.unpack_in(dest_dir).map_err(|e| format!("unpack: {e}"))?;
         out.push(rel);
     }
     Ok(out)
@@ -218,7 +218,11 @@ pub fn extract_zip(
             continue;
         }
         let rel = Path::new(name.as_str()).to_path_buf();
-        if rel.is_absolute() || rel.components().any(|c| c == std::path::Component::ParentDir) {
+        if rel.is_absolute()
+            || rel
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+        {
             return Err(format!("unsafe zip path: {}", rel.display()));
         }
         if f.is_dir() {
@@ -304,7 +308,7 @@ fn write_single(raw: &[u8], filename: &str, dest_dir: &Path) -> Result<Vec<PathB
     let base_full = base_full.rsplit('\\').next().unwrap_or(base_full);
     let lower = base_full.to_lowercase();
     let stem_raw = if lower.ends_with(".gz") || lower.ends_with(".xz") {
-        let cut = base_full.len().checked_sub(3).unwrap_or(0);
+        let cut = base_full.len().saturating_sub(3);
         base_full.get(..cut).unwrap_or("image.img")
     } else {
         base_full
@@ -327,11 +331,7 @@ fn write_single(raw: &[u8], filename: &str, dest_dir: &Path) -> Result<Vec<PathB
 /// `filename` selects the kind only; `data` holds the bytes.
 /// Single gz/xz writes one file (stem or image.img).
 /// Returns relative paths.
-pub fn extract_auto(
-    filename: &str,
-    data: &[u8],
-    dest_dir: &Path,
-) -> Result<Vec<PathBuf>, String> {
+pub fn extract_auto(filename: &str, data: &[u8], dest_dir: &Path) -> Result<Vec<PathBuf>, String> {
     match classify(filename) {
         ArchiveKind::Zip => extract_zip(data, dest_dir, false),
         ArchiveKind::Tar => extract_tar_bytes(data, dest_dir),
@@ -495,7 +495,7 @@ mod tests {
             let opts = zip::write::SimpleFileOptions::default()
                 .compression_method(zip::CompressionMethod::Stored);
             w.start_file(*name, opts).unwrap();
-            w.write_all(*data).unwrap();
+            w.write_all(data).unwrap();
         }
         w.finish().unwrap().into_inner()
     }
@@ -525,12 +525,16 @@ mod tests {
         let cd_start = out.len() as u32;
         let cdh_start = out.len();
         out.extend_from_slice(&[0x50, 0x4b, 0x01, 0x02]);
-        out.extend_from_slice(&[0x14, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        out.extend_from_slice(&[
+            0x14, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ]);
         out.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
         out.extend_from_slice(&le32(comp_size));
         out.extend_from_slice(&le32(uncomp_size));
         out.extend_from_slice(&le16(nb.len() as u16));
-        out.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        out.extend_from_slice(&[
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ]);
         out.extend_from_slice(&le32(0));
         out.extend_from_slice(nb);
         let cd_size = (out.len() - cdh_start) as u32;
@@ -563,8 +567,12 @@ mod tests {
             b"ANDROID!"
         );
         let imgs = extract_zip(&z, &dir.join("img"), true).unwrap();
-        assert!(imgs.iter().any(|p| p.to_string_lossy().ends_with("boot.img")));
-        assert!(!imgs.iter().any(|p| p.to_string_lossy().ends_with("readme.txt")));
+        assert!(imgs
+            .iter()
+            .any(|p| p.to_string_lossy().ends_with("boot.img")));
+        assert!(!imgs
+            .iter()
+            .any(|p| p.to_string_lossy().ends_with("readme.txt")));
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -575,7 +583,10 @@ mod tests {
         let evil = raw_zip("../../evil.img", 3, 3, b"xxx");
         let names = zip_list(&evil).unwrap();
         assert!(names.iter().any(|n| n.contains("..")));
-        let err = format!("{:?}", extract_zip(&evil, &dir.join("out"), false).unwrap_err());
+        let err = format!(
+            "{:?}",
+            extract_zip(&evil, &dir.join("out"), false).unwrap_err()
+        );
         assert!(err.contains("unsafe zip path"), "got: {err}");
         assert!(!dir.join("out").join("evil.img").exists());
         std::fs::remove_dir_all(&dir).ok();
@@ -587,7 +598,10 @@ mod tests {
         std::fs::create_dir_all(&dir).ok();
         let huge = (MAX_ZIP_ENTRY + 1) as u32;
         let big = raw_zip("big.img", 3, huge, b"xxx");
-        let err = format!("{:?}", extract_zip(&big, &dir.join("out"), false).unwrap_err());
+        let err = format!(
+            "{:?}",
+            extract_zip(&big, &dir.join("out"), false).unwrap_err()
+        );
         assert!(err.contains("exceeds cap"), "got: {err}");
         std::fs::remove_dir_all(&dir).ok();
     }

@@ -106,10 +106,7 @@ pub fn run_analyze(file: &Path) -> (Vec<ProgressEvent>, StepOutcome) {
         ),
     });
     ev.push(ProgressEvent::Completed);
-    (
-        ev,
-        StepOutcome::Done,
-    )
+    (ev, StepOutcome::Done)
 }
 
 /// Patch step: refuses until a hardware POC exists (never faked).
@@ -137,9 +134,7 @@ pub fn run_verify_hash(file: &Path, expected: &str) -> (Vec<ProgressEvent>, Step
             } else {
                 (
                     ev,
-                    StepOutcome::Failed(format!(
-                        "hash mismatch: got {got}, want {expected}"
-                    )),
+                    StepOutcome::Failed(format!("hash mismatch: got {got}, want {expected}")),
                 )
             }
         }
@@ -263,7 +258,11 @@ pub fn plan_safe_flash(
     }
     let detail_flash = format!("fastboot flash {part} <patched>");
     let steps = vec![
-        plan_step("safety-check", "readiness gate (10 checks) must pass", false),
+        plan_step(
+            "safety-check",
+            "readiness gate (10 checks) must pass",
+            false,
+        ),
         plan_step("backup", "mandatory backup-first: original.img", false),
         plan_step(
             "warn-bootchain",
@@ -415,7 +414,11 @@ pub fn plan_twrp_flash(
     let detail_flash = format!("fastboot flash {part} <twrp>");
     let steps = vec![
         plan_step("twrp-image-check", "recovery image check must PASS", false),
-        plan_step("backup", "mandatory backup-first: current slot image", false),
+        plan_step(
+            "backup",
+            "mandatory backup-first: current slot image",
+            false,
+        ),
         plan_step(
             "warn-shared-slot",
             "TWRP and Magisk-recovery SHARE the recovery_ramdisk slot (mutual overwrite)",
@@ -425,7 +428,11 @@ pub fn plan_twrp_flash(
         plan_step("confirm-yes", "type YES (2/2)", false),
         plan_step("require-fastboot", "abort unless fastboot mode", false),
         plan_step("flash", detail_flash.as_str(), true),
-        plan_step("record-slot", "slot holds twrp after OK; boot with Vol-Up", false),
+        plan_step(
+            "record-slot",
+            "slot holds twrp after OK; boot with Vol-Up",
+            false,
+        ),
     ];
     let ready = blocks.is_empty();
     DestructivePlan {
@@ -498,7 +505,11 @@ pub fn plan_restore(
         plan_step("find-backup", "newest backup dir with original.img", false),
         plan_step("verify-hash", "restore hash SHA-256 recorded", false),
         plan_step("require-fastboot", "abort unless fastboot mode", false),
-        plan_step("warn-restore", "restore overwrites slot with stock image", false),
+        plan_step(
+            "warn-restore",
+            "restore overwrites slot with stock image",
+            false,
+        ),
         plan_step("confirm-restore", "type RESTORE (1/2)", false),
         plan_step("confirm-yes", "type YES (2/2)", false),
         plan_step("flash", detail_flash.as_str(), true),
@@ -849,10 +860,7 @@ pub struct FastbootFindings {
 /// Fastboot analysis (`Invoke-TTFastbootAnalysis` / `fastboot_analysis`).
 ///
 /// Pure over `fastboot devices` and `getvar` transcripts.
-pub fn fastboot_analysis(
-    fastboot_devices_text: &str,
-    getvar_text: &str,
-) -> FastbootFindings {
+pub fn fastboot_analysis(fastboot_devices_text: &str, getvar_text: &str) -> FastbootFindings {
     let fb_lines = text_lines(fastboot_devices_text);
     let fb_devs = gsi_device::parse::fastboot_devices(&fb_lines);
     let getvar_lines = text_lines(getvar_text);
@@ -862,9 +870,8 @@ pub fn fastboot_analysis(
         warnings.push("no fastboot device in transcript".to_string());
     }
     if gv.command_denied {
-        warnings.push(
-            "Huawei refuses getvar (Command not allowed). NOT proof of lock.".to_string(),
-        );
+        warnings
+            .push("Huawei refuses getvar (Command not allowed). NOT proof of lock.".to_string());
     }
     let mut first_serial = String::new();
     if let Some(d) = fb_devs.first() {
@@ -1224,10 +1231,7 @@ pub fn verify_downloaded_firmware(path: &Path) -> Result<DownloadedFirmwareCheck
     };
     let probe = gsi_archive::probe_update_app(&header[..header_len]);
     let mb = size as f64 / (1024.0 * 1024.0);
-    let mut notes = vec![
-        format!("Size: {mb:.1} MB"),
-        format!("SHA-256: {sha256}"),
-    ];
+    let mut notes = vec![format!("Size: {mb:.1} MB"), format!("SHA-256: {sha256}")];
     let mut ok = true;
     if size < FIRMWARE_MIN_SIZE {
         ok = false;
@@ -1381,7 +1385,10 @@ mod tests {
         assert_eq!(ok.vars.get("product").map(String::as_str), Some("VTR-L29"));
         let none = fastboot_analysis("", "");
         assert_eq!(none.device_count, 0);
-        assert!(none.warnings.iter().any(|w| w.contains("no fastboot device")));
+        assert!(none
+            .warnings
+            .iter()
+            .any(|w| w.contains("no fastboot device")));
     }
 
     // ------------------------- states / mode
@@ -1393,10 +1400,20 @@ mod tests {
         assert_eq!(r.overall, "READY");
         let n = device_states("List of devices attached\n", true, "", true);
         assert_eq!(n.overall, "NO_DEVICE");
-        let u = device_states("List of devices attached\nX\tunauthorized\n", true, "", true);
+        let u = device_states(
+            "List of devices attached\nX\tunauthorized\n",
+            true,
+            "",
+            true,
+        );
         assert_eq!(u.adb, "ADB_UNAUTHORIZED");
         assert_eq!(u.overall, "UNKNOWN_DEVICE_STATE");
-        let m = device_states("List of devices attached\nA\tdevice\nB\tdevice\n", true, "", false);
+        let m = device_states(
+            "List of devices attached\nA\tdevice\nB\tdevice\n",
+            true,
+            "",
+            false,
+        );
         assert_eq!(m.adb, "ADB_MULTIPLE_DEVICES");
         let f = device_states("", false, FB_ONE, true);
         assert_eq!(f.fastboot, "FASTBOOT_READY");
@@ -1464,8 +1481,7 @@ mod tests {
         assert!(ok.ready);
         assert_eq!(ok.partition, "system");
         assert_eq!(only_destructive(&ok).len(), 1);
-        let blocked =
-            plan_system_flash("gsi.img", true, true, true, true, true, true);
+        let blocked = plan_system_flash("gsi.img", true, true, true, true, true, true);
         assert!(!blocked.ready);
         assert!(blocked.blocks.iter().any(|b| b.contains("BLOCKED")));
         let bad = plan_system_flash("gsi.img", true, true, false, false, true, true);
@@ -1483,9 +1499,25 @@ mod tests {
         assert!(ok.warnings.iter().any(|w| w.contains("SHARE")));
         assert!(ok.warnings.iter().any(|w| w.contains("NEVER wipe")));
         assert_eq!(only_destructive(&ok).len(), 1);
-        let no = plan_twrp_flash("twrp.img", "recovery_ramdisk", true, true, true, true, false);
+        let no = plan_twrp_flash(
+            "twrp.img",
+            "recovery_ramdisk",
+            true,
+            true,
+            true,
+            true,
+            false,
+        );
         assert!(!no.ready);
-        let nb = plan_twrp_flash("twrp.img", "recovery_ramdisk", false, true, true, true, true);
+        let nb = plan_twrp_flash(
+            "twrp.img",
+            "recovery_ramdisk",
+            false,
+            true,
+            true,
+            true,
+            true,
+        );
         assert!(!nb.ready);
         let (_, out) = run_twrp_flash(&ok);
         assert!(matches!(out, StepOutcome::RefusedExperimental(_)));
@@ -1601,10 +1633,19 @@ mod tests {
         let plan = plan_verify_root();
         assert!(plan.steps.contains(&"su-c-id-uid0".to_string()));
         assert!(plan.note.contains("uid=0"));
-        assert_eq!(classify_verify_root("/system/xbin/su", "uid=0(root) gid=0"), VerifyVerdict::Rooted);
-        assert_eq!(classify_verify_root("/system/xbin/su", "no output"), VerifyVerdict::Inconclusive);
+        assert_eq!(
+            classify_verify_root("/system/xbin/su", "uid=0(root) gid=0"),
+            VerifyVerdict::Rooted
+        );
+        assert_eq!(
+            classify_verify_root("/system/xbin/su", "no output"),
+            VerifyVerdict::Inconclusive
+        );
         assert_eq!(classify_verify_root("", ""), VerifyVerdict::NotRooted);
-        assert_eq!(classify_verify_root("not found", "denied"), VerifyVerdict::NotRooted);
+        assert_eq!(
+            classify_verify_root("not found", "denied"),
+            VerifyVerdict::NotRooted
+        );
         assert_eq!(VerifyVerdict::Rooted.as_str(), "ROOTED");
         let (_, out) = run_verify_root();
         assert!(matches!(out, StepOutcome::RefusedExperimental(_)));
@@ -1614,10 +1655,7 @@ mod tests {
 
     fn fw_tmp_dir(tag: &str) -> PathBuf {
         let mut p = std::env::temp_dir();
-        p.push(format!(
-            "gsi-workflow-fw-{tag}-{}",
-            std::process::id()
-        ));
+        p.push(format!("gsi-workflow-fw-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(&p).unwrap();
         p
     }
@@ -1633,7 +1671,10 @@ mod tests {
         assert_eq!(chk.size, bytes.len() as u64);
         assert!(!chk.ok);
         assert_eq!(chk.sha256, sha256_file(&f).unwrap());
-        assert!(chk.notes.iter().any(|n| n.contains("UPDATE.APP container detected")));
+        assert!(chk
+            .notes
+            .iter()
+            .any(|n| n.contains("UPDATE.APP container detected")));
         assert!(chk
             .notes
             .iter()
@@ -1650,7 +1691,10 @@ mod tests {
         let chk = verify_downloaded_firmware(&f).unwrap();
         assert!(!chk.ok);
         assert!(chk.notes.iter().any(|n| n.contains("Not a ZIP")));
-        assert!(!chk.notes.iter().any(|n| n.contains("UPDATE.APP container detected")));
+        assert!(!chk
+            .notes
+            .iter()
+            .any(|n| n.contains("UPDATE.APP container detected")));
         std::fs::remove_dir_all(&d).ok();
     }
 }

@@ -145,7 +145,11 @@ pub fn run(tool: &Tool, args: &[&str], timeout: Duration) -> RunResult {
             }
         };
         drop(killer);
-        (ho.join().unwrap_or_default(), he.join().unwrap_or_default(), status)
+        (
+            ho.join().unwrap_or_default(),
+            he.join().unwrap_or_default(),
+            status,
+        )
     });
     let was_timeout = timed_out.load(Ordering::SeqCst);
     RunResult {
@@ -200,7 +204,6 @@ mod tests {
                 let r = run(&t, &["30"], Duration::from_millis(300));
                 assert!(!r.success);
                 assert!(r.timed_out);
-                return;
             }
         }
         // No sleep binary: still a valid (skipped) outcome, never a failure.
@@ -214,7 +217,6 @@ mod tests {
                 let r = run(&t, &["hello"], Duration::from_secs(5));
                 assert!(r.success);
                 assert!(r.stdout.contains("hello"));
-                return;
             }
         }
         #[cfg(windows)]

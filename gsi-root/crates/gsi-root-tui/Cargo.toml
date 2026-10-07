@@ -1,0 +1,20 @@
+[package]
+name = "gsi-root-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Terminal UI for gsi-root (ratatui): same application services as GUI and CLI."
+
+[[bin]]
+name = "gsi-root-tui"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.30"
+crossterm = "0.29"
+gsi-device = { path = "../gsi-device" }
+gsi-image = { path = "../gsi-image" }
+gsi-registry = { path = "../gsi-registry" }
+gsi-state = { path = "../gsi-state" }
+gsi-gates = { path = "../gsi-gates" }
+gsi-tool = { path = "../gsi-tool" }

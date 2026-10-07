@@ -1,0 +1,153 @@
+import { Button, TextEdit } from "std-widgets.slint";
+
+export component FirmwareCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Firmware";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Baseline plus local discovery, analysis, metadata and hashes (read-only). Nothing is downloaded or flashed here.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("firmware-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component DownloadCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Download";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Download options plus progress display (read-only). The real download runs on a worker thread; progress lines render here as they arrive. Thread pump is shell-owned.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("download-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component ExtractCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Extract";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Archive preview plus extractor tool status (read-only). Extraction stays manual via the extractor tools.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("extract-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}
+
+export component ExportCenter inherits Rectangle {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    VerticalLayout {
+        spacing: 8px;
+        Text {
+            text: "Export";
+            font-size: 22px;
+            font-weight: 700;
+            color: #e8eaf0;
+        }
+        Text {
+            text: "Recovery export plan (read-only). System-as-base refused; repack open, never executed here.";
+            font-size: 12px;
+            color: #8a90a3;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Refresh";
+                clicked => {
+                    result = refresh();
+                    append-log("export-center refresh");
+                }
+            }
+        }
+        TextEdit {
+            text <=> result;
+            read-only: true;
+            font-size: 12px;
+            vertical-stretch: 1;
+        }
+    }
+}

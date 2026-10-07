@@ -1,0 +1,109 @@
+import { Button, TextEdit } from "std-widgets.slint";
+
+export component DeviceCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text {
+        text: "Device Center";
+        font-size: 22px;
+        font-weight: 700;
+        color: #e8eaf0;
+    }
+    Text {
+        text: "Overview card (read-only). Vendor, model, variant, masked serial, Android, build, ABI, arch, boot mode and states. Unknowns stay unknown.";
+        font-size: 12px;
+        color: #8a90a3;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("device refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component DetectCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text {
+        text: "Detect Center";
+        font-size: 22px;
+        font-weight: 700;
+        color: #e8eaf0;
+    }
+    Text {
+        text: "Attached devices via managed adb/fastboot (read-only queries). States NoDevice, ADB, ADB-unauthorized, ADB-multiple, Fastboot, Fastboot-multiple and Unknown. Serials are masked; pick one from the list.";
+        font-size: 12px;
+        color: #8a90a3;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("detect-center refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}
+
+export component DiagCenter inherits VerticalLayout {
+    in-out property <string> result;
+    callback refresh() -> string;
+    callback append-log(string);
+
+    spacing: 8px;
+    Text {
+        text: "Diagnostics Center";
+        font-size: 22px;
+        font-weight: 700;
+        color: #e8eaf0;
+    }
+    Text {
+        text: "Diagnostics table (read-only). Area, status, maturity VERIFIED, DOCUMENTED, EXPERIMENTAL or UNSUPPORTED, plus detail. Maturity is never shown as Ready.";
+        font-size: 12px;
+        color: #8a90a3;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Refresh";
+            clicked => {
+                result = refresh();
+                append-log("diag refresh");
+            }
+        }
+    }
+    TextEdit {
+        text <=> result;
+        read-only: true;
+        font-size: 12px;
+        vertical-stretch: 1;
+    }
+}

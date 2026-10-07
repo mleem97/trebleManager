@@ -121,10 +121,7 @@ fn file_mtime(path: &std::path::Path) -> std::time::SystemTime {
 /// Newest file under `dir` (recursive) whose file name satisfies `pred`.
 /// Ties break toward the lexicographically smaller path (deterministic).
 /// Mirrors `rom_base_image` (bash) / `Find-TTRomBaseImage` newest-wins rule.
-pub fn newest_matching_file(
-    dir: &std::path::Path,
-    pred: impl Fn(&str) -> bool,
-) -> Option<PathBuf> {
+pub fn newest_matching_file(dir: &std::path::Path, pred: impl Fn(&str) -> bool) -> Option<PathBuf> {
     let mut files = Vec::new();
     collect_files(dir, &mut files);
     let mut best: Option<(std::time::SystemTime, PathBuf)> = None;
@@ -149,10 +146,7 @@ pub fn newest_matching_file(
 }
 
 /// Newest match across several dirs (caller passes dirs, never CWD).
-pub fn newest_matching_in_dirs(
-    dirs: &[PathBuf],
-    pred: impl Fn(&str) -> bool,
-) -> Option<PathBuf> {
+pub fn newest_matching_in_dirs(dirs: &[PathBuf], pred: impl Fn(&str) -> bool) -> Option<PathBuf> {
     let mut best: Option<(std::time::SystemTime, PathBuf)> = None;
     for dir in dirs {
         if let Some(p) = newest_matching_file(dir, &pred) {
@@ -236,10 +230,11 @@ pub fn find_recovery_images(dirs: &[PathBuf], stock_names: &[&str]) -> Vec<PathB
                 if !exact.contains(&path) {
                     exact.push(path);
                 }
-            } else if is_recovery_fallback_name(name) && !exact.contains(&path) {
-                if !fallback.contains(&path) {
-                    fallback.push(path);
-                }
+            } else if is_recovery_fallback_name(name)
+                && !exact.contains(&path)
+                && !fallback.contains(&path)
+            {
+                fallback.push(path);
             }
         }
     }
@@ -331,7 +326,10 @@ pub fn install_base_dir(
 
 /// Symlink plan for `link_into_tools` (bash): `(source, link)` pairs for the
 /// six known binary names. Pure computation, caller creates the links.
-pub fn tool_link_plan(src_dir: &std::path::Path, base_dir: &std::path::Path) -> Vec<(PathBuf, PathBuf)> {
+pub fn tool_link_plan(
+    src_dir: &std::path::Path,
+    base_dir: &std::path::Path,
+) -> Vec<(PathBuf, PathBuf)> {
     const NAMES: [&str; 6] = [
         "adb",
         "adb.exe",
@@ -381,10 +379,8 @@ pub fn scan_dir_for_tools(dir: &std::path::Path) -> Vec<(&'static str, PathBuf)>
             if let Ok(t) = entry.file_type() {
                 if t.is_dir() && !t.is_symlink() {
                     if let Ok(inner) = std::fs::read_dir(entry.path()) {
-                        for f in inner {
-                            if let Ok(f) = f {
-                                nested.push(f.path());
-                            }
+                        for f in inner.flatten() {
+                            nested.push(f.path());
                         }
                     }
                 }
@@ -406,11 +402,12 @@ pub fn scan_dir_for_tools(dir: &std::path::Path) -> Vec<(&'static str, PathBuf)>
                 Some(n) => n,
                 None => continue,
             };
-            if name.eq_ignore_ascii_case(tool) || name.eq_ignore_ascii_case(&format!("{tool}.exe")) {
-                if is_runnable(path) {
-                    hit = Some(path.clone());
-                    break;
-                }
+            if (name.eq_ignore_ascii_case(tool)
+                || name.eq_ignore_ascii_case(&format!("{tool}.exe")))
+                && is_runnable(path)
+            {
+                hit = Some(path.clone());
+                break;
             }
         }
         if let Some(p) = hit {
@@ -592,10 +589,7 @@ fn json_field(src: &str, key: &str) -> Option<String> {
     let pat = format!("\"{key}\"");
     let mut rest = src;
     loop {
-        let pos = match rest.find(&pat) {
-            Some(p) => p,
-            None => return None,
-        };
+        let pos = rest.find(&pat)?;
         rest = &rest[pos + pat.len()..];
         let cur = rest.trim_start();
         let cur = match cur.strip_prefix(':') {
@@ -632,10 +626,7 @@ pub fn load_tool_config(path: &std::path::Path) -> Option<ToolPaths> {
 // ------------------------------------------------- compat profile discovery
 
 fn compat_subdir(data_dir: &std::path::Path) -> PathBuf {
-    data_dir
-        .join("compatibility")
-        .join("huawei")
-        .join("p10")
+    data_dir.join("compatibility").join("huawei").join("p10")
 }
 
 /// Profile file for a model id over an explicit data dir:
@@ -855,7 +846,10 @@ mod tests {
     #[test]
     fn subdir_joins() {
         let base = PathBuf::from("/tmp/x");
-        assert_eq!(subdir(&base, "downloads"), PathBuf::from("/tmp/x/downloads"));
+        assert_eq!(
+            subdir(&base, "downloads"),
+            PathBuf::from("/tmp/x/downloads")
+        );
     }
 
     #[test]
@@ -889,7 +883,10 @@ mod tests {
         set_mtime(&a, 1000);
         set_mtime(&b, 2000);
         assert_eq!(newest_matching_file(&d, is_img_name), Some(b.clone()));
-        assert_eq!(find_rom_base_image(&[d.clone()]), Some(b.clone()));
+        assert_eq!(
+            find_rom_base_image(std::slice::from_ref(&d)),
+            Some(b.clone())
+        );
         set_mtime(&b, 1000);
         assert_eq!(newest_matching_file(&d, is_img_name), Some(a.clone()));
         assert_eq!(newest_matching_file(&d, is_system_image_name), None);
@@ -929,14 +926,14 @@ mod tests {
         assert!(!is_system_image_name("other.img"));
         // Fallback picks newest arm64 match, not newest img overall.
         assert_eq!(
-            find_system_image(&[roms.clone()], None),
+            find_system_image(std::slice::from_ref(&roms), None),
             Some(arm64.clone())
         );
         // Exact registry name wins even when older than the fallback.
         let exact = write_file(&roms, "wanted-system.img", b"w");
         set_mtime(&exact, 1000);
         assert_eq!(
-            find_system_image(&[roms.clone()], Some("wanted-system.img")),
+            find_system_image(std::slice::from_ref(&roms), Some("wanted-system.img")),
             Some(exact)
         );
         cleanup(&d);
@@ -954,12 +951,12 @@ mod tests {
         let _ = write_file(&mag, "stock.img", b"s");
         assert!(is_magisk_patched_name("magisk_patched-abc123.img"));
         assert!(!is_magisk_patched_name("stock.img"));
-        assert_eq!(find_magisk_patched(&[mag.clone()]), Some(p2));
+        assert_eq!(find_magisk_patched(std::slice::from_ref(&mag)), Some(p2));
         let app = write_file(&d, "UPDATE.APP", b"app");
         let _ = write_file(&d, "ota.zip", b"zip");
         assert!(is_update_app_name("update.app"));
         assert!(!is_update_app_name("ota.zip"));
-        assert_eq!(find_update_apps(&[d.clone()]), vec![app]);
+        assert_eq!(find_update_apps(std::slice::from_ref(&d)), vec![app]);
         cleanup(&d);
     }
 
@@ -1040,10 +1037,7 @@ mod tests {
     #[test]
     fn compat_discovery_over_fixture_dir() {
         let d = fixture_dir("compat");
-        let sub = d
-            .join("compatibility")
-            .join("huawei")
-            .join("p10");
+        let sub = d.join("compatibility").join("huawei").join("p10");
         let _ = std::fs::create_dir_all(&sub);
         let _ = std::fs::write(sub.join("VTR-L29.json"), "{}");
         let _ = std::fs::write(sub.join("VKY-L29.json"), "{}");
@@ -1098,10 +1092,7 @@ mod tests {
             ),
             PathBuf::from("/home/u/.local/share/trebleManager/tools")
         );
-        let plan = tool_link_plan(
-            std::path::Path::new("/src"),
-            std::path::Path::new("/base"),
-        );
+        let plan = tool_link_plan(std::path::Path::new("/src"), std::path::Path::new("/base"));
         assert_eq!(plan.len(), 6);
         assert_eq!(
             plan[0],

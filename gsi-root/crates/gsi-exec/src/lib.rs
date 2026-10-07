@@ -34,10 +34,7 @@ impl ExecOut {
 
     /// True when code is zero.
     pub fn success(&self) -> bool {
-        match self.code {
-            Some(0) => true,
-            _ => false,
-        }
+        matches!(self.code, Some(0))
     }
 
     /// stdout plus stderr, for verdict scans.
@@ -215,8 +212,7 @@ impl Default for StubExecutor {
 
 impl Executor for StubExecutor {
     fn run_fastboot(&mut self, args: &[String]) -> ExecOut {
-        self.calls
-            .push(RecordedCall::Fastboot(args.to_vec()));
+        self.calls.push(RecordedCall::Fastboot(args.to_vec()));
         self.next_out()
     }
     fn run_adb(&mut self, args: &[String]) -> ExecOut {
@@ -224,8 +220,7 @@ impl Executor for StubExecutor {
         self.next_out()
     }
     fn run_adb_shell(&mut self, cmd: &str) -> ExecOut {
-        self.calls
-            .push(RecordedCall::AdbShell(cmd.to_string()));
+        self.calls.push(RecordedCall::AdbShell(cmd.to_string()));
         self.next_out()
     }
 }
@@ -252,7 +247,10 @@ impl ToolExecutor {
         let adb = gsi_tool::locate("adb", extra_dirs);
         let fastboot = gsi_tool::locate("fastboot", extra_dirs);
         match (adb, fastboot) {
-            (Some(a), Some(f)) => Some(Self { adb: a, fastboot: f }),
+            (Some(a), Some(f)) => Some(Self {
+                adb: a,
+                fastboot: f,
+            }),
             _ => None,
         }
     }
@@ -418,9 +416,7 @@ pub fn check_fastboot_args(args: &[String]) -> Result<(), ExecError> {
         return Err(ExecError::invalid("empty fastboot argv".to_string()));
     }
     if let Some(flag) = has_forbidden_flag(args) {
-        return Err(ExecError::refused(format!(
-            "refuse fastboot flag '{flag}'"
-        )));
+        return Err(ExecError::refused(format!("refuse fastboot flag '{flag}'")));
     }
     let head = args[0].trim();
     if head == "flash" {
@@ -431,9 +427,7 @@ pub fn check_fastboot_args(args: &[String]) -> Result<(), ExecError> {
         }
         let part = args[1].trim();
         if part != "recovery_ramdisk" && part != "system" {
-            return Err(ExecError::refused(format!(
-                "refuse flash target '{part}'"
-            )));
+            return Err(ExecError::refused(format!("refuse flash target '{part}'")));
         }
         let img = args[2].trim();
         if img.is_empty() {
@@ -460,7 +454,9 @@ pub fn check_fastboot_args(args: &[String]) -> Result<(), ExecError> {
     }
     if head == "reboot" {
         if args.len() != 1 {
-            return Err(ExecError::invalid("fastboot reboot takes no tail".to_string()));
+            return Err(ExecError::invalid(
+                "fastboot reboot takes no tail".to_string(),
+            ));
         }
         return Ok(());
     }
@@ -479,9 +475,7 @@ pub fn check_fastboot_args(args: &[String]) -> Result<(), ExecError> {
         }
         return Ok(());
     }
-    Err(ExecError::refused(format!(
-        "refuse fastboot verb '{head}'"
-    )))
+    Err(ExecError::refused(format!("refuse fastboot verb '{head}'")))
 }
 
 /// Build `fastboot flash <part> <image>`, system needs override.
@@ -511,11 +505,7 @@ pub fn flash_args(
         }
         Partition::System => match sys_override {
             Some(_) => {
-                let v = vec![
-                    "flash".to_string(),
-                    "system".to_string(),
-                    img.to_string(),
-                ];
+                let v = vec!["flash".to_string(), "system".to_string(), img.to_string()];
                 check_fastboot_args(&v)?;
                 Ok(v)
             }
@@ -579,7 +569,9 @@ pub fn adb_push_args(local: &str, remote: &str) -> Result<Vec<String>, ExecError
     let l = local.trim();
     let r = remote.trim();
     if l.is_empty() || r.is_empty() {
-        return Err(ExecError::invalid("push needs local plus remote".to_string()));
+        return Err(ExecError::invalid(
+            "push needs local plus remote".to_string(),
+        ));
     }
     if l.starts_with('-') || r.starts_with('-') {
         return Err(ExecError::refused("refuse push path with '-'".to_string()));
@@ -589,11 +581,7 @@ pub fn adb_push_args(local: &str, remote: &str) -> Result<Vec<String>, ExecError
             "remote push path must be absolute".to_string(),
         ));
     }
-    Ok(vec![
-        "push".to_string(),
-        l.to_string(),
-        r.to_string(),
-    ])
+    Ok(vec!["push".to_string(), l.to_string(), r.to_string()])
 }
 
 // ------------------------------------------------------------ shell strings
@@ -605,7 +593,9 @@ pub fn shell_getprop(name: &str) -> Result<String, ExecError> {
         return Err(ExecError::invalid("empty prop name".to_string()));
     }
     if n.contains(' ') || n.contains(';') || n.contains('&') || n.contains('|') {
-        return Err(ExecError::refused("refuse prop with shell chars".to_string()));
+        return Err(ExecError::refused(
+            "refuse prop with shell chars".to_string(),
+        ));
     }
     Ok(format!("getprop {n}"))
 }
@@ -751,10 +741,7 @@ pub enum FlashVerdict {
 impl FlashVerdict {
     /// True for Ok.
     pub fn is_ok(&self) -> bool {
-        match self {
-            Self::Ok { .. } => true,
-            _ => false,
-        }
+        matches!(self, Self::Ok { .. })
     }
 
     /// Short id OK, FAILED, UNCLEAR.
@@ -1124,10 +1111,7 @@ pub fn run_validate(exec: &mut dyn Executor) -> ValidationReport {
     // When no device, single ADB row fails and sequence stops.
     if !has_device && dev_text.trim().is_empty() {
         checks.push(check_item("ADB", false, "no android device"));
-        return ValidationReport {
-            checks,
-            ok: false,
-        };
+        return ValidationReport { checks, ok: false };
     }
     // Serial is first token when present.
     let mut serial = String::new();
@@ -1151,25 +1135,19 @@ pub fn run_validate(exec: &mut dyn Executor) -> ValidationReport {
     // OS release plus display.
     let mut rel = String::new();
     let mut disp = String::new();
-    match shell_getprop("ro.build.version.release") {
-        Ok(cmd) => {
-            let o = exec.run_adb_shell(cmd.as_str());
-            rel = o.stdout.trim().to_string();
-            if rel.is_empty() {
-                rel = o.combined().trim().to_string();
-            }
+    if let Ok(cmd) = shell_getprop("ro.build.version.release") {
+        let o = exec.run_adb_shell(cmd.as_str());
+        rel = o.stdout.trim().to_string();
+        if rel.is_empty() {
+            rel = o.combined().trim().to_string();
         }
-        Err(_) => {}
     }
-    match shell_getprop("ro.build.display.id") {
-        Ok(cmd) => {
-            let o = exec.run_adb_shell(cmd.as_str());
-            disp = o.stdout.trim().to_string();
-            if disp.is_empty() {
-                disp = o.combined().trim().to_string();
-            }
+    if let Ok(cmd) = shell_getprop("ro.build.display.id") {
+        let o = exec.run_adb_shell(cmd.as_str());
+        disp = o.stdout.trim().to_string();
+        if disp.is_empty() {
+            disp = o.combined().trim().to_string();
         }
-        Err(_) => {}
     }
     if rel.is_empty() {
         checks.push(check_item("OS", false, "empty"));
@@ -1226,11 +1204,7 @@ pub fn run_validate(exec: &mut dyn Executor) -> ValidationReport {
             }
         }
         if hit.is_empty() && !v.trim().is_empty() {
-            let mut first_line = "";
-            for line in v.lines() {
-                first_line = line;
-                break;
-            }
+            let first_line = v.lines().next().unwrap_or("");
             hit = first_line.trim().to_string();
         }
         if hit.is_empty() {
@@ -1279,11 +1253,7 @@ pub fn run_validate(exec: &mut dyn Executor) -> ValidationReport {
             }
         }
         if n > 0 {
-            checks.push(check_item(
-                "SENSORS",
-                true,
-                format!("entries={n}").as_str(),
-            ));
+            checks.push(check_item("SENSORS", true, format!("entries={n}").as_str()));
         } else {
             checks.push(check_item("SENSORS", false, "none"));
         }
@@ -1385,9 +1355,7 @@ pub fn run_persist_fixes(exec: &mut dyn Executor) -> Result<PersistReport, ExecE
     let id_out = exec.run_adb_shell(shell_su_id().as_str());
     let id = id_out.combined();
     if !is_uid_root(id.as_str()) {
-        return Err(ExecError::refused(
-            "no live root, need uid=0".to_string(),
-        ));
+        return Err(ExecError::refused("no live root, need uid=0".to_string()));
     }
     // Immediate relief, result is info only.
     let _ = exec.run_adb_shell(shell_stop_aptouch().as_str());
@@ -1406,16 +1374,10 @@ pub fn run_persist_fixes(exec: &mut dyn Executor) -> Result<PersistReport, ExecE
         let push = adb_push_args(local.as_str(), remote.as_str())?;
         let _ = exec.run_adb(push.as_slice());
         // Copy into service.d.
-        let cp = match shell_persist_cp(name.as_str()) {
-            Ok(s) => s,
-            Err(e) => return Err(e),
-        };
+        let cp = shell_persist_cp(name.as_str())?;
         let _ = exec.run_adb_shell(cp.as_str());
         // Verify presence.
-        let ls = match shell_persist_ls(name.as_str()) {
-            Ok(s) => s,
-            Err(e) => return Err(e),
-        };
+        let ls = shell_persist_ls(name.as_str())?;
         let chk = exec.run_adb_shell(ls.as_str());
         let text = chk.combined();
         if text.contains(name.as_str()) {
@@ -1586,11 +1548,7 @@ fn goal_refused_detail(err: &ExecError) -> (String, String) {
 /// with reasons and make no calls. Missing goal-level confirms refuse
 /// the whole goal before any call, so stub call count stays zero.
 /// Read-only info steps are marked skipped with no calls.
-pub fn run_goal(
-    goal_id: &str,
-    exec: &mut dyn Executor,
-    confirms: &GoalConfirms,
-) -> GoalReport {
+pub fn run_goal(goal_id: &str, exec: &mut dyn Executor, confirms: &GoalConfirms) -> GoalReport {
     let plan = match gsi_state::new_workflow_plan(goal_id) {
         Ok(p) => p,
         Err(e) => {
@@ -1933,10 +1891,7 @@ pub fn run_developer_dump(
 /// Copies src image into staging dir under its own file name and
 /// returns the staged path. Refuses when src is missing or when
 /// dest equals src. Creates staging dir as needed.
-pub fn prepare_magisk_patch(
-    src_image: &Path,
-    staging_dir: &Path,
-) -> Result<PathBuf, ExecError> {
+pub fn prepare_magisk_patch(src_image: &Path, staging_dir: &Path) -> Result<PathBuf, ExecError> {
     if src_image.as_os_str().is_empty() {
         return Err(ExecError::invalid("empty src image path".to_string()));
     }
@@ -1950,9 +1905,7 @@ pub fn prepare_magisk_patch(
         }
     };
     if !meta.is_file() {
-        return Err(ExecError::refused(
-            "src image is not a file".to_string(),
-        ));
+        return Err(ExecError::refused("src image is not a file".to_string()));
     }
     let name = match src_image.file_name() {
         Some(n) => n,
@@ -1991,7 +1944,9 @@ pub fn magisk_patch_instructions() -> String {
     s.push_str("   adb push \"<staged>\" /sdcard/Download/\n");
     s.push_str("3. On device (any OS, stock or GSI/custom):\n");
     s.push_str("   Open Magisk -> Install -> Select and Patch a File\n");
-    s.push_str("   -> select RECOVERY_RAMDIS(K).img (exactly this file, NOT boot.img/recovery.img)\n");
+    s.push_str(
+        "   -> select RECOVERY_RAMDIS(K).img (exactly this file, NOT boot.img/recovery.img)\n",
+    );
     s.push_str("4. Result on device: /sdcard/Download/magisk_patched-*.img\n");
     s.push_str("   Copy back: adb pull /sdcard/Download/magisk_patched-XXXX.img data/magisk/\n");
     s.push_str("5. Validation: hash != stock, size plausible, header documented (hashes must differ; patched == base with identical hash is rejected, NO fake patch).\n");
@@ -2027,7 +1982,7 @@ mod tests {
                 assert_eq!(a[1].as_str(), "recovery_ramdisk");
                 assert_eq!(a[2].as_str(), "magisk.img");
             }
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
         let ov = SystemOverride::confirm("YES");
         match ov {
@@ -2038,10 +1993,10 @@ mod tests {
                         assert_eq!(a[1].as_str(), "system");
                         assert_eq!(a[2].as_str(), "gsi.img");
                     }
-                    Err(_) => assert!(false),
+                    Err(_) => panic!(),
                 }
             }
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
         assert_eq!(
             erase_userdata_args(),
@@ -2062,19 +2017,19 @@ mod tests {
                 assert_eq!(a[0].as_str(), "push");
                 assert_eq!(a[2].as_str(), "/sdcard/Download/a.sh");
             }
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
         let g = shell_getprop("ro.build.version.release");
         match g {
             Ok(s) => assert_eq!(s.as_str(), "getprop ro.build.version.release"),
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
         assert_eq!(shell_su_id().as_str(), "su -c id");
         assert_eq!(shell_getenforce().as_str(), "getenforce");
         let dd = backup_dd_cmd("/dev/block/mmcblk0p30");
         match dd {
             Ok(s) => assert!(s.contains("dd if=/dev/block/mmcblk0p30")),
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
     }
 
@@ -2128,11 +2083,18 @@ mod tests {
 
     #[test]
     fn stub_safe_flash_run_ok() {
-        let plan = gsi_workflow::plan_safe_flash("m.img", "recovery_ramdisk", true, true, true, true, true);
+        let plan = gsi_workflow::plan_safe_flash(
+            "m.img",
+            "recovery_ramdisk",
+            true,
+            true,
+            true,
+            true,
+            true,
+        );
         assert!(plan.ready);
-        let mut stub = StubExecutor::with_outputs(vec![StubExecutor::ok_output(
-            flash_ok_text().as_str(),
-        )]);
+        let mut stub =
+            StubExecutor::with_outputs(vec![StubExecutor::ok_output(flash_ok_text().as_str())]);
         let r = run_plan(&plan, &mut stub, "FLASH", "YES");
         match r {
             Ok(rep) => {
@@ -2144,24 +2106,39 @@ mod tests {
                     Some(RecordedCall::Fastboot(a)) => {
                         assert_eq!(a[0].as_str(), "flash");
                     }
-                    _ => assert!(false),
+                    _ => panic!(),
                 }
             }
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
     }
 
     #[test]
     fn stub_missing_confirms_zero_calls() {
-        let plan = gsi_workflow::plan_safe_flash("m.img", "recovery_ramdisk", true, true, true, false, false);
+        let plan = gsi_workflow::plan_safe_flash(
+            "m.img",
+            "recovery_ramdisk",
+            true,
+            true,
+            true,
+            false,
+            false,
+        );
         // Plan itself not ready, runner must refuse before any call.
         let mut stub = StubExecutor::new();
         let r = run_plan(&plan, &mut stub, "", "");
         assert!(r.is_err());
         assert_eq!(stub.call_count(), 0);
         // Ready plan yet wrong tokens also zero calls.
-        let plan2 =
-            gsi_workflow::plan_safe_flash("m.img", "recovery_ramdisk", true, true, true, true, true);
+        let plan2 = gsi_workflow::plan_safe_flash(
+            "m.img",
+            "recovery_ramdisk",
+            true,
+            true,
+            true,
+            true,
+            true,
+        );
         let mut stub2 = StubExecutor::new();
         let r2 = run_plan(&plan2, &mut stub2, "NO", "NO");
         assert!(r2.is_err());
@@ -2186,7 +2163,7 @@ mod tests {
             FlashVerdict::Failed { lines } => {
                 assert!(lines.iter().any(|l| l.contains("Command not allowed")));
             }
-            _ => assert!(false),
+            _ => panic!(),
         }
         assert_eq!(v.as_str(), "FAILED");
         let prog = vec!["Erasing 'userdata' ...".to_string()];
@@ -2210,7 +2187,9 @@ mod tests {
             StubExecutor::ok_output("trebledroid 13 arm64_bvN\n"),
             StubExecutor::ok_output("Enforcing\n"),
             StubExecutor::ok_output("uid=0(root) gid=0\n"),
-            StubExecutor::ok_output("/dev/block/system /system ext4\n/dev/block/vendor /vendor ext4\n"),
+            StubExecutor::ok_output(
+                "/dev/block/system /system ext4\n/dev/block/vendor /vendor ext4\n",
+            ),
             StubExecutor::ok_output("Wi-Fi is enabled\n"),
             StubExecutor::ok_output("1\n"),
             StubExecutor::ok_output("level: 88\n"),
@@ -2258,13 +2237,12 @@ mod tests {
                 assert!(r.success);
                 assert_eq!(r.argv, erase_userdata_args());
             }
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
         // System flash bilingual JA passes.
         let splan = gsi_workflow::plan_system_flash("gsi.img", true, true, true, false, true, true);
-        let mut sstub = StubExecutor::with_outputs(vec![StubExecutor::ok_output(
-            flash_ok_text().as_str(),
-        )]);
+        let mut sstub =
+            StubExecutor::with_outputs(vec![StubExecutor::ok_output(flash_ok_text().as_str())]);
         let srep = run_system_flash(&splan, &mut sstub, "FLASH", "JA");
         assert!(srep.is_ok());
         // Persist refuses without root, one gate call only.
@@ -2321,7 +2299,9 @@ mod tests {
             StubExecutor::ok_output("trebledroid 13 arm64_bvN\n"),
             StubExecutor::ok_output("Enforcing\n"),
             StubExecutor::ok_output("uid=0(root) gid=0\n"),
-            StubExecutor::ok_output("/dev/block/system /system ext4\n/dev/block/vendor /vendor ext4\n"),
+            StubExecutor::ok_output(
+                "/dev/block/system /system ext4\n/dev/block/vendor /vendor ext4\n",
+            ),
             StubExecutor::ok_output("Wi-Fi is enabled\n"),
             StubExecutor::ok_output("1\n"),
             StubExecutor::ok_output("level: 88\n"),
@@ -2375,7 +2355,7 @@ mod tests {
                 assert_eq!(r.entries[1].name.as_str(), "partitions");
                 assert_eq!(p_stub.call_count(), 2);
             }
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
         // Properties short form.
         let mut g_stub = StubExecutor::with_outputs(vec![StubExecutor::ok_output(
@@ -2388,7 +2368,7 @@ mod tests {
                 assert!(r.entries[0].content.contains("VTR-L29"));
                 assert_eq!(g_stub.call_count(), 1);
             }
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
         // Vendor: vendor plus mounts.
         let mut v_stub = StubExecutor::with_outputs(vec![
@@ -2403,7 +2383,7 @@ mod tests {
                 assert_eq!(r.entries[1].name.as_str(), "mounts");
                 assert_eq!(v_stub.call_count(), 2);
             }
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
         // Logs.
         let mut l_stub = StubExecutor::with_outputs(vec![StubExecutor::ok_output("log line 1\n")]);
@@ -2414,7 +2394,7 @@ mod tests {
                 assert!(r.entries[0].content.contains("log line"));
                 assert_eq!(l_stub.call_count(), 1);
             }
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
     }
 
@@ -2447,10 +2427,10 @@ mod tests {
                 let back = std::fs::read(dest.as_path());
                 match back {
                     Ok(b) => assert_eq!(b, b"stock-bytes"),
-                    Err(_) => assert!(false),
+                    Err(_) => panic!(),
                 }
             }
-            Err(_) => assert!(false),
+            Err(_) => panic!(),
         }
         // Same src and dest refuses.
         let mut same_stage = base.clone();

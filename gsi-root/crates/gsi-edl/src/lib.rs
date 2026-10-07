@@ -82,7 +82,9 @@ fn check_label(label: &str) -> Result<String, String> {
     if t.is_empty() {
         return Err("firehose: empty partition label".to_string());
     }
-    if t.bytes().any(|c| c <= 0x20 || c == b'"' || c == b'<' || c == b'>' || c == b'&') {
+    if t.bytes()
+        .any(|c| c <= 0x20 || c == b'"' || c == b'<' || c == b'>' || c == b'&')
+    {
         return Err(format!("firehose: bad partition label '{label}'"));
     }
     Ok(t.to_string())
@@ -390,7 +392,8 @@ pub fn plan_for_variant(
             steps.push(EdlStep {
                 kind: "fastboot".to_string(),
                 xml: String::new(),
-                note: "fastboot erase config (only if bootloader already permits erase)".to_string(),
+                note: "fastboot erase config (only if bootloader already permits erase)"
+                    .to_string(),
             });
             warnings.push(
                 "Without deep flash nothing is forced: locked units must go through EDL."
@@ -422,6 +425,7 @@ pub struct FrpReport {
 /// Run the FRP reset flow. Gates (owner proof, double confirm, backup)
 /// are checked before any transport I/O; deep-flash steps are sent,
 /// host-side steps are reported as planned (never executed here).
+#[allow(clippy::too_many_arguments)] // explicit inputs by design: no hidden state, all caller-measured and tested
 pub fn run_frp_reset(
     transport: &mut impl FirehoseTransport,
     variant: &DeviceVariant,
@@ -510,14 +514,16 @@ pub fn build_bootloader_unlock_plan(
         return Err("edl: BQ manufacturer unlock code required (never logged)".to_string());
     }
     let steps = vec![
-        "Obtain unlock code via the BQ manufacturer flow (device-specific, owner only).".to_string(),
+        "Obtain unlock code via the BQ manufacturer flow (device-specific, owner only)."
+            .to_string(),
         "adb reboot bootloader (verify fastboot device id first).".to_string(),
         "fastboot flashing unlock (enter the manufacturer code when prompted).".to_string(),
         "fastboot reboot (unlock wipes user data; restore from backup).".to_string(),
     ];
     let warnings = vec![
         "Unlock wipes user data; back up first.".to_string(),
-        "Where the BQ vendor flow applies, only a code issued for this exact device works.".to_string(),
+        "Where the BQ vendor flow applies, only a code issued for this exact device works."
+            .to_string(),
     ];
     let audit = vec![audit_line(
         "bootloader-unlock-plan",
@@ -605,7 +611,10 @@ mod tests {
     fn sahara_hello_golden() {
         let h = sahara_hello();
         assert_eq!(h.len(), 48);
-        assert_eq!(&h[0..20], &[1, 0, 0, 0, 48, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0]);
+        assert_eq!(
+            &h[0..20],
+            &[1, 0, 0, 0, 48, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0]
+        );
         assert!(h[20..].iter().all(|b| *b == 0));
     }
 
@@ -701,7 +710,12 @@ mod tests {
     #[test]
     fn audit_line_golden() {
         assert_eq!(
-            audit_line("erase:frp", "2026-10-07 12:00:00", "BQ-XPRO-EU-1", "owner repair"),
+            audit_line(
+                "erase:frp",
+                "2026-10-07 12:00:00",
+                "BQ-XPRO-EU-1",
+                "owner repair"
+            ),
             "[2026-10-07 12:00:00] erase:frp device=BQ-XPRO-EU-1 note=owner repair"
         );
     }
@@ -830,16 +844,14 @@ mod tests {
 
     #[test]
     fn matrix_notes_are_honest() {
-        assert!(capability_note(
-            &DeviceVariant::AquarisXProEu,
-            &FlashDepth::WithDeepFlash
-        )
-        .contains("9008"));
-        assert!(capability_note(
-            &DeviceVariant::AquarisXProEu,
-            &FlashDepth::WithoutDeepFlash
-        )
-        .contains("EDL is mandatory"));
+        assert!(
+            capability_note(&DeviceVariant::AquarisXProEu, &FlashDepth::WithDeepFlash)
+                .contains("9008")
+        );
+        assert!(
+            capability_note(&DeviceVariant::AquarisXProEu, &FlashDepth::WithoutDeepFlash)
+                .contains("EDL is mandatory")
+        );
         let p = plan_for_variant(
             &DeviceVariant::Msm8953Generic,
             &FlashDepth::WithoutDeepFlash,
@@ -884,7 +896,10 @@ mod tests {
             "owner repair",
         )
         .unwrap();
-        assert!(p.steps.iter().any(|s| s.contains("fastboot flashing unlock")));
+        assert!(p
+            .steps
+            .iter()
+            .any(|s| s.contains("fastboot flashing unlock")));
         assert!(p.steps.iter().any(|s| s.contains("BQ manufacturer flow")));
         let blob = format!("{:?}", p);
         assert!(!blob.contains("SECRET-CODE"));
@@ -917,8 +932,9 @@ mod tests {
         };
         let entries = gsi_registry::load_roms(&path).unwrap();
         assert!(!entries.is_empty());
-        assert!(entries.iter().any(|e| e.status == "broken"
-            && e.markers.iter().any(|m| m.contains("unverified"))));
+        assert!(entries
+            .iter()
+            .any(|e| e.status == "broken" && e.markers.iter().any(|m| m.contains("unverified"))));
         let text = std::fs::read_to_string(&path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&text).unwrap();
         assert!(gsi_registry::parse_tools_block(&v).platform_tools.is_some());
