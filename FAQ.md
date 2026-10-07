@@ -147,8 +147,11 @@ wiki Troubleshooting → No sound. Last resort: tool Restore.
 
 ## Will I lose data?
 
-The tool itself never wipes (`erase`/`format`/`userdata` appear nowhere in its
-flash path). Still: back up your data before touching the boot chain, and only
+Only if **you** choose it: TUI `Full reinstall` offers an optional guided wipe
+before flashing, and CLI/TUI `wipe` erases userdata only after double
+confirmation (`WIPE` + `YES`/`JA`, or `--yes`) — with an eRecovery fallback if
+the device refuses `erase`. The root/flash paths themselves never wipe.
+Still: back up your data before touching the boot chain, and only
 factory-reset from stock eRecovery if **you** choose to (never from TWRP on this
 device — it breaks userdata per the wiki).
 
@@ -164,7 +167,8 @@ On the **root path**: yes. The only partition the tool writes there is
 `recovery_ramdisk`, derived from the device profile and reconfirmed by the
 9-point safety gate (`DO NOT FLASH` on any FAIL). The **ROM install path**
 (`flash-system`) replaces `system` only after its own checks + double
-confirmation — `userdata` is never wiped automatically by either path.
+confirmation — `userdata` is only ever wiped by the explicit guided `wipe`
+(double-confirmed) or the optional wipe inside `Full reinstall`.
 
 ## Where are logs? What do I send for help?
 

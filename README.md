@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.9.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.10.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -181,6 +181,7 @@ curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
+- [`release/v2.10.0`](https://github.com/mleem97/trebleManager/tree/release/v2.10.0) ([tag `v2.10.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.10.0))
 - [`release/v2.9.0`](https://github.com/mleem97/trebleManager/tree/release/v2.9.0) ([tag `v2.9.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.9.0))
 - [`release/v2.8.0`](https://github.com/mleem97/trebleManager/tree/release/v2.8.0) ([tag `v2.8.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.8.0))
 - [`release/v2.7.0`](https://github.com/mleem97/trebleManager/tree/release/v2.7.0) ([tag `v2.7.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.7.0))
@@ -197,7 +198,7 @@ release ZIP attached to its GitHub Release (verify `.sha256` first).
 Instead of memorizing commands, pick a **goal** (TUI menu or
 `workflow --goal <id> [--json]`): `root`, `custom_rom`, `stock_rom`,
 `root_custom_rom`, `root_stock_rom`, `root_custom_rom_recovery`,
-`root_stock_rom_recovery`, `restore_original`. The planner prints the ordered
+`root_stock_rom_recovery`, `restore_original`, `full_reinstall`. The planner prints the ordered
 steps with live gate results first; running executes them with persisted state
 (`logs/workflow-state.json`) and controlled stop on failure
 (diagnostic → restore → abort). Resume with the menu entry or CLI `resume`.

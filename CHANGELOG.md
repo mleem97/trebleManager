@@ -1,6 +1,11 @@
 # Changelog — trebleManager
 
-## Unreleased
+## v2.10.0
+
+- Full reinstall flow: `full_reinstall` goal + TUI `Full reinstall` menu (custom GSI/system.img via Install-ROM, honest stock path via HiSuite/service flow), optional guided wipe before flash
+- Guided wipe: `wipe` CLI/TUI, double-confirmed (`WIPE` + `YES`/`JA`, or `--yes`), userdata only, eRecovery fallback when the device refuses `erase`
+- Preflight ready display: green `PREFLIGHT READY (all green)` summary on pass, red `[NOT READY]` lines when blocked
+- Starter hardening: `Start-TrebleToolkit.bat` never exits silently (UAC retry, setup call, `launcher.log`, pauses with exit codes)
 
 ## v2.9.0
 

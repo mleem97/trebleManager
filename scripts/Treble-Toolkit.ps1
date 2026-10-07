@@ -50,7 +50,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.9.0"
+$TTVersion = "2.10.0"
 
 # Spec error cases (handled explicitly, SEARCHABLE):
 # ADB not found / No device detected / USB debugging authorization required (ADB unauthorized) /
@@ -1075,6 +1075,12 @@ function Invoke-TTFastboot {
   } catch { Write-TTLog ((L "Fastboot error: " "Fastboot-Fehler: ") + $_.Exception.Message) "ERROR"; return @() }
 }
 
+function Invoke-FastbootLogged {
+  # Logged fastboot call returning string lines (wrapper kept for flash flows).
+  param([string[]]$Arguments)
+  return @(Invoke-TTFastboot @Arguments)
+}
+
 function Get-TTProp {
   param([string]$Name)
   $o = Invoke-TTAdb @("shell","getprop",$Name)
@@ -1720,7 +1726,7 @@ function Show-PreflightBlocked {
   Show-TTHeader (L "Preflight blocked - fix first, no main menu" "Preflight blockiert - erst beheben, kein Hauptmenue")
   Write-Host ""
   Write-Host (L "Missing global prerequisites:" "Fehlende Grundvoraussetzungen:") -ForegroundColor Red
-  foreach ($b in $Pre.Blocks) { Write-Host (" - " + $b) -ForegroundColor Yellow }
+  foreach ($b in $Pre.Blocks) { Write-Host (" [NOT READY] " + $b) -ForegroundColor Red }
   Write-Host ""
   Write-Host (L "Fix: run the setup now? It asks for paths or installs into user PATH (scrcpy optional). [Y/n]: " "Fix: Setup jetzt starten? Fragt Pfade ab oder installiert in User-PATH (scrcpy optional). [J/n]: ") -NoNewline -ForegroundColor Cyan
   $a = Read-Host
@@ -2470,6 +2476,72 @@ function Invoke-DeveloperDump {
   return $true
 }
 
+function Invoke-GuidedWipe {
+  # Guided userdata wipe. Double-confirmed, never automatic. Erases user data
+  # only (no system/boot touch -> no brick vector). eRecovery fallback if refused.
+  param([switch]$ForceYes)
+  Update-TTMode | Out-Null
+  if ($TT.Mode -ne "fastboot") {
+    Write-TTLog (L "Wipe needs fastboot mode. Reboot to fastboot first." "Wipe braucht Fastboot-Modus. Erst nach Fastboot booten.") "ERROR"
+    return $false
+  }
+  Write-Host ""
+  Write-Host "WARNING" -ForegroundColor Red
+  Write-Host (L "This erases ALL user data (apps, photos, settings). System stays." "Das loescht ALLE Nutzerdaten (Apps, Fotos, Einstellungen). System bleibt.") -ForegroundColor Yellow
+  if (-not $ForceYes) {
+    Write-Host (L "Type 'WIPE' to continue (1/2): " "'WIPE' tippen zum Fortfahren (1/2): ") -NoNewline -ForegroundColor Yellow
+    $a = Read-Host
+    if ($a -ne "WIPE") { return $false }
+    Write-Host (L "Type 'YES' again (2/2): " "Nochmal 'YES' (2/2): ") -NoNewline -ForegroundColor Yellow
+    $b = Read-Host
+    if ($b -ne "YES" -and $b -ne "JA") { return $false }
+  } else {
+    Write-TTLog "CLI --yes: explicit wipe consent documented." "WARNING"
+  }
+  $o = Invoke-FastbootLogged @("erase","userdata")
+  Write-Host $o -ForegroundColor White
+  if (($o -join "`n") -match "OKAY|finished|Erasing") {
+    Write-TTLog "userdata erase reported OK." "SUCCESS"
+    return $true
+  }
+  Write-Host (L "Device refused erase. Fallback (manual, safe): reboot to stock eRecovery (Vol-Up 3s) -> Wipe data / factory reset -> confirm on phone." "Geraet lehnt erase ab. Fallback (manuell, sicher): Stock-eRecovery booten (Vol-Up 3s) -> Wipe data / factory reset -> am Handy bestaetigen.") -ForegroundColor Yellow
+  Write-TTLog "erase refused, eRecovery fallback shown." "WARNING"
+  return $false
+}
+
+function Screen-Wipe {
+  Show-TTHeader (L "Wipe userdata (guided, double-confirmed)" "Userdata wipen (gefuehrt, doppelt bestaetigt)")
+  if (Invoke-GuidedWipe) {
+    Write-Host (L "Wipe done. Reboot and set up the phone again." "Wipe fertig. Handy neu starten und neu einrichten.") -ForegroundColor Green
+  }
+  Pause-TT
+}
+
+function Screen-Reinstall {
+  Show-TTHeader (L "Full reinstall (guided: choose ROM, optional wipe, flash, verify)" "Komplett-Reinstall (gefuehrt: ROM waehlen, optional Wipe, Flash, Verify)")
+  Write-Host ""
+  Write-Host (L "Already complete today: flash-system/TWRP/restore exist. This flow chains them: ROM choice -> backup reminder -> optional wipe -> flash -> reboot -> verify." "Teile existieren (flash-system/TWRP/restore). Dieser Flow verkettet: ROM-Wahl -> Backup-Hinweis -> optional Wipe -> Flash -> Reboot -> Verify.") -ForegroundColor Gray
+  Write-Host ""
+  Write-Host (L "[1] Custom ROM / GSI image  [2] Stock full firmware path  [Esc] back" "[1] Custom-ROM / GSI-Image  [2] Stock-Full-Firmware-Weg  [Esc] zurueck") -ForegroundColor DarkGray
+  $k = [Console]::ReadKey($true)
+  if ($k.KeyChar -eq "1") {
+    Write-Host (L "Wipe userdata before flash? [W]=wipe first (double-confirmed) [Enter]=skip: " "Userdata vorher wipen? [W]=erst wipen (doppelt bestaetigt) [Enter]=ueberspringen: ") -NoNewline -ForegroundColor Yellow
+    $w = [Console]::ReadKey($true)
+    if ($w.KeyChar -eq "W" -or $w.KeyChar -eq "w") { Invoke-GuidedWipe | Out-Null }
+    Screen-FlashSystem
+  } elseif ($k.KeyChar -eq "2") {
+    Show-TTHeader (L "Stock reinstall path (guided, honest scope)" "Stock-Reinstall-Weg (gefuehrt, ehrlicher Scope)")
+    Write-Host ""
+    Write-Host (L "This tool cannot unpack UPDATE.APP system images itself. Stock return runs via:" "Dieses Tool kann UPDATE.APP-System-Images nicht selbst entpacken. Stock-Rueckweg via:") -ForegroundColor White
+    Write-Host (L "1. Full firmware for exact model+region (step 3 downloader or data/firmware/)." "1. Full-Firmware exakt fuer Modell+Region (Step-3-Downloader oder data/firmware/).") -ForegroundColor White
+    Write-Host (L "2. Flash via HiSuite (official, recommended) or service flow." "2. Flashen via HiSuite (offiziell, empfohlen) oder Service-Flow.") -ForegroundColor White
+    Write-Host (L "3. Stock eRecovery wipe + first setup (double-confirmed on phone)." "3. Stock-eRecovery-Wipe + Setup (doppelt am Handy bestaetigt).") -ForegroundColor White
+    Write-Host ""
+    Write-Host (L "If you already extracted SYSTEM.img from UPDATE.APP, use Install ROM with that file." "Falls SYSTEM.img schon extrahiert: per ROM-Installation mit dieser Datei flashen.") -ForegroundColor Cyan
+    Pause-TT
+  }
+}
+
 function Screen-Tools {
   while ($true) {
     $c = Show-TTMenu (L "Tools (read-only where possible)" "Tools (read-only wo moeglich)") @(
@@ -2656,6 +2728,7 @@ $WorkflowGoals = @{
   "root_custom_rom_recovery" = @("reconnaissance","rom_compatibility","recovery_compatibility","firmware","backup","rom_flash","recovery_flash","root_preparation","root_flash","boot","verify","validate")
   "root_stock_rom_recovery"  = @("reconnaissance","stock_firmware_validation","recovery_validation","backup","recovery_flash","root_preparation","root_flash","boot","verify","validate")
   "restore_original"       = @("reconnaissance","identify_original_artifact","validate_backup","rollback_plan","safety_gate","restore","reboot","validate")
+  "full_reinstall"         = @("reconnaissance","compatibility","firmware","rom_validation","backup","wipe","flash_system","reboot","validate")
 }
 
 function Get-GoalSteps {
@@ -2794,7 +2867,8 @@ function Start-GoalWorkflow {
     "custom_rom_compatibility" = "Screen-Compatibility"; "rom_compatibility" = "Screen-Compatibility";
     "recovery_compatibility" = "Screen-RootMethods"; "recovery_validation" = "Screen-Twrp";
     "stock_firmware_validation" = "Screen-Firmware"; "firmware_validation" = "Screen-Firmware";
-    "flash_plan" = "Screen-Flash"; "safety_gate" = "Screen-Flash"; "rollback_plan" = "Screen-Restore"
+    "flash_plan" = "Screen-Flash"; "safety_gate" = "Screen-Flash"; "rollback_plan" = "Screen-Restore";
+    "wipe" = "Screen-Wipe"; "flash_system" = "Screen-FlashSystem"
   }
   foreach ($entry in $state.steps) {
     $fn = $map[$entry.id]
@@ -2893,6 +2967,11 @@ function Start-TTTui {
     if ($try -ge 2) { return }
   }
   if (-not $pre.Go) { return }
+  Write-Host ""
+  Write-Host (L "PREFLIGHT READY (all green):" "PREFLIGHT READY (alles gruen):") -ForegroundColor Green
+  Write-Host (" ADB: " + $pre.States.AdbState) -ForegroundColor $(if ($pre.States.AdbState -like "*READY*") { "Green" } else { "Yellow" })
+  Write-Host (" Fastboot: " + $pre.States.FastbootState) -ForegroundColor $(if ($pre.States.FastbootState -like "*READY*") { "Green" } else { "Yellow" })
+  Write-Host (" Admin: " + $(if (Test-TTAdmin) { "YES" } else { "NO (fastboot drivers may need it)" })) -ForegroundColor $(if (Test-TTAdmin) { "Green" } else { "Yellow" })
   if (-not (Select-TargetDevice $pre.States)) { return }
   Find-TTTools
   Update-TTMode | Out-Null
@@ -2927,10 +3006,11 @@ function Start-TTTui {
       (L "Boot tricks (Huawei, exact)" "Boot-Tricks (Huawei, exakt)"),
       (L "Tools + diagnostic ZIP" "Tools + Diagnose-ZIP"),
       "Logs",
+      (L "Full reinstall (ROM choice + wipe + flash)" "Komplett-Reinstall (ROM-Wahl + Wipe + Flash)"),
       (L "Admin restart" "Admin-Neustart"),
       (L "Exit" "Beenden")
     ) (L "GSI stays intact on root path | Never wipe userdata | Never bootloader-unlock" "GSI bleibt erhalten auf Root-Pfad | Nie userdata loeschen | Nie Bootloader-Unlock")
-    if ($c -eq -1 -or $c -eq 25) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
+    if ($c -eq -1 -or $c -eq 26) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
     if ($c -eq 0) { Show-TTStatus }
     elseif ($c -eq 1) { Start-TTWizard }
     elseif ($c -eq 2) { Screen-GoalSelect }
@@ -2955,7 +3035,8 @@ function Start-TTTui {
     elseif ($c -eq 21) { Screen-Bootkeys }
     elseif ($c -eq 22) { Screen-Tools }
     elseif ($c -eq 23) { Screen-Logs }
-    elseif ($c -eq 24) {
+    elseif ($c -eq 24) { Screen-Reinstall }
+    elseif ($c -eq 25) {
       try {
         $exe = (Get-Process -Id $PID).Path
         $sp = $MyInvocation.MyCommand.Path
@@ -2970,7 +3051,7 @@ function Start-TTTui {
 # ============================================================ CLI
 function Show-TTHelp {
   Write-Host "Huawei P10 Root Manager v$TTVersion" -ForegroundColor Cyan
-  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
+  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
   Write-Host (L "No args: TUI. Download/flash/restore need explicit confirmation (--yes = documented consent)." "Ohne Args: TUI. Download/Flash/Restore brauchen explizite Bestaetigung (--yes = dokumentierte Zustimmung).") -ForegroundColor Gray
 }
 
@@ -3240,6 +3321,16 @@ elseif ($cmd -eq "dump-partitions" -or $cmd -eq "dump-properties" -or $cmd -eq "
 }
 elseif ($cmd -eq "restore") {
   $ok = Invoke-TTRestoreFlow -BackupPick $Image -ForceYes:$Yes
+  if (-not $ok) { exit 1 }
+}
+elseif ($cmd -eq "wipe") {
+  if (-not $Yes) { Write-Host (L "Wipe needs --yes (erases all user data)." "Wipe braucht --yes (loescht alle Nutzerdaten)."); exit 4 }
+  if (-not (Invoke-GuidedWipe -ForceYes)) { exit 1 }
+}
+elseif ($cmd -eq "reinstall") {
+  if (-not $Yes) { Write-Host (L "Reinstall needs --yes (flashes system, optional wipe)." "Reinstall braucht --yes (flasht System, optional Wipe)."); exit 4 }
+  if ($Image -eq "" -or -not (Test-Path $Image)) { Write-Host (L "Reinstall needs --image <gsi-or-system.img> (custom), stock path is guided in TUI." "Reinstall braucht --image <gsi-oder-system.img> (custom), Stock-Weg gefuehrt in TUI."); exit 3 }
+  $ok = Invoke-SystemFlash $Image -ForceYes:$Yes
   if (-not $ok) { exit 1 }
 }
 elseif ($cmd -eq "wizard") { Start-TTTui }

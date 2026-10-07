@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.9.0"
+TTVERSION="2.10.0"
 # Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
 # still enforced), developer (unlocks dump-* commands).
 RUNMODE_REQ=""
@@ -833,6 +833,7 @@ preflight() { # global gate; prints blocks; returns 0 when menu allowed
     printf 'PREFLIGHT BLOCKED: %s\nADB: %s | Fastboot: %s\n' "$blocks" "$ADB_STATE" "$FB_STATE"
     return 1
   fi
+  printf 'PREFLIGHT READY (all green): ADB=%s Fastboot=%s\n' "$ADB_STATE" "$FB_STATE"
   return 0
 }
 step_gate() { # step -> 0 pass / prints reasons; never bypassed
@@ -864,6 +865,7 @@ goal_steps() { # goal -> ordered steps (pure)
     root_custom_rom_recovery) printf 'reconnaissance rom_compatibility recovery_compatibility firmware backup rom_flash recovery_flash root_preparation root_flash boot verify validate' ;;
     root_stock_rom_recovery) printf 'reconnaissance stock_firmware_validation recovery_validation backup recovery_flash root_preparation root_flash boot verify validate' ;;
     restore_original) printf 'reconnaissance identify_original_artifact validate_backup rollback_plan safety_gate restore reboot validate' ;;
+    full_reinstall) printf 'reconnaissance compatibility firmware rom_validation backup wipe flash_system reboot validate' ;;
     *) printf '' ;;
   esac
 }
@@ -911,6 +913,8 @@ goal_screen() { # dispatch one plan step to its screen (reuse!)
     validate) screen_verify ;;
     restore|identify_original_artifact|validate_backup|rollback_plan) do_restore "" "" || true; pause_tt ;;
     custom_rom_compatibility|rom_compatibility) screen_compat ;;
+    wipe) screen_wipe ;;
+    flash_system) screen_flashsystem ;;
   esac
 }
 run_goal() { # goal -> stepwise with persisted state, controlled stop on failure
@@ -927,11 +931,11 @@ run_goal() { # goal -> stepwise with persisted state, controlled stop on failure
 screen_goals() {
   printf '\n%s\n' "$(L 'Select workflow goal (planner shows plan first):' 'Workflow-Ziel (Planner zeigt Plan zuerst):')"
   local i=1 g
-  for g in root custom_rom stock_rom root_custom_rom root_stock_rom root_custom_rom_recovery root_stock_rom_recovery restore_original; do
+  for g in root custom_rom stock_rom root_custom_rom root_stock_rom root_custom_rom_recovery root_stock_rom_recovery restore_original full_reinstall; do
     printf '  [%d] %s\n' "$i" "$g"; i=$((i+1))
   done
   printf '%s' "$(L 'Number (Enter=back): ' 'Nummer (Enter=zurueck): ')"; iread -r n
-  case "$n" in 1) g=root;; 2) g=custom_rom;; 3) g=stock_rom;; 4) g=root_custom_rom;; 5) g=root_stock_rom;; 6) g=root_custom_rom_recovery;; 7) g=root_stock_rom_recovery;; 8) g=restore_original;; *) pause_tt; return ;; esac
+  case "$n" in 1) g=root;; 2) g=custom_rom;; 3) g=stock_rom;; 4) g=root_custom_rom;; 5) g=root_stock_rom;; 6) g=root_custom_rom_recovery;; 7) g=root_stock_rom_recovery;; 8) g=restore_original;; 9) g=full_reinstall;; *) pause_tt; return ;; esac
   printf '\nPlan for %s:\n' "$g"
   for s in $(goal_steps "$g"); do printf ' - %s\n' "$s"; done
   printf '%s' "$(L 'Run now? [Y/n]: ' 'Jetzt starten? [J/n]: ')"; iread -r a
@@ -1294,6 +1298,45 @@ developer_dump() { # kind -> file or refusal
   log SUCCESS "Dump: $f"
   printf '%s\n' "$f"
 }
+guided_wipe() { # double-confirmed userdata wipe, never automatic; eRecovery fallback
+  local yes="${1:-}"
+  detect_mode
+  if [ "$MODE" != "fastboot" ]; then
+    log ERROR "$(L 'Wipe needs fastboot mode. Reboot to fastboot first.' 'Wipe braucht Fastboot. Erst nach Fastboot booten.')"; return 1
+  fi
+  printf '\nWARNING\n%s\n' "$(L 'This erases ALL user data (apps, photos, settings). System stays.' 'Das loescht ALLE Nutzerdaten. System bleibt.')"
+  if [ -z "$yes" ]; then
+    printf '%s' "$(L "Type 'WIPE' (1/2): " "'WIPE' tippen (1/2): ")"; iread -r a
+    [ "$a" = "WIPE" ] || return 1
+    printf '%s' "$(L "Type 'YES' (2/2): " "'JA' (2/2): ")"; iread -r b
+    { [ "$b" = "YES" ] || [ "$b" = "JA" ]; } || return 1
+  else log WARNING "CLI --yes: explicit wipe consent documented."; fi
+  local out; out="$(fb_run erase userdata 2>&1)"
+  printf '%s\n' "$out" | tee -a "$TTLOG"
+  if printf '%s' "$out" | grep -q -i -E 'OKAY|finished|Erasing'; then
+    log SUCCESS "$(L 'userdata erase reported OK.' 'userdata-erase gemeldet OK.')"; return 0
+  fi
+  printf '%s\n' "$(L 'Device refused erase. Fallback (manual, safe): stock eRecovery (Vol-Up 3s) -> Wipe data / factory reset -> confirm on phone.' 'Geraet lehnt ab. Fallback (manuell, sicher): Stock-eRecovery (Vol-Up 3s) -> Wipe -> am Handy bestaetigen.')"
+  return 1
+}
+screen_wipe() {
+  header "$(L 'Wipe userdata (guided, double-confirmed)' 'Userdata wipen (gefuehrt, doppelt)')"
+  if guided_wipe; then printf '%s\n' "$(L 'Wipe done. Reboot and set up again.' 'Wipe fertig. Neu starten + einrichten.')"; fi
+  pause_tt
+}
+screen_reinstall() {
+  header "$(L 'Full reinstall (guided: ROM choice, optional wipe, flash, verify)' 'Komplett-Reinstall (gefuehrt)')"
+  printf '\n%s\n' "$(L 'Parts exist (flash-system/TWRP/restore). This chains: ROM choice -> backup reminder -> optional wipe -> flash -> reboot -> verify.' 'Teile existieren. Kette: ROM-Wahl -> Backup-Hinweis -> optional Wipe -> Flash -> Reboot -> Verify.')"
+  printf '%s' "$(L '[1] Custom ROM / GSI image  [2] Stock full firmware path  [Enter] back: ' '[1] Custom-ROM / GSI  [2] Stock-Full-Weg  [Enter] zurueck: ')"; iread -r k
+  case "$k" in
+    1) printf '%s' "$(L 'Wipe userdata first? [W]=wipe (double-confirmed) [Enter]=skip: ' 'Userdata vorher wipen? [W]=wipen (doppelt) [Enter]=ueberspringen: ')"; iread -r w
+       case "$w" in [Ww]) guided_wipe || true ;; esac
+       screen_flashsystem ;;
+    2) printf '\n%s\n' "$(L 'Stock return runs via HiSuite (official) or service flow with the full firmware (step 3 downloader). Then stock eRecovery wipe + setup.' 'Stock-Rueckweg via HiSuite (offiziell) oder Service-Flow mit Full-Firmware. Dann eRecovery-Wipe + Setup.')"
+       printf '%s\n' "$(L 'Already extracted SYSTEM.img? Flash it via Install ROM with that file.' 'SYSTEM.img schon extrahiert? Per ROM-Installation damit flashen.')" ;;
+  esac
+  pause_tt
+}
 screen_tools() {
   while true; do
     menu "$(L 'Tools (read-only where possible)' 'Tools (read-only wo moeglich)')" \
@@ -1448,16 +1491,18 @@ main_menu() {
       "$(L 'Compatibility registry' 'Kompatibilitaets-Registry')" "$(L 'Persist root fixes (service.d)' 'Root-Fixes persistieren (service.d)')" \
       "$(L 'Unlock guide (PotatoNV)' 'Unlock-Anleitung (PotatoNV)')" "$(L 'Kernels + fixes (wiki)' 'Kernel + Fixes (Wiki)')" \
       "Restore / Unroot" "$(L 'Boot tricks (Huawei)' 'Boot-Tricks (Huawei)')" "$(L 'Tools + diagnostic ZIP' 'Tools + Diagnose-ZIP')" \
+      "$(L 'Full reinstall (ROM + wipe + flash)' 'Komplett-Reinstall (ROM + Wipe + Flash)')" \
       "$(L 'Exit' 'Beenden')"
     c="$REPLY_MENU"
     case "$c" in
-      -1|23) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
+      -1|24) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
       0) status_screen ;; 1) wizard ;; 2) screen_goals ;; 3) screen_resume ;;
       4) screen_detect ;; 5) screen_analyze ;; 6) screen_firmware ;; 7) screen_extract ;;
       8) screen_patch ;; 9) screen_backup ;; 10) screen_flash ;; 11) screen_verify ;;
       12) screen_export ;; 13) screen_flashsystem ;; 14) screen_rootmethods ;; 15) screen_twrp ;;
       16) screen_compat ;; 17) screen_persist ;; 18) screen_unlock ;; 19) screen_kernelfixes ;;
       20) do_restore "" "" || true; pause_tt ;; 21) screen_bootkeys ;; 22) screen_tools ;;
+      23) screen_reinstall ;;
     esac
   done
 }
@@ -1468,7 +1513,7 @@ wizard() {
 # ---------------------------------------------------------------- CLI
 show_help() {
   printf 'Huawei P10 Root Manager v%s\n' "$TTVERSION"
-  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
+  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
   printf '%s\n' "$(L 'No args: TUI. Download/flash/restore need --yes.' 'Ohne Args: TUI. Download/Flash/Restore brauchen --yes.')"
 }
 CMD=""; JSON=""; YES=""; IMAGE=""; FWFILE=""; ANON=""; NOREBOOT=""; RUNMODE="safe"; GOAL=""
@@ -1482,7 +1527,7 @@ for a in "$@"; do
     continue
   fi
   case "$a" in
-    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
+    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
     --json) JSON=1 ;; --yes) YES=1 ;; --anonymize) ANON=1 ;; --no-reboot) NOREBOOT=1 ;;
     --mode|--goal|--image|--firmware-file) WANTVAL="$a" ;;
   esac
@@ -1576,6 +1621,13 @@ case "$CMD" in
     rc=$?
     [ -n "$JSON" ] && printf '{"rc":%s}\n' "$rc"
     exit "$rc" ;;
+  wipe)
+    if [ -z "$YES" ]; then printf '%s\n' "$(L 'Wipe needs --yes (erases all user data).' 'Wipe braucht --yes (loescht Nutzerdaten).')"; exit 4; fi
+    guided_wipe --yes || exit 1 ;;
+  reinstall)
+    if [ -z "$YES" ]; then printf '%s\n' "$(L 'Reinstall needs --yes.' 'Reinstall braucht --yes.')"; exit 4; fi
+    if [ -z "$IMAGE" ] || [ ! -f "$IMAGE" ]; then printf '%s\n' "$(L 'Reinstall needs --image <gsi-or-system.img> (custom); stock path is guided in TUI.' 'Reinstall braucht --image (custom); Stock-Weg in TUI.'))"; exit 3; fi
+    system_flash "$IMAGE" --yes || exit 1 ;;
   persist)
     if [ -z "$YES" ]; then printf '%s\n' "$(L 'Needs live root + --yes.' 'Braucht live Root + --yes.')"; exit 4; fi
     install_persist_fixes || exit 1 ;;
@@ -1613,7 +1665,7 @@ case "$CMD" in
     printf '{"preflight_go":%s,"adb":"%s","fastboot":"%s","mode":"%s","run_mode":"%s","goal":"%s"}\n' "$pf" "$ADB_STATE" "$FB_STATE" "$MODE" "$RUNMODE" "$g" ;;
   workflow)
     g="${GOAL:-}"
-    if [ -z "$g" ] || [ -z "$(goal_steps "$g")" ]; then printf 'Unknown goal. Known: root custom_rom stock_rom root_custom_rom root_stock_rom root_custom_rom_recovery root_stock_rom_recovery restore_original\n'; exit 1; fi
+    if [ -z "$g" ] || [ -z "$(goal_steps "$g")" ]; then printf 'Unknown goal. Known: root custom_rom stock_rom root_custom_rom root_stock_rom root_custom_rom_recovery root_stock_rom_recovery restore_original full_reinstall\n'; exit 1; fi
     if [ -n "$JSON" ]; then
       printf '{"goal":"%s","steps":[' "$g"
       first=1; for s in $(goal_steps "$g"); do
