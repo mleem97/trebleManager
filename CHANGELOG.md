@@ -1,5 +1,9 @@
 # Changelog — trebleManager
 
+## v2.20.0
+
+- gsi-root grows up: `gsi-config` (platform dirs, no hardcoded homes), `gsi-workflow` (typed steps, progress events, honest refusals), `gsi-update` (GitHub check/download/SHA-verify/atomic install/rollback; signatures reported unchecked until key infra exists), CLI (`workflow`, `update`, `config`, self-`install` to PATH), `docs/STATUS.md` spec mapping; 19 new cargo tests green
+
 ## v2.19.0
 
 - gsi-root workspace started: `gsi-image` (gzip/sparse/raw + header parsing), `gsi-android` (build.prop), `gsi-root-core` (profiles, engines, plans, manifests with honesty levels), `gsi-root-cli` (analyze/inspect work, patch/verify refuse as EXPERIMENTAL), huawei-p10 device profile (static facts only); 15 cargo tests green, zero warnings

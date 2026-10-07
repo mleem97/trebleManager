@@ -11,3 +11,9 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
+
+[workspace.dependencies]
+# Central versions for this workspace (native workspace-inheritance;
+# also recorded in /mnt/win/Repositories/.vendors/cargo.txt).
+sha2 = "0.10"
+ureq = { version = "2", default-features = false, features = ["tls"] }

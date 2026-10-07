@@ -1,0 +1,15 @@
+[package]
+name = "gsi-workflow"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Typed native workflows over gsi-root-core (plan, run, progress events)."
+
+[lib]
+name = "gsi_workflow"
+path = "src/lib.rs"
+
+[dependencies]
+gsi-root-core = { path = "../gsi-root-core" }
+gsi-image = { path = "../gsi-image" }
+sha2.workspace = true

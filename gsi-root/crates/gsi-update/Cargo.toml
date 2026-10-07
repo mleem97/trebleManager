@@ -1,0 +1,14 @@
+[package]
+name = "gsi-update"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GitHub Release updater: check/download/verify/install/rollback + self-install to PATH. No external tools."
+
+[lib]
+name = "gsi_update"
+path = "src/lib.rs"
+
+[dependencies]
+sha2.workspace = true
+ureq.workspace = true

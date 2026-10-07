@@ -13,3 +13,6 @@ path = "src/main.rs"
 gsi-image = { path = "../gsi-image" }
 gsi-android = { path = "../gsi-android" }
 gsi-root-core = { path = "../gsi-root-core" }
+gsi-config = { path = "../gsi-config" }
+gsi-workflow = { path = "../gsi-workflow" }
+gsi-update = { path = "../gsi-update" }

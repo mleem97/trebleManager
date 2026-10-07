@@ -1,0 +1,10 @@
+[package]
+name = "gsi-config"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Platform-correct app directories (config/cache/downloads/artifacts/logs/backups). No hardcoded user paths."
+
+[lib]
+name = "gsi_config"
+path = "src/lib.rs"
