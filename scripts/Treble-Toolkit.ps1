@@ -50,7 +50,18 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.14.0"
+$TTVersion = "2.14.1"
+
+function Get-TTScriptRoot {
+  # Script directory under -File AND irm|iex. Never Split-Path $null:
+  # every candidate is checked BEFORE splitting. $PSScriptRoot works inside
+  # functions too (script scope); $MyInvocation there points at the function.
+  if (-not [string]::IsNullOrEmpty($PSScriptRoot)) { return $PSScriptRoot }
+  if (-not [string]::IsNullOrEmpty($PSCommandPath)) { return (Split-Path -Parent $PSCommandPath) }
+  $inv = $MyInvocation.MyCommand.Path
+  if (-not [string]::IsNullOrEmpty($inv)) { return (Split-Path -Parent $inv) }
+  return (Get-Location).Path
+}
 
 # Self-bootstrap for remote single-file runs (irm|iex, temp download):
 # without repo layout (no data/compatibility) fetch the FULL release ZIP
@@ -90,8 +101,7 @@ function Get-BootstrapReleaseFile {
   return ""
 }
 if (-not $env:TT_BOOTSTRAPPED) {
-  $__root = Split-Path -Parent $MyInvocation.MyCommand.Path
-  if ([string]::IsNullOrEmpty($__root)) { $__root = (Get-Location).Path }
+  $__root = Get-TTScriptRoot
   if ((Split-Path -Leaf $__root) -eq "scripts") { $__root = Split-Path -Parent $__root }
   if (-not (Test-Path (Join-Path $__root "data/compatibility"))) {
     Write-Host "Single-file run detected - fetching full toolkit layout ..." -ForegroundColor Cyan
@@ -119,7 +129,7 @@ if (-not $env:TT_BOOTSTRAPPED) {
       if ($NoReboot) { $__fw += "--no-reboot" }
       if ($Anonymize) { $__fw += "--anonymize" }
       $__exe = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
-      & $__exe -NoProfile -ExecutionPolicy Bypass -File $__target @$__fw
+      & $__exe -NoProfile -ExecutionPolicy Bypass -File $__target @__fw
       exit $LASTEXITCODE
     }
     Write-Host "WARN: bootstrap failed - continuing degraded without registry." -ForegroundColor Yellow
@@ -161,8 +171,7 @@ function Unquote-Path {
 
 # ============================================================ Paths / state
 function Get-TTToolRoot {
-  $d = Split-Path -Parent $MyInvocation.MyCommand.Path
-  if ([string]::IsNullOrEmpty($d)) { $d = (Get-Location).Path }
+  $d = Get-TTScriptRoot
   if ((Split-Path -Leaf $d) -eq "scripts") { return (Split-Path -Parent $d) }
   return $d
 }

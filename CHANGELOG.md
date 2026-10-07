@@ -1,5 +1,11 @@
 # Changelog — trebleManager
 
+## v2.14.1
+
+- Fixed `irm | iex` (no file path): new `Get-TTScriptRoot` (checks before splitting, `$PSScriptRoot`-based so it also works inside functions — `Get-TTToolRoot` used `$MyInvocation` inside a function and failed even via `-File`); test bootstrap/import use the same guarded resolution
+- Fixed relaunch splat `@$__fw` → `@__fw` (literal `@` was passed as command → "Unknown command: @")
+- Fixed test imports: functions are now defined `script:`-scoped (previously they vanished after `Import-TTFunction` returned → "not recognized" cascade); missing imports abort immediately with file path instead of cascading
+
 ## v2.14.0
 
 - Installed-ROM question: wizard/analyze ask which system is on the phone (Stock EMUI, supported registry ROM, other; researched-broken shown but not selectable), persisted in `data/installed-rom.txt`, shown in header/status/CLI (`rom`, `rom list/set/clear`)

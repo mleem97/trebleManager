@@ -40,8 +40,9 @@ function Get-BootstrapReleaseFile {
   return ""
 }
 if (-not $env:TT_TEST_BOOTSTRAPPED) {
-  $__r = $MyInvocation.MyCommand.Path
-  if ([string]::IsNullOrEmpty($__r)) { $__r = (Get-Location).Path } else { $__r = Split-Path -Parent (Split-Path -Parent $__r) }
+  $__r = $PSScriptRoot
+  if ([string]::IsNullOrEmpty($__r)) { $__r = (Get-Location).Path }
+  else { $__r = Split-Path -Parent $__r }
   if (-not ((Test-Path (Join-Path $__r "VERSION")) -and (Test-Path (Join-Path $__r "scripts/Treble-Toolkit.ps1")))) {
     Write-Host "Test suite without layout - fetching full release ZIP ..." -ForegroundColor Cyan
     $__target = ""
@@ -88,7 +89,10 @@ function Assert-True {
 }
 
 # ---- Funktionen aus Hauptskript laden (nur reine, kein Geraet) ----
-$Main = Join-Path (Split-Path -Parent $PSScriptRoot) "scripts/Treble-Toolkit.ps1"
+$__testRoot = $PSScriptRoot
+if ([string]::IsNullOrEmpty($__testRoot)) { $__testRoot = (Get-Location).Path }
+if ((Split-Path -Leaf $__testRoot) -eq "tests") { $__testRoot = Split-Path -Parent $__testRoot }
+$Main = Join-Path $__testRoot "scripts/Treble-Toolkit.ps1"
 $Src = Get-Content $Main -Raw
 function Import-TTFunction {
   param([string]$Name)
@@ -105,10 +109,21 @@ function Import-TTFunction {
     $i++
   }
   $block = $Src.Substring($start, ($i - $start) + 1)
+  # Script scope: Invoke-Expression inside this function would define $Name
+  # locally (gone after return) -> qualify so tests can call it afterwards.
+  if ($block.StartsWith("function ")) { $block = "function script:" + $block.Substring(9) }
   try { Invoke-Expression $block } catch { Write-Host ("Ladefehler " + $Name + ": " + $_.Exception.Message) -ForegroundColor Red; $script:Fail++ }
 }
-foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode","Unquote-Path","Get-GoalSteps","Get-FlashVerdict","Get-RomSuggested","Get-RomLabel")) {
+$__need = @("L","ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode","Unquote-Path","Get-GoalSteps","Get-FlashVerdict","Get-RomSuggested","Get-RomLabel")
+foreach ($fn in $__need) {
   Import-TTFunction $fn
+}
+# Fail fast: missing imports must stop here, not cascade into every test.
+$__missing = @($__need | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
+if ($__missing.Count -gt 0) {
+  Write-Host ("MISSING functions, aborting (no cascade): " + ($__missing -join ", ")) -ForegroundColor Red
+  Write-Host ("Main script: " + $Main) -ForegroundColor Yellow
+  exit 1
 }
 
 # ---- 1. ADB-Parser ----
@@ -268,7 +283,7 @@ Assert-Equal "label other" "Other custom ROM" (Get-RomLabel "other")
 Assert-Equal "label empty" "?" (Get-RomLabel "")
 
 # ---- 15. Immutable release: single version everywhere ----
-$TTRoot = Split-Path -Parent $PSScriptRoot
+$TTRoot = $__testRoot
 $verFile = (Get-Content (Join-Path $TTRoot "VERSION") -Raw).Trim()
 $mainSrc = Get-Content (Join-Path $TTRoot "scripts/Treble-Toolkit.ps1") -Raw
 $m = [regex]::Match($mainSrc, '\$TTVersion = "([^"]+)"')
