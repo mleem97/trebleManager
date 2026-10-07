@@ -1,8 +1,4 @@
-# Compatibility registry — Huawei P10 VTR-L29 (plain P10, Global / Dual-SIM)
-# Sources: phhusson Discussion #2542, treble_experimentations P10 wiki,
-# TrebleDroid device/test lists, Magisk + TWRP upstream docs.
-# Statuses: working | working-slim | working-with-fixes | broken | variant-dependent
-# Rule: only concrete tested build IDs are working; everything else is untested.
+device:
 device:
   family: Huawei-P10
   codename: VTR
@@ -14,7 +10,8 @@ hardware:
   treble: true
   ab_scheme: a-only
 storage:
-  expected: [UFS]
+  expected:
+  - UFS
   note: Europe/Global units are UFS. Still verify, never assume.
 partitions:
   recovery_ramdisk: required
@@ -22,49 +19,222 @@ partitions:
 firmware:
   required_base: EMUI 9.1
   advisory:
-    - VTR-L29 9.1.0.297(C432E5R1P9)
-    - VTR-L29 9.1.0.275(C432E2R1P9T8)
+  - VTR-L29 9.1.0.297(C432E5R1P9)
+  - VTR-L29 9.1.0.275(C432E2R1P9T8)
   note: Advisory only, never auto-selected. Region/CUST must match the device.
   archives:
-    - { name: ROMDevelopers VTR-L29, kind: community-archive, tier: 3, note: separated C10/C185/C432-C900/C576/C605/C636 areas }
-    - { name: HalabTech VTR-L29, kind: community-archive, tier: 3, note: large mirror, e.g. 9.1.0.290 C10, 9.1.0.270 C636, 9.1.0.252 C432 }
-    - { name: HUAWEI FIRM FINDER V2, url: https://professorjtj.github.io/v2/, kind: proxy-historic, tier: 1, note: many old Huawei CDN links are dead }
+  - name: ROMDevelopers VTR-L29
+    kind: community-archive
+    tier: 3
+    note: separated C10/C185/C432-C900/C576/C605/C636 areas
+  - name: HalabTech VTR-L29
+    kind: community-archive
+    tier: 3
+    note: large mirror
+    e.g. 9.1.0.290 C10: null
+    9.1.0.270 C636: null
+    9.1.0.252 C432: null
+  - name: HUAWEI FIRM FINDER V2
+    url: https://professorjtj.github.io/v2/
+    kind: proxy-historic
+    tier: 1
+    note: many old Huawei CDN links are dead
+  builds:
+  - id: VTR-L29-9.1.0.275-C432
+    build: 9.1.0.275
+    emui: '9.1'
+    android: 9
+    region: C432
+    source: gated
+    page: https://romdevelopers.com/index.php?a=downloads&b=tags&tag=Huawei+P10+Dload
+    file: VTR-L29 9.1.0.275(C432E2R1P9T8)_Firmware_EMUI9.1.0_05014JGC.zip
+    provides:
+    - UPDATE.APP
+    - RECOVERY_RAMDIS.img
+    - RECOVERY_VENDOR.img
+    - VENDOR.img
+    - ODM.img
+    note: portal page, may apply bot protection/login - never faked as direct
 vendor_boot:
-  # Vendor base decides which GSI generations boot (TrebleDroid tests).
-  oreo: { Q: problematic, Oreo81: problematic, P: good }
-  pie: { Q: boot, R: boot, S: boot }
+  oreo:
+    Q: problematic
+    Oreo81: problematic
+    P: good
+  pie:
+    Q: boot
+    R: boot
+    S: boot
 roms:
-  - { name: AOSP, android: "10", status: working, vendor: 9.0.1.201 }
-  - { name: AOSP, android: "11", status: working, vendor: 9.0.1.201 }
-  - { name: AOSP, android: "12", status: working, note: v400.e fixes speaker/touch; fingerprint may break; mobile data may need IMS tuning }
-  - { name: LineageOS, version: 18.1, status: working, gsi: arm64_bgN }
-  - { name: LineageOS, version: 19.1, status: working, gsi: arm64_bgN }
-  - { name: LineageOS, version: 20, status: working, gsi: arm64_bgN, note: NOT the Light build }
-  - { name: LineageOS, version: 20, variant: UNOFFICIAL, build: 20251021, status: working, gsi: arm64_bgN, note: TrebleDroid with GApps, Android 13 (user-verified VTR-L09, same Kirin 960) }
-  - { name: LineageOS 20 Light, version: 20, status: broken, reason: wiki-tested non-booting on P10, markers: [light] }
-  - { name: PixelExperience, android: 13, status: working, vendor: 9.0.1.190 }
-  - { name: SuperiorOS, android: 13, build: 20240401, status: working-slim, image: SuperiorOS_A13-arm64-bgS-slim_20240401.img }
-  - { name: HavocOS, version: 3.12, status: broken, reason: phone/media crashes, no SIM on VTR-L09 EMUI 9.1, markers: [havoc] }
-  - { name: ResurrectionRemix, version: 8.5.8, status: working-with-fixes, note: speaker + screen-edge fixes via init/Magisk }
-  - { name: LeaOS, status: variant-dependent, reason: do not run L29 builds on L09 (laggy), match submodel }
+- name: AOSP
+  android: '10'
+  status: working
+  vendor: 9.0.1.201
+- name: AOSP
+  android: '11'
+  status: working
+  vendor: 9.0.1.201
+- name: AOSP
+  android: '12'
+  status: working
+  note: v400.e fixes speaker/touch; fingerprint may break; mobile data may need IMS
+    tuning
+- name: LineageOS
+  version: 18.1
+  status: working
+  gsi: arm64_bgN
+  android: 11
+  root_artifact:
+    type: recovery_ramdisk
+    source: stock_firmware
+- name: LineageOS
+  version: 19.1
+  status: working
+  gsi: arm64_bgN
+  android: 12
+  file: lineage-19.1-20250606-UNOFFICIAL-arm64_bgN-signed.img.gz
+  url: https://sourceforge.net/projects/andyyan-gsi/files/lineage-19.x/lineage-19.1-20250606-UNOFFICIAL-arm64_bgN-signed.img.gz/download
+  source: direct
+  root_artifact:
+    type: recovery_ramdisk
+    source: stock_firmware
+- name: LineageOS
+  version: 20
+  status: working
+  gsi: arm64_bgN
+  note: NOT the Light build
+  android: 13
+  root_artifact:
+    type: recovery_ramdisk
+    source: stock_firmware
+- name: LineageOS
+  version: 20
+  variant: UNOFFICIAL
+  build: 20251021
+  status: working
+  gsi: arm64_bgN
+  note: TrebleDroid with GApps, Android 13 (user-verified VTR-L09, same Kirin 960)
+  file: lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed.img.gz
+  url: https://sourceforge.net/projects/andyyan-gsi/files/lineage-20-td/lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed.img.gz/download
+  source: direct
+  root_artifact:
+    type: recovery_ramdisk
+    source: stock_firmware
+  android: 13
+- name: LineageOS 20 Light
+  version: 20
+  status: broken
+  reason: wiki-tested non-booting on P10
+  markers:
+  - light
+- name: PixelExperience
+  android: 13
+  status: working
+  vendor: 9.0.1.190
+- name: SuperiorOS
+  android: 13
+  build: 20240401
+  status: working-slim
+  image: SuperiorOS_A13-arm64-bgS-slim_20240401.img
+- name: HavocOS
+  version: 3.12
+  status: broken
+  reason: phone/media crashes, no SIM on VTR-L09 EMUI 9.1
+  markers:
+  - havoc
+- name: ResurrectionRemix
+  version: 8.5.8
+  status: working-with-fixes
+  note: speaker + screen-edge fixes via init/Magisk
+  android: 10
+- name: LeaOS
+  status: variant-dependent
+  reason: do not run L29 builds on L09 (laggy), match submodel
+- name: LineageOS
+  version: 19.1
+  android: 12
+  variant: vndklite
+  build: 20250606
+  status: working
+  gsi: arm64_bgN
+  note: vndklite build (writeable system)
+  file: lineage-19.1-20250606-UNOFFICIAL-arm64_bgN-vndklite-signed.img.gz
+  url: https://sourceforge.net/projects/andyyan-gsi/files/lineage-19.x/lineage-19.1-20250606-UNOFFICIAL-arm64_bgN-vndklite-signed.img.gz/download
+  source: direct
+  root_artifact:
+    type: recovery_ramdisk
+    source: stock_firmware
+- name: LineageOS
+  version: 20
+  android: 13
+  variant: vndklite
+  build: 20251021
+  status: working
+  gsi: arm64_bgN
+  note: vndklite build (writeable system)
+  file: lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-vndklite-signed.img.gz
+  url: https://sourceforge.net/projects/andyyan-gsi/files/lineage-20-td/lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-vndklite-signed.img.gz/download
+  source: direct
+  root_artifact:
+    type: recovery_ramdisk
+    source: stock_firmware
 magisk:
   method: recovery_ramdisk
   patch_on_device: true
   supported: true
   verified_method: true
-  forbidden: [shared patched image]
-  note: Never use someone else's patched image; patch the concrete stock file on the device (Magisk docs).
+  forbidden:
+  - shared patched image
+  note: Never use someone else's patched image; patch the concrete stock file on the
+    device (Magisk docs).
+  stable_json: https://raw.githubusercontent.com/topjohnwu/magisk-files/master/stable.json
+  stable_note: resolve live Magisk APK (version+link), never hardcode; patch locally,
+    never download pre-patched images
 twrp:
-  - { version: 3.2.1-0, base: oreo, status: working, partition: recovery_ramdisk, source: XDA P10/Plus thread }
-  - { version: 3.4.0-0-emui9_eR, base: EMUI 9.1, status: working, use: Android 12/12.1 GSI, source: XDA recommended thread }
+- version: 3.2.1-0
+  base: oreo
+  status: working
+  partition: recovery_ramdisk
+  source: XDA P10/Plus thread
+- version: 3.4.0-0-emui9_eR
+  base: EMUI 9.1
+  status: working
+  use: Android 12/12.1 GSI
+  source: XDA recommended thread
 kernels:
-  - { name: Proto8, base: EMUI8, status: optional, note: stable all P10 }
-  - { name: HyperPlus, base: EMUI8, status: optional, note: EU/Global or CN-with-UFS only }
-  - { name: Pangu, base: EMUI9-CN, status: optional }
-  - { name: KernelSU, status: experimental, note: v0.9.2 only, NOT v0.9.5+ }
+- name: Proto8
+  base: EMUI8
+  status: optional
+  note: stable all P10
+- name: HyperPlus
+  base: EMUI8
+  status: optional
+  note: EU/Global or CN-with-UFS only
+- name: Pangu
+  base: EMUI9-CN
+  status: optional
+- name: KernelSU
+  status: experimental
+  note: v0.9.2 only
+  NOT v0.9.5+: null
 sources:
   discussion_2542: https://github.com/phhusson/treble_experimentations/discussions/2542
   wiki_p10: https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus
   magisk_install: https://topjohnwu.github.io/Magisk/install.html
   potatonv: https://github.com/mashed-potatoes/PotatoNV
   gsi_source: https://sourceforge.net/projects/andyyan-gsi/files/
+tools:
+  platform_tools:
+    source: direct-official
+    url_pattern: https://dl.google.com/android/repository/platform-tools-latest-{os}.zip
+    provides:
+    - adb
+    - fastboot
+    note: Google official CDN, per-OS zip
+  extractors:
+  - name: HuaweiFirmwareExtractor
+    file: huawei_firmware_extractor.py
+    url: https://raw.githubusercontent.com/Natsume324/HuaweiFirmwareExtractor/main/huawei_firmware_extractor.py
+    source: direct
+    needs: python3.9+
+    use: python huawei_firmware_extractor.py UPDATE.APP -p RECOVERY_RAMDIS -o <dir>
+    note: dependency-free, auto-fetchable into data/tools

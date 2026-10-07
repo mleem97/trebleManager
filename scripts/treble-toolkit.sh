@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.16.1"
+TTVERSION="2.17.0"
 # Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
 # still enforced), developer (unlocks dump-* commands).
 RUNMODE_REQ=""
@@ -322,6 +322,8 @@ EOF
   printf '\n%s %s\n' "$(L 'Phone runs:' 'Handy laeuft mit:')" "$(rom_label "$INSTALLED_ROM")"
   if [ -z "$INSTALLED_ROM" ] || [ "$INSTALLED_ROM" = "stock" ]; then
     printf '%s\n' "$(L 'Rule: patch base = stock UPDATE.APP recovery image. Nothing else.' 'Regel: Patch-Basis = Stock-UPDATE.APP-Recovery. Nichts anderes.')"
+  elif [ -n "$(rom_entry_gsi "$INSTALLED_ROM" "$(compat_file)")" ]; then
+    printf '%s\n' "$(L 'GSI (system-only): your recovery is untouched stock, so the patch base IS the stock recovery. Correct, not a workaround.' 'GSI (nur System): dein Recovery ist unberuehrt Stock, also ist die Patch-Basis das Stock-Recovery. Korrekt, kein Workaround.')"
   else
     printf '%s\n' "$(L 'RULE: your Magisk patch file MUST come from this ROM package.' 'REGEL: Deine Magisk-Patch-Datei MUSS aus diesem ROM-Paket kommen.')"
     printf '%s\n' "$(L 'NOT from stock firmware. A stock-based patched image will NOT boot on this ROM.' 'NICHT aus der Stock-Firmware. Ein Stock-basiertes Image bootet auf diesem ROM NICHT.')"
@@ -339,11 +341,185 @@ rom_base_image() { # newest .img under data/recovery (export output), or empty
   return 0
 }
 patch_base() { # single source of truth: prints source|image|label
+  # GSI ROMs (system-only, registry gsi field) use STOCK recovery: a GSI never
+  # touches recovery_ramdisk. Full device ROMs use their exported package image.
   if [ -z "$INSTALLED_ROM" ] || [ "$INSTALLED_ROM" = "stock" ]; then
     printf 'stock|%s|Stock EMUI\n' "$STOCK_IMAGE"
+  elif [ -n "$(rom_entry_gsi "$INSTALLED_ROM" "$(compat_file)")" ]; then
+    printf 'stock-gsi|%s|%s\n' "$STOCK_IMAGE" "$(rom_label "$INSTALLED_ROM")"
   else
     printf 'rom|%s|%s\n' "$(rom_base_image)" "$(rom_label "$INSTALLED_ROM")"
   fi
+}
+
+# ------------------------------------------- target image resolver
+
+# ------------------------------------------- target image resolver
+# Device -> install type -> Android -> system -> variant -> full config.
+# Only Android versions with real registry images are listed (with counts).
+target_androids() { # prints android|count lines, sorted
+  local f; f="$(compat_file)"
+  [ -f "$f" ] || return 0
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json,sys
+from collections import Counter
+c=Counter()
+for r in json.load(open(sys.argv[1])).get('roms',[]):
+    if str(r.get('status','')) not in ('working','working-slim','working-with-fixes'): continue
+    try: a=int(r.get('android',0))
+    except Exception: continue
+    if a>0: c[a]+=1
+for a in sorted(c): print('%d|%d' % (a,c[a]))
+" "$f" 2>/dev/null
+  fi
+  return 0
+}
+resolver_entries() { # [android] [label] -> n|label|variant|build|gsi|url|file|status|root_type|root_source
+  local want_a="${1:-}" want_l="${2:-}" f
+  f="$(compat_file)"
+  [ -f "$f" ] || return 0
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json,sys
+want_a=sys.argv[2]; want_l=sys.argv[3]
+n=0
+for r in json.load(open(sys.argv[1])).get('roms',[]):
+    st=str(r.get('status',''))
+    if st not in ('working','working-slim','working-with-fixes'): continue
+    try: a=int(r.get('android',0))
+    except Exception: continue
+    if want_a and str(a)!=want_a: continue
+    nm=str(r.get('name','')).strip()
+    if not nm: continue
+    ver=str(r.get('version',r.get('android',r.get('build',''))))
+    label=nm+(' '+ver if ver else '')
+    variant=str(r.get('variant',''))
+    if variant and variant not in label: label+=' '+variant
+    bld=str(r.get('build',''))
+    if bld and bld not in label: label+=' ('+bld+')'
+    if want_l and label!=want_l: continue
+    ra=r.get('root_artifact',{}) or {}
+    n+=1
+    print('%d|%s|%s|%s|%s|%s|%s|%s|%s|%s' % (n,label,variant,bld,str(r.get('gsi','')),str(r.get('url','')),str(r.get('file','')),st,str(ra.get('type','recovery_ramdisk')),str(ra.get('source','stock_firmware'))))
+" "$f" "$want_a" "$want_l" 2>/dev/null
+  fi
+  return 0
+}
+select_target_image() { # sets TARGET_* globals; returns 1 on abort
+  header "$(L 'Target system resolver (device -> Android -> system -> variant -> config)' 'Zielsystem-Resolver (Geraet -> Android -> System -> Variante -> Config)')"; printf '\n'
+  printf '%s Huawei %s\n' "$(L 'Device:' 'Geraet:')" "$PROFILE_ID"
+  local avs; avs="$(target_androids)"
+  if [ -z "$avs" ]; then printf '%s\n' "$(L 'No working images in registry.' 'Keine working Images in Registry.')"; return 1; fi
+  printf '\n%s\n' "$(L 'Which Android version should be installed?' 'Welche Android-Version soll installiert werden?')"
+  printf '%s\n' "$avs" | while IFS='|' read -r a c; do printf ' [%s] Android %s   (%s %s)\n' "$a" "$a" "$c" "$(L 'images' 'Images')"; done
+  printf '%s' "$(L 'Number (Enter=abort): ' 'Nummer (Enter=Abbruch): ')"; iread -r an
+  local android; android="$(printf '%s' "$avs" | sed -n "${an}p" 2>/dev/null | cut -d'|' -f1)"
+  [ -n "$android" ] || return 1
+  local syslist; syslist="$(resolver_entries "$android" | cut -d'|' -f1,2 | awk -F'|' '!seen[$2]++')"
+  header "$(L 'Systems for Android' 'Systeme fuer Android') $android"; printf '\n'
+  local nsys; nsys="$(printf '%s' "$syslist" | grep -c .)"
+  local label
+  if [ "$nsys" = "1" ]; then
+    label="$(printf '%s' "$syslist" | cut -d'|' -f2)"
+    printf '%s %s\n' "$(L 'Only one:' 'Nur eins:')" "$label"
+  else
+    printf '%s\n' "$syslist" | while IFS='|' read -r i l; do printf ' [%s] %s\n' "$i" "$l"; done
+    printf '%s' "$(L 'Number (Enter=abort): ' 'Nummer (Enter=Abbruch): ')"; iread -r sn
+    label="$(printf '%s' "$syslist" | sed -n "${sn}p" 2>/dev/null | cut -d'|' -f2-)"
+    [ -n "$label" ] || return 1
+  fi
+  local variants; variants="$(resolver_entries "$android" "$label")"
+  local nvar; nvar="$(printf '%s' "$variants" | grep -c .)"
+  local entry
+  if [ "$nvar" = "1" ]; then entry="$variants"
+  else
+    header "$(L 'Variant for' 'Variante fuer') $label"; printf '\n'
+    printf '%s\n' "$variants" | while IFS='|' read -r i l v b rest; do
+      [ -n "$v" ] && printf ' [%s] %s\n' "$i" "$v" || printf ' [%s] %s\n' "$i" "${b:-$l}"
+    done
+    printf '%s' "$(L 'Number (Enter=abort): ' 'Nummer (Enter=Abbruch): ')"; iread -r vn
+    entry="$(printf '%s' "$variants" | sed -n "${vn}p" 2>/dev/null)"
+    [ -n "$entry" ] || return 1
+  fi
+  TARGET_ANDROID="$android"
+  TARGET_LABEL="$(printf '%s' "$entry" | cut -d'|' -f2)"
+  TARGET_VARIANT="$(printf '%s' "$entry" | cut -d'|' -f3)"
+  TARGET_BUILD="$(printf '%s' "$entry" | cut -d'|' -f4)"
+  TARGET_GSI="$(printf '%s' "$entry" | cut -d'|' -f5)"
+  TARGET_URL="$(printf '%s' "$entry" | cut -d'|' -f6)"
+  TARGET_FILE="$(printf '%s' "$entry" | cut -d'|' -f7)"
+  TARGET_STATUS="$(printf '%s' "$entry" | cut -d'|' -f8)"
+  TARGET_ROOT_TYPE="$(printf '%s' "$entry" | cut -d'|' -f9)"
+  TARGET_ROOT_SOURCE="$(printf '%s' "$entry" | cut -d'|' -f10)"
+  TARGET_FWBASE="$(compat_firmware_base)"
+  header "$(L 'Resolved target configuration' 'Aufgeloeste Ziel-Config')"; printf '\n'
+  printf ' Device   : Huawei %s\n Android  : %s\n System   : %s\n Base     : %s\n Vendor   : Stock %s vendor\n Recovery : RECOVERY_RAMDIS(K).img from UPDATE.APP (%s)\n Root     : Magisk / %s (%s)\n' \
+    "$PROFILE_ID" "$TARGET_ANDROID" "$TARGET_LABEL" "$TARGET_FWBASE" "$TARGET_FWBASE" "$TARGET_FWBASE" "$TARGET_ROOT_TYPE" "$TARGET_ROOT_SOURCE"
+  if [ -n "$TARGET_FILE" ]; then printf ' System   : %s\n' "$TARGET_FILE"; fi
+  if [ -n "$TARGET_URL" ]; then printf ' Download : %s\n' "$TARGET_URL"
+  else printf '%s\n' "$(L ' Download : no verified direct link (manual package into data/roms/).' ' Download : kein gepruefter Direktlink (Paket manuell nach data/roms/).')"; fi
+  return 0
+}
+compat_firmware_base() { # registry required_base (honest advisory text lives in screens)
+  local f; f="$(compat_file)"
+  if [ -f "$f" ] && command -v python3 >/dev/null 2>&1; then
+    python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('firmware',{}).get('required_base',''))" "$f" 2>/dev/null
+  fi
+}
+select_root_target() { # root needs an explicit target too; sets INSTALLED_ROM; 1=abort→return 1
+  header "$(L 'Root target: which system stays on the phone?' 'Root-Ziel: welches System bleibt auf dem Handy?')"; printf '\n'
+  local cur; cur="$(rom_label "$INSTALLED_ROM")"
+  [ -z "$INSTALLED_ROM" ] && cur="$(L '(unknown - analyze first)' '(unbekannt - erst analysieren)')"
+  printf '%s\n' "[1] $(L 'Current system:' 'Aktuelles System:') $cur"
+  printf '%s\n' "[2] $(L 'Stock EMUI (choose version)' 'Stock-EMUI (Version waehlen)')"
+  printf '%s\n' "[3] $(L 'Other system / ROM (choose Android -> ROM -> variant)' 'Anderes System / ROM (Android -> ROM -> Variante waehlen)')"
+  printf '%s' "$(L '[Enter] back: ' '[Enter] zurueck: ')"; iread -r k
+  case "$k" in
+    1) if [ -z "$INSTALLED_ROM" ]; then select_rom; fi
+       [ -z "$INSTALLED_ROM" ] && return 1
+       local pb; pb="$(patch_base)"; printf '\n%s %s -> root artifact: %s\n' "$(L 'Target kept:' 'Ziel bleibt:')" "$(rom_label "$INSTALLED_ROM")" "${pb%%|*}"
+       return 0 ;;
+    2) header "$(L 'Which Stock EMUI version?' 'Welche Stock-EMUI-Version?')"; printf '\n[1] Android 8 / EMUI 8\n[2] Android 9 / EMUI 9.0\n[3] Android 9 / EMUI 9.1\n'
+       printf '%s' "$(L '[Enter] back: ' '[Enter] zurueck: ')"; iread -r k2
+       case "$k2" in 1) em="EMUI 8 (Android 8)";; 2) em="EMUI 9.0 (Android 9)";; 3) em="EMUI 9.1 (Android 9)";; *) return 1;; esac
+       save_rom "stock"
+       printf '\n%s Stock %s\n' "$(L 'Target:' 'Ziel:')" "$em"
+       printf '%s %s\n' "$(L 'Required base:' 'Benoetigte Basis:')" "$(compat_firmware_base)"
+       printf '%s\n' "$(L 'Firmware portals are gated (login/pack): place the full UPDATE.APP/ZIP into data/firmware/ or use the firmware downloader.' 'Firmware-Portale sind gated (Login/Paket): Full-UPDATE.APP/ZIP nach data/firmware/ legen oder Firmware-Downloader nutzen.')"
+       return 0 ;;
+    3) TARGET_ANDROID=""; TARGET_LABEL=""; TARGET_URL=""; TARGET_FILE=""
+       select_target_image || return 1
+       save_rom "rom:$TARGET_LABEL"
+       printf '\n%s %s / Android %s\n' "$(L 'Target kept for root (system is NOT replaced):' 'Ziel fuer Root (System wird NICHT ersetzt):')" "$TARGET_LABEL" "$TARGET_ANDROID"
+       printf '%s %s (%s)\n' "$(L 'Root artifact:' 'Root-Artefakt:')" "$TARGET_ROOT_TYPE" "$TARGET_ROOT_SOURCE"
+       return 0 ;;
+  esac
+  return 1
+}
+
+rom_entry_gsi() { # rom-id + compat.json -> gsi field (empty if none/not found)
+  local want="$1" f="$2"
+  [ -f "$f" ] || return 0
+  case "$want" in rom:*) want="${want#rom:}" ;; esac
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json,sys
+want=sys.argv[2]
+for r in json.load(open(sys.argv[1])).get('roms',[]):
+    nm=str(r.get('name','')).strip()
+    if not nm: continue
+    ver=str(r.get('version',r.get('android',r.get('build',''))))
+    label=nm+(' '+ver if ver else '')
+    variant=str(r.get('variant',''))
+    if variant and variant not in label: label+=' '+variant
+    bld=str(r.get('build',''))
+    if bld and bld not in label: label+=' ('+bld+')'
+    if label==want:
+        print(r.get('gsi','')); break
+" "$f" "$want" 2>/dev/null
+  fi
+  return 0
 }
 
 platform_tools_url() { # [uname_s] -> official portable zip URL (pure, testable)
@@ -635,6 +811,15 @@ boot_magic_ver() { # path -> version int or -1 (ANDROID! magic)
     od -An -tu1 -j8 -N1 "$1" 2>/dev/null | tr -d ' \n'
   else printf -- '-1'; fi
 }
+image_kind() { # path -> boot|system|unknown (boot=ANDROID!, system=sparse/ext4 filesystem)
+  local f="$1" h
+  [ -f "$f" ] || { printf 'unknown'; return; }
+  h="$(od -An -tx1 -N8 "$f" 2>/dev/null | tr -d ' \n' | tr '[:lower:]' '[:upper:]')"
+  if [ "$h" = "414E44524F494421" ]; then printf 'boot'; return; fi
+  if [ "$(printf '%s' "$h" | cut -c1-8)" = "3AFF26ED" ]; then printf 'system'; return; fi
+  if [ "$(od -An -tx1 -j1080 -N2 "$f" 2>/dev/null | tr -d ' \n' | tr '[:lower:]' '[:upper:]')" = "53EF" ]; then printf 'system'; return; fi
+  printf 'unknown'
+}
 test_image() { # path -> PASS|FAIL + sets IMG_SHA IMG_SIZE
   IMG_SHA=""; IMG_SIZE=0
   [ -f "$1" ] || { printf 'FAIL|missing'; return; }
@@ -648,7 +833,8 @@ valid_url() { # url -> 0/1 (http(s) + archive ext, max 2048)
   [ "${#u}" -le 2048 ] || return 1
   case "$u" in http://*|https://*) ;; *) return 1 ;; esac
   local low; low="$(printf '%s' "$u" | cut -d'?' -f1 | tr '[:upper:]' '[:lower:]')"
-  case "$low" in *.zip|*.7z|*.tar|*.gz|*.tgz|*.app|*.rar) return 0 ;; *) return 1 ;; esac
+  case "$low" in */download) low="${low%/download}" ;; esac  # SourceForge direct links
+  case "$low" in *.zip|*.7z|*.tar|*.gz|*.tgz|*.xz|*.app|*.rar|*.img) return 0 ;; *) return 1 ;; esac
 }
 
 # ---------------------------------------------------------------- download with progress + confirm
@@ -680,6 +866,81 @@ verify_download() { # path -> 0/1, writes .sha256 sidecar
   log SUCCESS "$(L 'Firmware ready: ' 'Firmware bereit: ')$p"
   return 0
 }
+rom_downloads() { # prints num|label|file|url for registry ROMs with verified direct links
+  local f; f="$(compat_file)"
+  [ -f "$f" ] || return 1
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json,sys
+n=0
+for r in json.load(open(sys.argv[1])).get('roms',[]):
+    url=str(r.get('url',''))
+    if not url: continue
+    nm=str(r.get('name','')).strip()
+    if not nm: continue
+    ver=str(r.get('version',r.get('android',r.get('build',''))))
+    label=nm+(' '+ver if ver else '')
+    variant=str(r.get('variant',''))
+    if variant and variant not in label: label+=' '+variant
+    bld=str(r.get('build',''))
+    if bld and bld not in label: label+=' ('+bld+')'
+    n+=1
+    print('%d|%s|%s|%s|%s' % (n,label,str(r.get('file','')),url,str(r.get('status',''))))
+" "$f" 2>/dev/null
+  fi
+}
+download_rom() { # [number|label] [--yes] -> prints ready file; downloads+decompresses+validates
+  local pick="${1:-}" yes="" n=0 line
+  [ "${2:-}" = "--yes" ] && yes=1
+  local list; list="$(rom_downloads)"
+  if [ -z "$list" ]; then
+    printf '%s\n' "$(L 'No downloadable ROMs in registry - drop the package into data/roms/ manually.' 'Keine ladbaren ROMs in Registry - Paket manuell nach data/roms/ legen.')"
+    return 1
+  fi
+  printf '\n%s\n' "$(L 'Working downloads (verified links):' 'Working-Downloads (gepruefte Links):')"
+  printf '%s\n' "$list" | while IFS= read -r line; do
+    printf ' [%s] %s\n' "${line%%|*}" "$(printf '%s' "$line" | cut -d'|' -f2)"
+  done
+  case "$pick" in ""|*[!0-9]*)
+    if [ -n "$pick" ]; then
+      pick="$(printf '%s' "$list" | awk -F'|' -v want="$pick" '$2==want {print $1; exit}')"
+    fi
+    if [ -z "$pick" ]; then
+      printf '%s' "$(L 'Number + Enter (Enter=abort): ' 'Nummer + Enter (Enter=Abbruch): ')"; iread -r pick
+    fi ;;
+  esac
+  line="$(printf '%s' "$list" | sed -n "${pick}p" 2>/dev/null)"
+  [ -n "$line" ] || return 1
+  local fname url
+  fname="$(printf '%s' "$line" | cut -d'|' -f3)"
+  url="$(printf '%s' "$line" | cut -d'|' -f4)"
+  [ -z "$fname" ] && fname="$(basename "$url" | cut -d'?' -f1)"
+  mkdir -p "$ROM_DIR"
+  local dst="$ROM_DIR/$fname" got
+  if [ -z "$yes" ]; then
+    printf '%s %s\n%s' "$(L 'Download ~1 GB from:' 'Download ~1 GB von:')" "$url" "$(L 'Start download? [Y/n]: ' 'Download starten? [J/n]: ')"; iread -r yn
+    case "$yn" in ""|y|Y|j|J) yes=1 ;; *) return 1 ;; esac
+  fi
+  got="$(download_firmware "$url" "$dst" --yes)" || return 1
+  verify_download "$dst" || true
+  local ready="$dst"
+  case "$ready" in *.gz|*.GZ)
+    printf '%s\n' "$(L 'Decompressing (.gz) ...' 'Dekomprimiere (.gz) ...')"
+    local rawname; rawname="$(basename "$ready")"; rawname="${rawname%.gz}"; rawname="${rawname%.GZ}"
+    [ -z "$rawname" ] && rawname="system.img"
+    if command -v gunzip >/dev/null 2>&1; then gunzip -c "$ready" > "$ROM_DIR/$rawname" 2>/dev/null
+    else python3 -c "import gzip,shutil,sys; shutil.copyfileobj(gzip.open(sys.argv[1],'rb'),open(sys.argv[2],'wb'))" "$ready" "$ROM_DIR/$rawname" 2>/dev/null; fi
+    if [ -f "$ROM_DIR/$rawname" ] && [ -s "$ROM_DIR/$rawname" ]; then ready="$ROM_DIR/$rawname"
+    else printf '%s\n' "$(L 'Decompress failed.' 'Dekomprimieren fehlgeschlagen.')"; return 1; fi ;;
+  esac
+  local kind; kind="$(image_kind "$ready")"
+  if [ "$kind" = "system" ]; then printf '%s\n' "$(L 'Ready: SYSTEM image (for Install ROM / flash system).' 'Fertig: SYSTEM-Image (fuer ROM-Installation / flash system).')"
+  elif [ "$kind" = "boot" ]; then printf '%s\n' "$(L 'Ready: BOOT/RECOVERY image (for Magisk patch base via export).' 'Fertig: BOOT/RECOVERY-Image (fuer Magisk-Patch-Basis via Export).')"
+  else printf '%s\n' "$(L 'Downloaded, but content unclear - validate before use.' 'Geladen, aber Inhalt unklar - vor Nutzung validieren.')"; fi
+  printf 'Ready: %s\n' "$ready"
+  DL_READY="$ready"
+  printf '%s' "$ready"
+}
 
 # ---------------------------------------------------------------- recovery export from custom ROMs
 zip_entries() { # zip -> entry list
@@ -694,6 +955,25 @@ export_recovery() { # rompath -> prints dir; sets EXPORT_FILES
   mkdir -p "$dir"
   EXPORT_FILES=""
   low="$(printf '%s' "$rom" | tr '[:upper:]' '[:lower:]')"
+  # Normalize single-file compression first (.gz/.xz, but NOT tar containers):
+  case "$low" in
+    *.tar.gz|*.tar.xz|*.tgz) ;;
+    *.gz)
+      rawname="$(basename "$rom")"; rawname="${rawname%.gz}"; rawname="${rawname%.GZ}"
+      [ -z "$rawname" ] && rawname="image.img"
+      if command -v gunzip >/dev/null 2>&1; then gunzip -c "$rom" > "$dir/$rawname" 2>/dev/null
+      else python3 -c "import gzip,shutil,sys; shutil.copyfileobj(gzip.open(sys.argv[1],'rb'),open(sys.argv[2],'wb'))" "$rom" "$dir/$rawname" 2>/dev/null; fi
+      if [ -f "$dir/$rawname" ] && [ -s "$dir/$rawname" ]; then rom="$dir/$rawname"; low="$(printf '%s' "$rom" | tr '[:upper:]' '[:lower:]')"
+      else log ERROR "$(L 'Decompress failed (corrupt file?).' 'Dekomprimieren fehlgeschlagen (Datei kaputt?).')"; return 1; fi ;;
+    *.xz)
+      rawname="$(basename "$rom")"; rawname="${rawname%.xz}"; rawname="${rawname%.XZ}"
+      [ -z "$rawname" ] && rawname="image.img"
+      if command -v unxz >/dev/null 2>&1; then unxz -c "$rom" > "$dir/$rawname" 2>/dev/null
+      elif command -v xz >/dev/null 2>&1; then xz -dc "$rom" > "$dir/$rawname" 2>/dev/null
+      else python3 -c "import lzma,shutil,sys; shutil.copyfileobj(lzma.open(sys.argv[1],'rb'),open(sys.argv[2],'wb'))" "$rom" "$dir/$rawname" 2>/dev/null; fi
+      if [ -f "$dir/$rawname" ] && [ -s "$dir/$rawname" ]; then rom="$dir/$rawname"; low="$(printf '%s' "$rom" | tr '[:upper:]' '[:lower:]')"
+      else log ERROR "$(L 'Decompress failed (corrupt file or missing python lzma?).' 'Dekomprimieren fehlgeschlagen (Datei kaputt oder python-lzma fehlt?).')"; return 1; fi ;;
+  esac
   case "$low" in
     *.img)
       local v; v="$(boot_magic_ver "$rom")"
@@ -704,6 +984,10 @@ export_recovery() { # rompath -> prints dir; sets EXPORT_FILES
         EXPORT_FILES="$dir/$(basename "$rom")"
         log SUCCESS "$(L 'Direct boot image exported.' 'Direktes Boot-Image exportiert.')"
         printf '%s' "$dir"; return 0
+      fi
+      if [ "$(image_kind "$rom")" = "system" ]; then
+        log ERROR "$(L 'This is a SYSTEM image (filesystem with folders). Magisk cannot patch system - it needs boot/recovery. A GSI leaves recovery untouched stock: use the stock UPDATE.APP recovery as patch base.' 'Das ist ein SYSTEM-Image (Dateisystem mit Ordnern). Magisk kann kein System patchen - es braucht boot/recovery. Ein GSI laesst Recovery unberuehrt Stock: nimm das Stock-UPDATE.APP-Recovery als Patch-Basis.')"
+        return 3
       fi
       log ERROR "$(L 'Not an Android boot image (no ANDROID! magic). GSI system images contain no recovery.' 'Kein Android-Boot-Image (kein ANDROID!-Magic). GSI hat kein Recovery.')"
       return 3 ;;
@@ -762,7 +1046,7 @@ EOF2
       fi
       log ERROR "$(L 'No boot.img/recovery.img/payload.bin in ZIP. Probably a GSI system package (no recovery by design).' 'Kein boot.img/recovery.img/payload.bin im ZIP. Wahrscheinlich GSI-System-Paket (kein Recovery).')"
       return 3 ;;
-    *.tar|*.tar.gz|*.tgz)
+    *.tar|*.tar.gz|*.tar.xz|*.tgz)
       local stage="$dir/_archive" f dst2
       mkdir -p "$stage"
       if command -v tar >/dev/null 2>&1 && tar -xf "$rom" -C "$stage" 2>/dev/null; then
@@ -799,12 +1083,48 @@ EOF2
       fi
       log ERROR "$(L 'No boot.img/recovery.img/payload.bin in archive. Probably a GSI system package (no recovery by design).' 'Kein boot.img/recovery.img/payload.bin im Archiv. Wahrscheinlich GSI-System-Paket (kein Recovery).')"
       return 3 ;;
-    *) log ERROR "$(L 'Unsupported format (use .img, ROM .zip or .tar/.tar.gz/.tgz).' 'Format nicht unterstuetzt (.img, ROM-.zip oder .tar/.tar.gz/.tgz).')"; return 3 ;;
+    *) log ERROR "$(L 'Unsupported format (use .img, .img.gz/.img.xz, ROM .zip or .tar/.tar.gz/.tgz).' 'Format nicht unterstuetzt (.img, .img.gz/.img.xz, ROM-.zip oder .tar/.tar.gz/.tgz).')"; return 3 ;;
   esac
 }
 
 # ---------------------------------------------------------------- magisk prep (real on-device patch, never fake)
 magisk_apk() { find "$MAG_DIR" -maxdepth 1 -iname '*.apk' -type f 2>/dev/null | head -1; }
+magisk_stable() { # prints version|code|link from official stable.json (never hardcoded)
+  local url="https://raw.githubusercontent.com/topjohnwu/magisk-files/master/stable.json" j
+  if [ -f "$(compat_file)" ] && command -v python3 >/dev/null 2>&1; then
+    local reg
+    reg="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('magisk',{}).get('stable_json',''))" "$(compat_file)" 2>/dev/null)"
+    [ -n "$reg" ] && url="$reg"
+  fi
+  j="$(curl -fsSL -H 'User-Agent: trebleManager' "$url" 2>/dev/null)" || return 1
+  if command -v python3 >/dev/null 2>&1; then
+    printf '%s' "$j" | python3 -c "import json,sys; m=json.load(sys.stdin).get('magisk',{}); print(str(m.get('version',''))+'|'+str(m.get('versionCode',''))+'|'+str(m.get('link','')))"
+  else
+    printf '%s|%s|%s\n' "$(printf '%s' "$j" | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)" "" "$(printf '%s' "$j" | grep -o '"link"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)"
+  fi
+}
+download_magisk() { # [--yes] -> prints APK path; official stable only
+  local yes="${1:-}" st ver link
+  st="$(magisk_stable)" || { printf '%s\n' "$(L 'Magisk stable info unreachable (offline?). Place the APK from https://github.com/topjohnwu/Magisk/releases into data/magisk/ manually.' 'Magisk-Stable-Info unerreichbar (offline?). APK manuell nach data/magisk/ legen.')"; return 1; }
+  ver="$(printf '%s' "$st" | cut -d'|' -f1)"; link="$(printf '%s' "$st" | cut -d'|' -f3)"
+  if [ -z "$link" ]; then printf '%s\n' "$(L 'No APK link in stable info.' 'Kein APK-Link in Stable-Info.')"; return 1; fi
+  mkdir -p "$MAG_DIR"
+  local dst="$MAG_DIR/Magisk-v$ver.apk"
+  if [ -f "$dst" ]; then printf '%s %s\n' "$(L 'Magisk cached:' 'Magisk gecached:')" "$dst" >&2; printf '%s' "$dst"; return 0; fi
+  if [ -z "$yes" ]; then
+    printf '%s' "$(L "Fetch official Magisk v$ver? [Y/n]: " "Offizielles Magisk v$ver laden? [J/n]: ")"; iread -r a
+    case "$a" in ""|y|Y|j|J) ;; *) return 1 ;; esac
+  fi
+  printf '%s\n' "$(L "Downloading Magisk v$ver ..." "Lade Magisk v$ver ...")" >&2
+  if command -v curl >/dev/null 2>&1; then curl -fsSL -o "$dst" "$link" 2>/dev/null
+  else wget -q -O "$dst" "$link" 2>/dev/null; fi
+  if [ -f "$dst" ] && [ -s "$dst" ]; then
+    (if command -v sha256sum >/dev/null 2>&1; then sha256sum "$dst" | awk '{print $1}'; else shasum -a 256 "$dst" | awk '{print $1}'; fi) > "$dst.sha256"
+    log SUCCESS "Magisk downloaded: $dst"
+    printf '%s' "$dst"; return 0
+  fi
+  rm -f "$dst"; log ERROR "$(L 'Magisk download failed.' 'Magisk-Download fehlgeschlagen.')"; return 1
+}
 prepare_patch() { # stock_image -> staged path
   local stock="$1" stage dest guide
   stage="$MAG_DIR/to-patch"; mkdir -p "$stage"
@@ -1222,7 +1542,7 @@ screen_analyze() {
     linver="$(grep '^ro.lineage.version=' "$PROPS_FILE" | cut -d= -f2-)"
     [ -z "$linver" ] && linver="$(grep '^ro.lineageos.version=' "$PROPS_FILE" | cut -d= -f2-)"
     [ -n "$linver" ] && printf 'LineageOS: %s\n' "$linver"
-    [ -n "$linver" ] && printf '%s\n' "$(L 'Custom ROM detected: your patch base must come from THIS ROM (recovery export), never from stock.' 'Custom-ROM erkannt: Patch-Basis muss aus DIESEM ROM kommen (Recovery-Export), niemals aus Stock.')"
+    [ -n "$linver" ] && printf '%s\n' "$(L 'Custom ROM detected: the wizard determines the correct patch base (stock recovery for GSIs, ROM package for device builds).' 'Custom-ROM erkannt: Der Wizard bestimmt die korrekte Patch-Basis (Stock-Recovery fuer GSIs, ROM-Paket fuer Device-Builds).')"
     case "$OS_KIND:$OS_RELEASE" in *GSI*:13*|*GSI*:14*)
       case "$PROFILE_ID" in VTR-*|VKY-*) printf 'WARN: %s\n' "$WIKI_ANDROID13_WARN" ;; esac ;;
     esac
@@ -1295,8 +1615,8 @@ screen_extract() {
 }
 screen_export() {
   header "$(L 'Recovery export from compatible custom ROMs' 'Recovery-Export aus Custom-ROMs')"; printf '\n'
-  printf '%s\n' "$(L 'Drop ROM packages into data/roms/ (.zip/.tar.gz or .img). GSI system images are refused honestly.' 'ROM-Pakete nach data/roms/ (.zip/.tar.gz/.img). GSI wird ehrlich abgelehnt.')"
-  local roms; roms="$(find "$ROM_DIR" -maxdepth 1 \( -iname '*.zip' -o -iname '*.img' -o -iname '*.tar' -o -iname '*.tar.gz' -o -iname '*.tgz' \) -type f 2>/dev/null)"
+  printf '%s\n' "$(L 'Drop ROM packages into data/roms/ (.zip/.tar.gz/.img.gz/.img.xz or .img). GSI system images are refused honestly.' 'ROM-Pakete nach data/roms/ (.zip/.tar.gz/.img.gz/.img.xz/.img). GSI wird ehrlich abgelehnt.')"
+  local roms; roms="$(find "$ROM_DIR" -maxdepth 1 \( -iname '*.zip' -o -iname '*.img' -o -iname '*.tar' -o -iname '*.tar.gz' -o -iname '*.tgz' -o -iname '*.gz' -o -iname '*.xz' \) -type f 2>/dev/null)"
   local rom=""
   if [ -z "$roms" ]; then
     printf '%s' "$(L 'ROM path (Enter=abort): ' 'ROM-Pfad (Enter=Abbruch): ')"; iread -r rom
@@ -1316,16 +1636,20 @@ screen_patch() {
   printf 'Official: https://github.com/topjohnwu/Magisk/releases\n'
   local apk; apk="$(magisk_apk)"
   if [ -z "$apk" ]; then
-    printf '%s' "$(L 'No Magisk APK in data/magisk/. Place it there, or path (Enter=later): ' 'Keine Magisk-APK in data/magisk/. Dort ablegen oder Pfad (Enter=spaeter): ')"; iread -r p
-    if [ -n "$p" ] && [ -f "$p" ]; then cp -f "$p" "$MAG_DIR/"; apk="$MAG_DIR/$(basename "$p")"; fi
+    printf '%s' "$(L 'No Magisk APK in data/magisk/. Place it there, or path (Enter=fetch automatically): ' 'Keine Magisk-APK in data/magisk/. Dort ablegen oder Pfad (Enter=automatisch laden): ')"; iread -r p
+    if [ -n "$p" ] && [ -f "$p" ]; then cp -f "$p" "$MAG_DIR/"; apk="$MAG_DIR/$(basename "$p")"
+    else apk="$(download_magisk)" || apk=""; fi
   fi
   [ -n "$apk" ] && printf 'APK: %s\n' "$apk"
   local base; base="$(patch_base)"
   local bsrc="${base%%|*}"; base="${base#*|}"
   local bimg="${base%%|*}"; local blabel="${base##*|}"
   if [ "$bsrc" = "rom" ]; then
-    printf '\n%s %s\n' "$(L 'Phone runs:' 'Handy laeuft mit:')" "$blabel"
+    printf '\n%s %s %s\n' "$(L 'Phone runs:' 'Handy laeuft mit:')" "$blabel" "$(L '(full device ROM)' '(volles Device-ROM)')"
     printf '%s\n' "$(L 'RULE: patch base MUST come from this ROM package. NOT from stock firmware.' 'REGEL: Patch-Basis MUSS aus diesem ROM-Paket kommen. NICHT aus Stock-Firmware.')"
+  elif [ "$bsrc" = "stock-gsi" ]; then
+    printf '\n%s %s %s\n' "$(L 'Phone runs:' 'Handy laeuft mit:')" "$blabel" "$(L '(GSI, system-only)' '(GSI, nur System)')"
+    printf '%s\n' "$(L 'A GSI never touches recovery: your recovery_ramdisk is still stock, so the patch base IS the stock recovery. Correct, not a workaround.' 'Ein GSI fasst Recovery nie an: dein recovery_ramdisk ist weiter Stock, also ist die Patch-Basis das Stock-Recovery. Korrekt, kein Workaround.')"
   fi
   if [ -z "$bimg" ] || [ ! -f "$bimg" ]; then
     if [ "$bsrc" = "rom" ]; then
@@ -1342,7 +1666,10 @@ screen_patch() {
   fi
   local bsha=""; bsha="$(printf '%s' "$(test_image "$bimg")" | cut -d'|' -f2)"
   printf 'Input: %s\n' "$bimg"
-  printf '%s %s\n' "$(L 'Source:' 'Quelle:')" "$blabel"
+  local srcnote=" (stock)"
+  if [ "$bsrc" = "rom" ]; then srcnote="$(L ' (this ROM - correct)' ' (dieses ROM - korrekt)')"
+  elif [ "$bsrc" = "stock-gsi" ]; then srcnote="$(L ' (stock recovery - correct for GSI)' ' (Stock-Recovery - korrekt fuer GSI)')"; fi
+  printf '%s %s%s\n' "$(L 'Source:' 'Quelle:')" "$blabel" "$srcnote"
   printf 'Target: %s\nDevice: Huawei %s\nFirmware: %s\nSHA-256: %s\n' "$(target_partition)" "$PROFILE_ID" "$FW_BASELINE" "$bsha"
   printf '%s\n' "$(L '[1] Prepare patch (to-patch + instructions)  [2] Register patched file' '[1] Patch vorbereiten  [2] Gepatchte Datei registrieren')"; iread -r k
   case "$k" in
@@ -1351,6 +1678,16 @@ screen_patch() {
        printf '%s %s\n' "$(L 'In the Magisk app select EXACTLY this file:' 'In der Magisk-App EXAKT diese Datei auswaehlen:')" "$(basename "$bimg")" ;;
     2) adb_run shell 'ls /sdcard/Download/magisk_patched*.img 2>&1' 2>/dev/null || true
        printf '%s' "$(L 'Path to patched file: ' 'Pfad gepatchte Datei: ')"; iread -r pp
+       case "$pp" in *.gz|*.GZ)
+         if [ -f "$pp" ]; then
+           printf '%s\n' "$(L 'GZip file: decompressing first ...' 'GZip-Datei: erst dekomprimieren ...')"
+           _pdn="$(basename "$pp")"; _pdn="${_pdn%.gz}"; _pdn="${_pdn%.GZ}"
+           [ -z "$_pdn" ] && _pdn="patched.img"
+           if command -v gunzip >/dev/null 2>&1; then gunzip -c "$pp" > "$MAG_DIR/$_pdn" 2>/dev/null
+           else python3 -c "import gzip,shutil,sys; shutil.copyfileobj(gzip.open(sys.argv[1],'rb'),open(sys.argv[2],'wb'))" "$pp" "$MAG_DIR/$_pdn" 2>/dev/null; fi
+           [ -f "$MAG_DIR/$_pdn" ] && pp="$MAG_DIR/$_pdn"
+         fi ;;
+       esac
        if [ -n "$pp" ] && [ -f "$pp" ]; then
          local t ph; t="$(test_image "$pp")"; ph="$(printf '%s' "$t" | cut -d'|' -f2)"
          if [ -n "$bsha" ] && [ "$ph" = "$bsha" ]; then log ERROR "$(L 'ERROR: patched == base. NO fake patch accepted.' 'FEHLER: gepatcht == Basis. KEIN Fake-Patch.')"
@@ -1460,7 +1797,12 @@ screen_flashsystem() {
   header "$(L 'Install ROM / GSI system image (fully guided)' 'ROM / GSI installieren (voll gefuehrt)')"; printf '\n'
   printf '%s\n' "- Base EMUI 8/9/9.1. Backup storage. Reset only via stock recovery." "- fastboot flash system <gsi.img>, then eRecovery wipe. Slim builds if system is small."
   local adv; adv="$(profile_gsi_advice)"; [ -n "$adv" ] && printf 'Profile advice: %s\n' "$adv"
-  printf '%s' "$(L 'GSI image path (*-arm64_*.img, unpacked): ' 'GSI-Image-Pfad (entpackt): ')"; iread -r img
+  printf '%s' "$(L 'GSI image path (*-arm64_*.img, unpacked - Enter = download working GSI): ' 'GSI-Image-Pfad (entpackt - Enter = Working-GSI laden): ')"; iread -r img
+  if [ -z "$img" ]; then
+    DL_READY=""
+    download_rom || true
+    img="$DL_READY"
+  fi
   if [ -z "$img" ] || [ ! -f "$img" ]; then log ERROR "$(L 'Invalid path, aborting.' 'Pfad ungueltig, Abbruch.')"; pause_tt; return; fi
   system_flash "$img" || true
   pause_tt
@@ -1849,7 +2191,8 @@ wizard() { # ROM-aware guided path: detect -> analyze (+ROM question) -> goal wo
   screen_analyze
   if [ -z "$INSTALLED_ROM" ]; then select_rom; fi
   local rlabel; rlabel="$(rom_label "$INSTALLED_ROM")"
-  local custom=0; [ -n "$INSTALLED_ROM" ] && [ "$INSTALLED_ROM" != "stock" ] && custom=1
+  local pbsrc; pbsrc="$(patch_base)"; pbsrc="${pbsrc%%|*}"
+  local custom=0; [ "$pbsrc" = "rom" ] && custom=1
   header "$(L 'What do you want to do?' 'Was willst du tun?')"; printf '\n'
   printf '%s %s\n\n' "$(L 'Your system:' 'Dein System:')" "$rlabel"
   printf '%s\n' "$(L '[1] Root only (keep my system exactly as it is)' '[1] Nur Root (mein System bleibt exakt wie es ist)')"
@@ -1860,6 +2203,10 @@ wizard() { # ROM-aware guided path: detect -> analyze (+ROM question) -> goal wo
   case "$gk" in
     1) goal="$(L 'Root only' 'Nur Root')"
        autofix=1
+       select_root_target || return
+       rlabel="$(rom_label "$INSTALLED_ROM")"
+       pbsrc="$(patch_base)"; pbsrc="${pbsrc%%|*}"
+       custom=0; [ "$pbsrc" = "rom" ] && custom=1
        if [ "$custom" = 1 ]; then
          steps="screen_export screen_patch screen_backup screen_flash screen_verify"
          skipped="$(L 'stock firmware search/download - not needed, base comes from ' 'Stock-Firmware-Suche/Download - nicht noetig, Basis kommt aus ')$rlabel|$(L 'stock UPDATE.APP extract - not needed' 'Stock-UPDATE.APP-Extrakt - nicht noetig')"
@@ -1867,7 +2214,23 @@ wizard() { # ROM-aware guided path: detect -> analyze (+ROM question) -> goal wo
          steps="screen_firmware screen_extract screen_patch screen_backup screen_flash screen_verify"
        fi ;;
     2) goal="$(L 'Install custom ROM' 'Custom-ROM installieren')"
-       steps="screen_compat screen_flashsystem screen_verify"
+       TARGET_ANDROID=""; TARGET_LABEL=""; TARGET_URL=""; TARGET_FILE=""
+       select_target_image || return
+       rlabel="$TARGET_LABEL"
+       img="$(find_local_system_image)"
+       if [ -z "$img" ] && [ -n "$TARGET_URL" ]; then
+         printf '\n%s\n' "$(L 'No local image - downloading working system now.' 'Kein lokales Image - lade Working-System jetzt.')"
+         DL_READY=""
+         if download_rom "$TARGET_LABEL" --yes; then img="$DL_READY"; fi
+       fi
+       if [ -z "$img" ] || [ ! -f "$img" ]; then
+         printf '\n%s\n' "$(L 'No image ready - manual install screen next.' 'Kein Image bereit - weiter mit manuellem Install-Screen.')"
+         steps="screen_compat screen_flashsystem screen_verify"
+       else
+         printf '\n%s %s\n' "$(L 'Preset image from resolver:' 'Preset-Image aus Resolver:')" "$img"
+         FLASH_PRESET="$img"
+         steps="screen_compat screen_flashsystem screen_verify"
+       fi
        skipped="$(L 'root/patch/flash - run wizard again with [1] afterwards for root' 'Root/Patch/Flash - danach Wizard erneut mit [1] starten falls Root gewuenscht')" ;;
     3) goal="$(L 'Back to stock' 'Zurueck zu Stock')"
        steps="screen_firmware screen_reinstall"
@@ -1875,6 +2238,9 @@ wizard() { # ROM-aware guided path: detect -> analyze (+ROM question) -> goal wo
     *) return ;;
   esac
   header "$(L 'Your path:' 'Dein Weg:') $rlabel -> $goal"; printf '\n'
+  if [ "$pbsrc" = "stock-gsi" ]; then
+    printf '%s\n\n' "$(L 'GSI detected: recovery is untouched stock, so the normal stock steps below are correct.' 'GSI erkannt: Recovery ist unberuehrt Stock, also sind die Stock-Steps unten korrekt.')"
+  fi
   local n=1 s
   for s in $steps; do
     case "$s" in
@@ -1912,7 +2278,7 @@ wizard() { # ROM-aware guided path: detect -> analyze (+ROM question) -> goal wo
 # ---------------------------------------------------------------- CLI
 show_help() {
   printf 'Huawei P10 Root Manager v%s\n' "$TTVERSION"
-  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|rom|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
+  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|download-rom|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|rom|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
   printf '%s\n' "$(L 'No args: TUI. Download/flash/restore need --yes.' 'Ohne Args: TUI. Download/Flash/Restore brauchen --yes.')"
 }
 CMD=""; JSON=""; YES=""; IMAGE=""; FWFILE=""; ANON=""; NOREBOOT=""; RUNMODE="safe"; GOAL=""
@@ -1926,10 +2292,10 @@ for a in "$@"; do
     continue
   fi
   case "$a" in
-    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|rom|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
+    detect|devices|analyze|firmware|download|download-rom|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|rom|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
     --json) JSON=1 ;; --yes) YES=1 ;; --anonymize) ANON=1 ;; --no-reboot) NOREBOOT=1 ;;
     --mode|--goal|--image|--firmware-file) WANTVAL="$a" ;;
-    *) if [ "$CMD" = "rom" ]; then
+    *) if [ "$CMD" = "rom" ] || [ "$CMD" = "download-rom" ]; then
          if [ -z "${ROMARG:-}" ]; then ROMARG="$a"; else ROMVAL="$a"; fi
        fi ;;
   esac
@@ -1969,6 +2335,11 @@ case "$CMD" in
     out="$FIRM_DIR/stock-firmware-$PROFILE_ID-$STAMP.zip"
     if [ -z "$YES" ]; then printf 'Ready (not loaded): %s -> %s | confirm with --yes.\n' "$url" "$out"; exit 4; fi
     if download_firmware "$url" "$out" --yes && verify_download "$out"; then [ -n "$JSON" ] && printf '{"path":"%s"}\n' "$out"; else exit 1; fi ;;
+  download-rom)
+    if [ -n "$YES" ]; then DL_READY=""; download_rom "${ROMARG:-1}" --yes || exit 1; img="$DL_READY"
+    else DL_READY=""; download_rom "${ROMARG:-}" || exit 1; img="$DL_READY"; fi
+    if [ -n "$JSON" ]; then printf '{"ready":"%s","kind":"%s"}\n' "$img" "$(image_kind "$img")"
+    else printf 'Ready: %s\n' "$img"; fi ;;
   extract)
     found="$(find "$FIRM_DIR" "$DATA_DIR" -maxdepth 3 \( -iname 'RECOVERY_RAMDISK.img' -o -iname 'RECOVERY_RAMDIS.img' -o -iname 'recovery_ramdisk.img' \) -type f 2>/dev/null | head -1)"
     [ -z "$found" ] && { printf '%s\n' "$(L 'No RECOVERY_RAMDIS(K).img found.' 'Keine RECOVERY_RAMDIS(K).img.')"; exit 3; }
@@ -1977,8 +2348,8 @@ case "$CMD" in
     [ "${t%%|*}" = "PASS" ] || exit 3 ;;
   export)
     rom="${IMAGE:-$FWFILE}"
-    if [ -z "$rom" ]; then rom="$(find "$ROM_DIR" -maxdepth 1 \( -iname '*.zip' -o -iname '*.img' \) -type f 2>/dev/null | head -1)"; fi
-    [ -z "$rom" ] && { printf '%s\n' "$(L 'No ROM package. Place .zip/.img in data/roms/.' 'Kein ROM-Paket. .zip/.img nach data/roms/.')"; exit 3; }
+    if [ -z "$rom" ]; then rom="$(find "$ROM_DIR" -maxdepth 1 \( -iname '*.zip' -o -iname '*.img' -o -iname '*.tar' -o -iname '*.tar.gz' -o -iname '*.tgz' -o -iname '*.gz' -o -iname '*.xz' \) -type f 2>/dev/null | head -1)"; fi
+    [ -z "$rom" ] && { printf '%s\n' "$(L 'No ROM package. Place .img/.img.gz/.img.xz/.zip/.tar.gz in data/roms/.' 'Kein ROM-Paket. .img/.img.gz/.img.xz/.zip/.tar.gz nach data/roms/.')"; exit 3; }
     d="" || true
     if d="$(export_recovery "$rom")"; then
       if [ -n "$JSON" ]; then printf '{"dir":"%s"}\n' "$d"; else printf 'Export dir: %s\n' "$d"; fi

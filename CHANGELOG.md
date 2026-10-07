@@ -1,5 +1,13 @@
 # Changelog — trebleManager
 
+## v2.17.0
+
+- Target-Image-Resolver (both shells): device → install type → Android version (only versions with real images, with counts) → system → variant → full config (firmware base, vendor, recovery source, root artifact, system file/URL); "Nur Root" resolves an explicit target too (current / stock EMUI version / other system), install path downloads or uses local image via preset
+- Artifact registry: `android` + `root_artifact` (recovery_ramdisk/stock_firmware for GSIs) on entries; verified SourceForge direct URLs (LineageOS 20 bgN + vndklite 20251021, LineageOS 19.1 bgN + vndklite 20250606); Magisk stable.json link; tools block (platform-tools, HuaweiFirmwareExtractor); gated firmware builds (honest portal pages, never faked as direct)
+- Magisk auto-fetch from official stable.json into data/magisk (both shells, offered when no APK present)
+- GSI download flow: `download-rom` (CLI + install-screen offer) with progress, hash sidecar, auto-decompress and kind validation
+- Slim step-by-step menus (5 entries + submenus); tar/tgz/tar.xz/xz ROM export; UNOFFICIAL LineageOS 20 selectable; hardened parser tests + suite headers
+
 ## v2.16.1
 
 - Root persistence clarified in-flow: after every verified root the tool points at Boot tricks → persistent boot as a conscious opt-in (it needs an eRecovery wipe, so it stays manual with double confirmation); fix persistence (service.d) remains automatic

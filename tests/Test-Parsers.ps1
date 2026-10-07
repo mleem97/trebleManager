@@ -118,7 +118,7 @@ function Import-TTFunction {
   if ($block.StartsWith("function ")) { $block = "function script:" + $block.Substring(9) }
   try { Invoke-Expression $block } catch { Write-Host ("Ladefehler " + $Name + ": " + $_.Exception.Message) -ForegroundColor Red; $script:Fail++ }
 }
-$__need = @("L","ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode","Unquote-Path","Get-GoalSteps","Get-FlashVerdict","Get-RomSuggested","Get-RomLabel")
+$__need = @("L","ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Test-ImageKind","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode","Unquote-Path","Get-GoalSteps","Get-FlashVerdict","Get-RomSuggested","Get-RomLabel")
 foreach ($fn in $__need) {
   Import-TTFunction $fn
 }
@@ -228,8 +228,18 @@ Assert-Equal "boot magic version" 3 (Test-BootImageMagic $tmpImg)
 $tmpTxt = $tmpImg + ".txt"
 "no android here" | Out-File $tmpTxt -Encoding ascii
 Assert-Equal "kein magic abgelehnt" -1 (Test-BootImageMagic $tmpTxt)
+Assert-Equal "kind boot" "boot" (Test-ImageKind $tmpImg)
+$tmpSparse = $tmpImg + ".sparse"
+$fs2 = [System.IO.File]::Create($tmpSparse)
+$fs2.WriteByte(0x3A); $fs2.WriteByte(0xFF); $fs2.WriteByte(0x26); $fs2.WriteByte(0xED)
+$pad2 = New-Object byte[] 100
+$fs2.Write($pad2, 0, $pad2.Length)
+$fs2.Close()
+Assert-Equal "kind system (sparse)" "system" (Test-ImageKind $tmpSparse)
+Assert-Equal "kind unknown (text)" "unknown" (Test-ImageKind $tmpTxt)
 Remove-Item $tmpImg -Force -ErrorAction SilentlyContinue
 Remove-Item $tmpTxt -Force -ErrorAction SilentlyContinue
+Remove-Item $tmpSparse -Force -ErrorAction SilentlyContinue
 # ---- 12. Root method priority (Magisk preferred first) ----
 $RootMethods = @(
   @{ Id = "phh-su"; Preferred = $false },

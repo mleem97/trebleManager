@@ -41,6 +41,26 @@
         "tier": 1,
         "note": "many old Huawei CDN links are dead"
       }
+    ],
+    "builds": [
+      {
+        "id": "VTR-L09-9.1.0.275-C432",
+        "build": "9.1.0.275",
+        "emui": "9.1",
+        "android": 9,
+        "region": "C432",
+        "source": "gated",
+        "page": "https://support.halabtech.com/index.php?a=downloads&b=folder&id=11813",
+        "file": "VTR-L09 9.1.0.275(C432E2R1P9T8)_Firmware_EMUI9.1.0_05014JGC.zip",
+        "provides": [
+          "UPDATE.APP",
+          "RECOVERY_RAMDIS.img",
+          "RECOVERY_VENDOR.img",
+          "VENDOR.img",
+          "ODM.img"
+        ],
+        "note": "portal page, login/pack access may apply - never faked as direct"
+      }
     ]
   },
   "vendor_boot": {
@@ -60,20 +80,38 @@
       "name": "LineageOS",
       "version": 18.1,
       "status": "working",
-      "gsi": "arm64_bgN"
+      "gsi": "arm64_bgN",
+      "android": 11,
+      "root_artifact": {
+        "type": "recovery_ramdisk",
+        "source": "stock_firmware"
+      }
     },
     {
       "name": "LineageOS",
       "version": 19.1,
       "status": "working",
-      "gsi": "arm64_bgN"
+      "gsi": "arm64_bgN",
+      "android": 12,
+      "file": "lineage-19.1-20250606-UNOFFICIAL-arm64_bgN-signed.img.gz",
+      "url": "https://sourceforge.net/projects/andyyan-gsi/files/lineage-19.x/lineage-19.1-20250606-UNOFFICIAL-arm64_bgN-signed.img.gz/download",
+      "source": "direct",
+      "root_artifact": {
+        "type": "recovery_ramdisk",
+        "source": "stock_firmware"
+      }
     },
     {
       "name": "LineageOS",
       "version": 20,
       "status": "working",
       "gsi": "arm64_bgN",
-      "note": "NOT the Light build"
+      "note": "NOT the Light build",
+      "android": 13,
+      "root_artifact": {
+        "type": "recovery_ramdisk",
+        "source": "stock_firmware"
+      }
     },
     {
       "name": "LineageOS",
@@ -82,7 +120,15 @@
       "build": 20251021,
       "status": "working",
       "gsi": "arm64_bgN",
-      "note": "TrebleDroid with GApps, Android 13 (user-verified VTR-L09)"
+      "note": "TrebleDroid with GApps, Android 13 (user-verified VTR-L09)",
+      "file": "lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed.img.gz",
+      "url": "https://sourceforge.net/projects/andyyan-gsi/files/lineage-20-td/lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed.img.gz/download",
+      "source": "direct",
+      "root_artifact": {
+        "type": "recovery_ramdisk",
+        "source": "stock_firmware"
+      },
+      "android": 13
     },
     {
       "name": "LineageOS 20 Light",
@@ -97,8 +143,7 @@
       "name": "HavocOS",
       "version": 3.12,
       "status": "broken",
-      "reason": "phone/media crashes",
-      "no SIM on VTR-L09 EMUI 9.1": null,
+      "reason": "phone/media crashes, no SIM on VTR-L09 EMUI 9.1",
       "markers": [
         "havoc"
       ]
@@ -106,8 +151,41 @@
     {
       "name": "LeaOS",
       "status": "variant-dependent",
-      "reason": "L29 builds on L09 run laggy",
-      "match submodel": null
+      "reason": "L29 builds on L09 run laggy, match submodel"
+    },
+    {
+      "name": "LineageOS",
+      "version": 19.1,
+      "android": 12,
+      "variant": "vndklite",
+      "build": 20250606,
+      "status": "working",
+      "gsi": "arm64_bgN",
+      "note": "vndklite build (writeable system)",
+      "file": "lineage-19.1-20250606-UNOFFICIAL-arm64_bgN-vndklite-signed.img.gz",
+      "url": "https://sourceforge.net/projects/andyyan-gsi/files/lineage-19.x/lineage-19.1-20250606-UNOFFICIAL-arm64_bgN-vndklite-signed.img.gz/download",
+      "source": "direct",
+      "root_artifact": {
+        "type": "recovery_ramdisk",
+        "source": "stock_firmware"
+      }
+    },
+    {
+      "name": "LineageOS",
+      "version": 20,
+      "android": 13,
+      "variant": "vndklite",
+      "build": 20251021,
+      "status": "working",
+      "gsi": "arm64_bgN",
+      "note": "vndklite build (writeable system)",
+      "file": "lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-vndklite-signed.img.gz",
+      "url": "https://sourceforge.net/projects/andyyan-gsi/files/lineage-20-td/lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-vndklite-signed.img.gz/download",
+      "source": "direct",
+      "root_artifact": {
+        "type": "recovery_ramdisk",
+        "source": "stock_firmware"
+      }
     }
   ],
   "magisk": {
@@ -117,7 +195,9 @@
     "verified_method": true,
     "forbidden": [
       "shared patched image"
-    ]
+    ],
+    "stable_json": "https://raw.githubusercontent.com/topjohnwu/magisk-files/master/stable.json",
+    "stable_note": "resolve live Magisk APK (version+link), never hardcode; patch locally, never download pre-patched images"
   },
   "twrp": [
     {
@@ -154,5 +234,27 @@
     "magisk_install": "https://topjohnwu.github.io/Magisk/install.html",
     "potatonv": "https://github.com/mashed-potatoes/PotatoNV",
     "gsi_source": "https://sourceforge.net/projects/andyyan-gsi/files/"
+  },
+  "tools": {
+    "platform_tools": {
+      "source": "direct-official",
+      "url_pattern": "https://dl.google.com/android/repository/platform-tools-latest-{os}.zip",
+      "provides": [
+        "adb",
+        "fastboot"
+      ],
+      "note": "Google official CDN, per-OS zip"
+    },
+    "extractors": [
+      {
+        "name": "HuaweiFirmwareExtractor",
+        "file": "huawei_firmware_extractor.py",
+        "url": "https://raw.githubusercontent.com/Natsume324/HuaweiFirmwareExtractor/main/huawei_firmware_extractor.py",
+        "source": "direct",
+        "needs": "python3.9+",
+        "use": "python huawei_firmware_extractor.py UPDATE.APP -p RECOVERY_RAMDIS -o <dir>",
+        "note": "dependency-free, auto-fetchable into data/tools"
+      }
+    ]
   }
 }

@@ -82,7 +82,7 @@ $line"
   done < "$SRC"
   eval "$block" || { bad "load: $name"; return; }
 }
-for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name compat_file compat_broken_markers compat_roms vendor_advice resolve_mode goal_steps step_gate device_states platform_tools_url install_base_dir flash_verdict rom_suggest rom_label rom_options rom_broken; do import_fn "$fn"; done
+for fn in valid_url boot_magic_ver image_kind firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name compat_file compat_broken_markers compat_roms vendor_advice resolve_mode goal_steps step_gate device_states platform_tools_url install_base_dir flash_verdict rom_suggest rom_label rom_options rom_broken rom_entry_gsi export_recovery rom_downloads target_androids resolver_entries; do import_fn "$fn"; done
 
 # Need TTLANG + PROFILE_ID + stubs used by imported funcs
 TTLANG="en"
@@ -199,6 +199,35 @@ TOOL_ROOT="$ROOT_D"; PROFILE_ID="VTR-L09"
 rom_options | grep -q "UNOFFICIAL (20251021)" && ok "unofficial lineage selectable (VTR-L09)" || bad "unofficial lineage selectable (VTR-L09)"
 rom_options | grep -q "^stock|" && ok "stock option first" || bad "stock option first"
 rom_broken | grep -qi "light" && ok "broken light listed unselectable" || bad "broken light listed unselectable"
+# Fresh fixtures (TMP was cleaned mid-suite)
+KTMP="$(mktemp -d)"
+printf 'ANDROID!\x030000' > "$KTMP/good.img"; head -c 100 /dev/zero >> "$KTMP/good.img"
+[ "$(image_kind "$KTMP/good.img")" = "boot" ] && ok "kind boot" || bad "kind boot"
+printf '\x3a\xff\x26\xed' > "$KTMP/sparse.img"; head -c 100 /dev/zero >> "$KTMP/sparse.img"
+[ "$(image_kind "$KTMP/sparse.img")" = "system" ] && ok "kind system (sparse)" || bad "kind system (sparse)"
+printf 'no android here' > "$KTMP/bad.txt"
+[ "$(image_kind "$KTMP/bad.txt")" = "unknown" ] && ok "kind unknown (text)" || bad "kind unknown (text)"
+[ "$(rom_entry_gsi 'rom:LineageOS 20 UNOFFICIAL (20251021)' "$(compat_file)")" = "arm64_bgN" ] && ok "unofficial entry is GSI-typed" || bad "unofficial entry is GSI-typed"
+[ -z "$(rom_entry_gsi 'rom:LeaOS' "$(compat_file)")" ] && ok "device rom has no gsi flag" || bad "device rom has no gsi flag"
+# Live gz-export (real files): boot.img.gz -> exported base; system.img.gz -> refused as SYSTEM
+log() { :; }
+REC_DIR="$TMP/rec"; TOOL_DIR="$TMP/tools"; ROM_DIR="$TMP/roms"; MAG_DIR="$TMP/mag"; STAMP="t"; TTLOG="$TMP/t.log"; DATA_DIR="$TMP/data"
+mkdir -p "$REC_DIR" "$TOOL_DIR" "$ROM_DIR" "$MAG_DIR"
+printf 'ANDROID!\x030000' > "$TMP/tboot.img"; head -c 100 /dev/zero >> "$TMP/tboot.img"
+gzip -c "$TMP/tboot.img" > "$ROM_DIR/tboot.img.gz"
+EXPORT_FILES=""
+if export_recovery "$ROM_DIR/tboot.img.gz" >/dev/null 2>&1; then
+  [ -n "$EXPORT_FILES" ] && [ -f "$EXPORT_FILES" ] && ok "gz boot export works" || bad "gz boot export works (no file)"
+else bad "gz boot export works (rc)"; fi
+printf '\x3a\xff\x26\xed' > "$TMP/tsys.img"; head -c 100 /dev/zero >> "$TMP/tsys.img"
+gzip -c "$TMP/tsys.img" > "$ROM_DIR/tsys.img.gz"
+if export_recovery "$ROM_DIR/tsys.img.gz" >/dev/null 2>&1; then bad "gz system refused"; else ok "gz system refused"; fi
+rom_downloads | grep -q "lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed.img.gz|https://sourceforge.net/" && ok "verified GSI download URL in registry" || bad "verified GSI download URL in registry"
+valid_url "https://sourceforge.net/projects/andyyan-gsi/files/lineage-20-td/lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed.img.gz/download" && ok "sourceforge /download URL accepted" || bad "sourceforge /download URL accepted"
+target_androids | grep -q "^13|" && ok "android 13 offered" || bad "android 13 offered"
+[ "$(target_androids | grep -c .)" -ge 3 ] && ok "multiple android versions (bidirectional filter base)" || bad "multiple android versions (bidirectional filter base)"
+resolver_entries 13 | grep -q "LineageOS 20 UNOFFICIAL (20251021)" && ok "resolver finds unofficial build" || bad "resolver finds unofficial build"
+resolver_entries 13 "LineageOS 20 UNOFFICIAL (20251021)" | grep -q "recovery_ramdisk|stock_firmware" && ok "resolver root artifact resolved" || bad "resolver root artifact resolved"
 
 # ---- 18. Launchers: one central entry, online starters bootstrap full ZIP ----
 [ -f "$ROOT_D/Start-TrebleToolkit.bat" ] && ok "central starter present" || bad "central starter present"
