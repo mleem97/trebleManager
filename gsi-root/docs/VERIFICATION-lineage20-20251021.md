@@ -1,5 +1,9 @@
 # Verification record — lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed
 
+> **DRY RUN** — everything below runs without flashing or touching any
+> device (downloaded bytes + static analysis only). Boot, root and hardware
+> behavior need the P10 and are NOT covered here.
+
 Reference GSI for the P10 permanent-root POC. **Static verification only**
 (no phone here): everything below was measured from the downloaded bytes
 with `ttcore`/`gsi-root`, `debugfs`, `file`, `xxd`. Boot, root and hardware

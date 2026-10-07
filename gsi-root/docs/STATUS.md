@@ -23,7 +23,18 @@ Levels: `DONE` (implemented + tested) · `PARTIAL` (works, gaps noted) ·
 | 33 | Analyzer | PARTIAL | container/sparse today; SAR/AVB/SELinux later |
 | 34–35 | Pipeline + manifest | PARTIAL | Manifest struct exists; patch refuses |
 | 36–37 | Safety + backups | DONE | by construction (refuse-first, hash-verify, `.bak`) |
-| 38 | Tests | DONE | unit per crate; golden/hardware pending POC |
+| 38 | Tests | DONE | unit per crate (dry run, no device); golden/hardware pending POC |
+
+## Test levels (naming rule)
+
+- **Dry Run** — runs without flashing or touching any device: all `cargo
+  test` suites, both `Test-Parsers`/`test-parsers` suites (simulated command
+  outputs), static image analysis, export-refusal checks, and records like
+  `VERIFICATION-*.md`. Safe anywhere.
+- **Hardware tests** — need the physical device (flash, boot, root verify,
+  cold boot, persistence). Always explicit, never part of a dry run.
+  The P10 is currently held remotely (not on this machine) — hardware tests
+  run as coordinated remote sessions, results land in `VERIFICATION-*.md`.
 | 42 | Offline behavior | DONE | all local commands offline; only download/update-check need net |
 | 47 | VERIFIED/DOCUMENTED/EXPERIMENTAL | DONE | Maturity enum enforced in resolve/plan |
 | 48 | P10 + Lineage 20 target | EXPERIMENTAL | profile static facts VERIFIED; root path refused until POC |
