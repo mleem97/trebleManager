@@ -50,7 +50,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.12.0"
+$TTVersion = "2.12.1"
 
 # Self-bootstrap for remote single-file runs (irm|iex, temp download):
 # without repo layout (no data/compatibility) fetch the FULL release ZIP

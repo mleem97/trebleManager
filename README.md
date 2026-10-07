@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.12.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.12.1-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -132,28 +132,47 @@ on Debian/Ubuntu). Optional: `unzip`, `curl`, `zip` (or `python3` as fallback ea
 
 ### Option C — Offline release ZIP (GitHub blocked)
 
-1. Copy `trebleManager-v2.9.0.zip` + `.sha256` via USB stick.
-2. Verify: `(Get-FileHash .\trebleManager-v2.9.0.zip -Algorithm SHA256).Hash -eq (Get-Content .\trebleManager-v2.9.0.zip.sha256)` must be `True` (Linux: `sha256sum -c trebleManager-v2.9.0.zip.sha256`).
-3. Extract (path without spaces preferred), keep layout (`scripts\`, `data\`, `logs\`, `backups\`).
-4. Optionally pre-place full firmware ZIP in `data\firmware\` and Magisk APK in `data\magisk\` — then no internet is needed at all.
+See [Download (offline ZIP — step by step)](#download-offline-zip--step-by-step):
+download + verify + extract, then double-click `Start-TrebleToolkit.bat`.
 
-## Run Directly from the Internet
+## Instant Execute (zero files — paste one command)
 
-No files needed — one command, straight from the prompt. The online starters
-download the **full release ZIP** (same layout as the offline ZIP: `scripts\`,
-`data\` registry, setup, TUI), verify SHA256, and then launch the **central
+No download, no ZIP: paste one command, the rest is automatic. Every variant
+downloads the **full release ZIP** (same layout as the offline ZIP: `scripts\`,
+`data\` registry, setup, TUI), verifies SHA256, and launches the **central
 starter `Start-TrebleToolkit.bat`** — an online run is 100% identical to a ZIP
 run. Nothing ever exits silently; every failure pauses with plain text.
 
-### CMD (Windows, zero files) — recommended online start
+### CMD (Windows Eingabeaufforderung) — ein Befehl, Enter, fertig
 
-Download [`Run-FromGitHub.bat`](https://raw.githubusercontent.com/mleem97/trebleManager/main/Run-FromGitHub.bat)
-and double-click it (or run it from CMD). It resolves the latest release,
-caches it under `%LOCALAPPDATA%\trebleManager\<tag>`, and calls the central
-starter. Re-running it later reuses the cache (delete the folder to force
-a fresh download).
+```cmd
+curl -fsSL -o "%TEMP%\Run-FromGitHub.bat" https://raw.githubusercontent.com/mleem97/trebleManager/main/Run-FromGitHub.bat && "%TEMP%\Run-FromGitHub.bat"
+```
 
-### Bash (Linux/macOS, zero files) — recommended online start
+(`curl.exe` is built into Windows 10/11. Without it, use the PowerShell
+one-liner below — it does the same via `iwr`.) Caches under
+`%LOCALAPPDATA%\trebleManager\<tag>`; delete that folder to force a fresh
+download.
+
+### PowerShell (Windows) — ein Befehl
+
+```powershell
+$b="$env:TEMP\Run-FromGitHub.bat"; iwr -UseBasicParsing -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/Run-FromGitHub.bat' -OutFile $b; & $b
+```
+
+Same result as the CMD variant (runs inline in your console).
+
+### PowerShell `irm | iex` (no temp file at all)
+
+```powershell
+irm https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1 | iex
+```
+
+The script self-bootstraps (fetches the full ZIP, SHA256-verified, relaunches
+from it). With CLI args this way? Download the file first, then call it with
+`.\Treble-Toolkit.ps1 detect --json` — `iex` takes no arguments.
+
+### Bash (Linux/macOS) — ein Befehl
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/run-from-github.sh -o /tmp/run-from-github.sh \
@@ -162,40 +181,48 @@ curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/run-from
 
 Caches under `~/.local/share/trebleManager/<tag>`, verifies SHA256, then
 `exec`s `scripts/treble-toolkit.sh`. Stays interactive (reads `/dev/tty`).
-
-### Fallback: single file, fully remote (self-bootstrapping)
-
-```powershell
-irm https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1 | iex
-```
+Pure pipe form (also self-bootstrapping):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/treble-toolkit.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/treble-toolkit.sh | bash -s -- detect --json
 ```
-
-Both scripts detect the missing layout, download the **full release ZIP**
-(SHA256-verified, cached), and **relaunch themselves from it** — same 100%
-run as ZIP or starter, CLI args are forwarded. Offline they warn and continue
-degraded (no registry) instead of crashing.
 
 First run on a fresh machine: use `Setup-TrebleToolkit.bat` once (auto-UAC,
 execution policy, installs ADB/fastboot + optional scrcpy into user PATH,
 saves `data/config.json`). The central starter offers this automatically.
 
-## Download (offline ZIP)
+## Download (offline ZIP — step by step)
 
-Latest release page (all ZIPs + `.sha256` attached):
-<https://github.com/mleem97/trebleManager/releases/latest>
-Pick `trebleManager-vX.Y.Z.zip` + its `.sha256`, verify, extract anywhere,
-**double-click `Start-TrebleToolkit.bat`** — the one central entry point
-(admin, setup, TUI). Read-only quick check without the toolkit:
-`p10-magisk-check-FIXED.bat` next to `adb.exe`.
+For machines without GitHub access (USB-stick transfer).
+
+1. Open <https://github.com/mleem97/trebleManager/releases/latest> and
+   download **both** files of the top release:
+   `trebleManager-vX.Y.Z.zip` **+** `trebleManager-vX.Y.Z.zip.sha256`.
+2. Verify the hash (must match, otherwise delete and re-download):
+   - PowerShell: `(Get-FileHash .\trebleManager-vX.Y.Z.zip -Algorithm SHA256).Hash -eq ((Get-Content .\trebleManager-vX.Y.Z.zip.sha256) -split '\s+')[0]` → must print `True`
+   - CMD: `certutil -hashfile trebleManager-vX.Y.Z.zip SHA256` → compare the
+     printed hash visually with the content of the `.sha256` file
+   - Linux: `sha256sum -c trebleManager-vX.Y.Z.zip.sha256` → must print `OK`
+3. Extract anywhere (path without spaces preferred), keep the folder layout
+   (`scripts\`, `data\`, `logs\`, `backups\`):
+   - Windows Explorer: right-click → Extract all, or PowerShell:
+     `Expand-Archive -Path .\trebleManager-vX.Y.Z.zip -DestinationPath C:\trebleManager`
+   - Linux: `unzip trebleManager-vX.Y.Z.zip -d trebleManager`
+4. **Double-click `Start-TrebleToolkit.bat`** — the one central entry point
+   (admin rights, setup, TUI). Nothing else needs opening.
+5. Optional for fully offline use: pre-place the full EMUI firmware ZIP in
+   `data\firmware\` and the Magisk APK in `data\magisk\` — then no internet
+   is needed at all.
+
+Read-only quick check without the toolkit: put `p10-magisk-check-FIXED.bat`
+next to `adb.exe` and double-click it.
 
 ## Releases (immutable)
 
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
+- [`release/v2.12.1`](https://github.com/mleem97/trebleManager/tree/release/v2.12.1) ([tag `v2.12.1`](https://github.com/mleem97/trebleManager/releases/tag/v2.12.1))
 - [`release/v2.12.0`](https://github.com/mleem97/trebleManager/tree/release/v2.12.0) ([tag `v2.12.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.12.0))
 - [`release/v2.11.0`](https://github.com/mleem97/trebleManager/tree/release/v2.11.0) ([tag `v2.11.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.11.0))
 - [`release/v2.10.0`](https://github.com/mleem97/trebleManager/tree/release/v2.10.0) ([tag `v2.10.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.10.0))

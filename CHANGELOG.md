@@ -1,5 +1,9 @@
 # Changelog — trebleManager
 
+## v2.12.1
+
+- README execution guide: new `Instant Execute` section (paste-ready one-liners for CMD via curl.exe, PowerShell via iwr/iex, Bash incl. pipe form) and rewritten `Download (offline ZIP — step by step)` (numbered: download, verify per shell incl. certutil, extract commands, central starter); stale hardcoded ZIP filename removed
+
 ## v2.12.0
 
 - 100% remote execution: both scripts self-bootstrap — `irm ... | iex` and `curl ... | bash` detect the missing layout, fetch the full SHA256-verified release ZIP (cached, loop-guarded via `TT_BOOTSTRAPPED`), forward CLI args, and relaunch from it; SHA mismatch deletes + aborts, offline warns degraded instead of crashing
