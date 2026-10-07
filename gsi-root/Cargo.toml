@@ -12,8 +12,9 @@ members = [
     "crates/gsi-device",
     "crates/gsi-archive",
     "crates/gsi-registry",
-    "crates/gsi-archive",
-    "crates/gsi-registry",
+    "crates/gsi-state",
+    "crates/gsi-gates",
+    "crates/gsi-diag",
     "crates/gsi-tool",
     "crates/gsi-root-gui",
 ]
@@ -34,3 +35,4 @@ serde_json = "1"
 flate2 = "1"
 tar = "0.4"
 lzma-rs = "0.3"
+zip = "2"

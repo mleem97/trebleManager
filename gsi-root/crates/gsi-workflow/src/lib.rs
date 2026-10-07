@@ -6,7 +6,7 @@
 
 use gsi_image::{detect_container, Container};
 use gsi_root_core::Maturity;
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha512};
 use std::path::{Path, PathBuf};
 
 /// One workflow step (spec §11).
@@ -77,6 +77,14 @@ pub fn p10_lineage20(input: &Path, _output: &Path) -> Workflow {
 pub fn sha256_file(path: &Path) -> Result<String, String> {
     let data = std::fs::read(path).map_err(|e| format!("read: {e}"))?;
     let mut h = Sha256::new();
+    h.update(&data);
+    Ok(format!("{:x}", h.finalize()))
+}
+
+/// SHA-512 of a file, lowercase hex (mirrors Get-FileHashInfo/file_hash dual output).
+pub fn sha512_file(path: &Path) -> Result<String, String> {
+    let data = std::fs::read(path).map_err(|e| format!("read: {e}"))?;
+    let mut h = Sha512::new();
     h.update(&data);
     Ok(format!("{:x}", h.finalize()))
 }
@@ -193,6 +201,17 @@ mod tests {
         assert_eq!(out, StepOutcome::Done);
         let (_, out2) = run_verify_hash(&p, "deadbeef");
         assert!(matches!(out2, StepOutcome::Failed(_)));
+        std::fs::remove_file(p).ok();
+    }
+
+    #[test]
+    fn sha512_known_answer() {
+        // sha512("abc") well-known prefix; full length 128 hex chars.
+        let p = tmp("h512.bin", b"abc");
+        let h = sha512_file(&p).unwrap();
+        assert_eq!(h.len(), 128);
+        assert!(h.starts_with("ddaf35a193617abacc417349ae20413112"));
+        assert!(sha512_file(Path::new("/nonexistent-tt-sha512")).is_err());
         std::fs::remove_file(p).ok();
     }
 

@@ -4,6 +4,10 @@ Jeder offene Task = eine Script-Funktion mit Status < 100 %.
 Reihenfolge = Abhängigkeiten zuerst (Archive/Registry, dann Flows,
 dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 
+## 100-%-Definition / 100 % definition
+
+100 % = jede Script-Funktion ist portiert (100 %, Dry-Run-getestet) oder als n/a markiert (bleibt per Spec §4 dauerhaft Script: Launcher, OS-seitige Elevation). TUI-Screens zählen über ihre Slint-GUI-Seite (Phase 9). Hardware-Ausführung (Flash/ADB-Sequenzen, Phase 8) zählt über Plan-Typen mit ehrlicher Refusal-Logik + DRY RUN TESTS; Live-Nachweis separat in VERIFICATION-*.md. POST-100 (Qualcomm) zählt NICHT zu den 100 %.
+
 ## Archiv/Export — 5 offen
 
 - [ ] `Expand-TTRomArchive` (PowerShell, 70 %) — zip extract open
@@ -12,20 +16,29 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `Invoke-TTUpdateAppAnalysis` (PowerShell, 20 %) — Refusal-Logik portierbar, Dekomprimierung braucht Archive-Crate
 - [ ] `zip_entries` (Bash, 20 %)
 
-## Logik/State/Planung — 55 offen
+## Logik/State/Planung — 39 offen
 
+- [ ] `Get-OSClassification` (PowerShell, 95 %)
+- [ ] `Load-InstalledRom` (PowerShell, 95 %) — multi-token=Err, honest
+- [ ] `Read-WorkflowState` (PowerShell, 95 %) — corrupt=Err, honest
+- [ ] `Test-StepGate` (PowerShell, 95 %) — live probing stays caller-side
+- [ ] `Write-WorkflowState` (PowerShell, 95 %)
+- [ ] `os_classify` (Bash, 95 %) — live prop collection stays caller-side
+- [ ] `read_state_goal` (Bash, 95 %)
+- [ ] `step_gate` (Bash, 95 %)
 - [ ] `Get-RomOptions` (PowerShell, 90 %)
+- [ ] `Write-ValidationReport` (PowerShell, 90 %) — timestamping stays caller-side
+- [ ] `load_rom` (Bash, 90 %) — bash mangling replaced by Err
 - [ ] `rom_options` (Bash, 90 %) — listing UI stays script/GUI
+- [ ] `New-WorkflowPlan` (PowerShell, 85 %) — live gate blocking stays exec layer
+- [ ] `Invoke-FailureFlow` (PowerShell, 80 %) — TUI + restore exec refused
+- [ ] `Invoke-TTSelfElevate` (PowerShell, 80 %) — UAC stays OS-side by design
+- [ ] `Test-TTAdmin` (PowerShell, 80 %) — elevation OS-side by design
 - [ ] `install_base_dir` (Bash, 80 %) — logic ported, tool-linking not
 - [ ] `profile_gsi_advice` (Bash, 80 %) — advice text stays script
 - [ ] `rom_broken` (Bash, 80 %)
 - [ ] `Get-TTScriptRoot` (PowerShell, 70 %) — same rule, different API
-- [ ] `Load-InstalledRom` (PowerShell, 70 %) — no dedicated fn
-- [ ] `Save-InstalledRom` (PowerShell, 70 %) — no dedicated fn
-- [ ] `Test-TTAdmin` (PowerShell, 70 %) — not ported yet
-- [ ] `load_rom` (Bash, 70 %)
 - [ ] `resolver_entries` (Bash, 70 %) — chain glue stays script
-- [ ] `save_rom` (Bash, 70 %)
 - [ ] `Find-LocalSystemImage` (PowerShell, 60 %)
 - [ ] `Find-TTRecoveryImage` (PowerShell, 60 %)
 - [ ] `Find-TTRomBaseImage` (PowerShell, 60 %)
@@ -33,56 +46,44 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `Test-SystemImageFile` (PowerShell, 60 %)
 - [ ] `goal_screen` (Bash, 60 %)
 - [ ] `rom_base_image` (Bash, 60 %)
-- [ ] `Get-InstalledRomFile` (PowerShell, 50 %)
 - [ ] `Get-TTToolRoot` (PowerShell, 50 %)
-- [ ] `Get-WorkflowStateFile` (PowerShell, 50 %)
 - [ ] `profile_verified` (Bash, 50 %)
-- [ ] `rom_file` (Bash, 50 %)
-- [ ] `state_file` (Bash, 50 %)
-- [ ] `New-WorkflowPlan` (PowerShell, 40 %) — planner logic open
-- [ ] `Read-WorkflowState` (PowerShell, 40 %) — full state open
-- [ ] `Write-WorkflowState` (PowerShell, 40 %)
 - [ ] `profile_variant` (Bash, 40 %)
+- [ ] `run_goal` (Bash, 40 %)
 - [ ] `save_config` (Bash, 40 %) — tool-path JSON open
-- [ ] `Write-ValidationReport` (PowerShell, 30 %)
-- [ ] `goal_steps` (Bash, 30 %)
-- [ ] `run_goal` (Bash, 30 %)
-- [ ] `target_partition` (Bash, 30 %) — Einzelfall pruefen
-- [ ] `Get-OSClassification` (PowerShell, 20 %)
 - [ ] `Get-RomImageEntries` (PowerShell, 20 %) — zip list open
-- [ ] `Invoke-FailureFlow` (PowerShell, 20 %) — no flow runner
-- [ ] `Save-RootState` (PowerShell, 20 %) — slot pattern exists in gsi-device
 - [ ] `Write-TTLog` (PowerShell, 20 %)
 - [ ] `log` (Bash, 20 %)
-- [ ] `os_classify` (Bash, 20 %)
-- [ ] `read_state_goal` (Bash, 20 %)
-- [ ] `save_root_state` (Bash, 20 %)
-- [ ] `write_state` (Bash, 20 %)
-- [ ] `Get-PreferredRootMethod` (PowerShell, 10 %)
-- [ ] `Invoke-TTSelfElevate` (PowerShell, 10 %) — UAC stays OS-side
-- [ ] `Test-StepGate` (PowerShell, 10 %)
-- [ ] `root_method_ids` (Bash, 10 %)
-- [ ] `root_method_name` (Bash, 10 %)
-- [ ] `step_gate` (Bash, 10 %)
-- [ ] `Get-VendorAdvice` (PowerShell, 0 %)
 - [ ] `Invoke-TTFirstRun` (PowerShell, 0 %)
 - [ ] `Invoke-TTRootVerification` (PowerShell, 0 %)
 - [ ] `select_target` (Bash, 0 %)
-- [ ] `vendor_advice` (Bash, 0 %)
 
 ## Device-Ausfuehrung — 58 offen
 
+- [ ] `Get-PatchBase` (PowerShell, 95 %) — fs search passed in
+- [ ] `patch_base` (Bash, 95 %)
+- [ ] `Test-TTFlashReadiness` (PowerShell, 90 %) — live re-query stays caller-side
+- [ ] `check_readiness` (Bash, 90 %)
+- [ ] `verify_download` (Bash, 90 %)
+- [ ] `Get-TTFirmwareBaseline` (PowerShell, 85 %) — live reads stay caller-side
+- [ ] `Invoke-Preflight` (PowerShell, 85 %) — live parts refused
+- [ ] `New-TTDiagnostic` (PowerShell, 85 %) — live adb capture stays caller-side
+- [ ] `Test-DownloadedFirmware` (PowerShell, 85 %) — UPDATE.APP inner check deferred
+- [ ] `do_diagnostic` (Bash, 85 %)
+- [ ] `preflight` (Bash, 85 %)
 - [ ] `Find-TTTools` (PowerShell, 80 %) — config-file merge open
 - [ ] `find_tools` (Bash, 80 %)
 - [ ] `Invoke-FirmwareDownload` (PowerShell, 70 %) — no progress events yet
-- [ ] `Test-DownloadedFirmware` (PowerShell, 70 %) — size heuristic open
 - [ ] `download_firmware` (Bash, 70 %)
-- [ ] `verify_download` (Bash, 70 %)
 - [ ] `Get-TTProp` (PowerShell, 60 %)
+- [ ] `New-TTBackup` (PowerShell, 60 %) — device dd refused, Phase 8
 - [ ] `Prepare-TTMagiskPatch` (PowerShell, 60 %) — instructions text open
 - [ ] `adb_prop` (Bash, 60 %) — glue open
+- [ ] `do_backup` (Bash, 60 %)
 - [ ] `prepare_patch` (Bash, 60 %)
 - [ ] `scan_dir_for_tools` (Bash, 60 %)
+- [ ] `Invoke-DeveloperDump` (PowerShell, 55 %) — live adb refused
+- [ ] `developer_dump` (Bash, 55 %)
 - [ ] `Invoke-FastbootLogged` (PowerShell, 50 %)
 - [ ] `Invoke-TTAdb` (PowerShell, 50 %) — protocol native: Phase 8
 - [ ] `Invoke-TTFastboot` (PowerShell, 50 %)
@@ -90,12 +91,9 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `fb_flash` (Bash, 50 %)
 - [ ] `fb_run` (Bash, 50 %)
 - [ ] `link_into_tools` (Bash, 50 %)
-- [ ] `Get-PatchBase` (PowerShell, 40 %) — rule fn open
-- [ ] `patch_base` (Bash, 40 %)
 - [ ] `Get-DeviceStates` (PowerShell, 30 %) — parsers done, state machine open
 - [ ] `add_to_path` (Bash, 30 %) — generic PATH mgmt open
 - [ ] `device_states` (Bash, 30 %)
-- [ ] `Get-TTFirmwareBaseline` (PowerShell, 20 %)
 - [ ] `Install-PersistFixes` (PowerShell, 20 %)
 - [ ] `Invoke-GuidedWipe` (PowerShell, 20 %)
 - [ ] `Invoke-SystemFlash` (PowerShell, 20 %)
@@ -109,55 +107,41 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `safe_flash` (Bash, 20 %)
 - [ ] `system_flash` (Bash, 20 %)
 - [ ] `twrp_flash` (Bash, 20 %)
-- [ ] `Invoke-Preflight` (PowerShell, 10 %) — tool part via gsi-tool
 - [ ] `Invoke-TTAndroidAnalysis` (PowerShell, 10 %) — parsers done
 - [ ] `Invoke-TTFastbootAnalysis` (PowerShell, 10 %)
-- [ ] `New-TTBackup` (PowerShell, 10 %) — needs device dump path
-- [ ] `New-TTDiagnostic` (PowerShell, 10 %)
-- [ ] `Test-TTFlashReadiness` (PowerShell, 10 %)
 - [ ] `Update-TTMode` (PowerShell, 10 %) — parsers done
 - [ ] `android_analysis` (Bash, 10 %)
-- [ ] `check_readiness` (Bash, 10 %) — Binding+Parser da, Protokoll Phase 8
 - [ ] `detect_mode` (Bash, 10 %)
-- [ ] `do_backup` (Bash, 10 %)
-- [ ] `do_diagnostic` (Bash, 10 %)
 - [ ] `fastboot_analysis` (Bash, 10 %)
 - [ ] `install_platform_tools` (Bash, 10 %)
-- [ ] `preflight` (Bash, 10 %)
-- [ ] `Invoke-DeveloperDump` (PowerShell, 0 %)
 - [ ] `Invoke-TTValidate` (PowerShell, 0 %)
-- [ ] `developer_dump` (Bash, 0 %)
 - [ ] `validate_checked` (Bash, 0 %)
 - [ ] `validate_device` (Bash, 0 %)
 - [ ] `verify_root` (Bash, 0 %)
 
-## Download — 10 offen
+## Download — 8 offen
 
-- [ ] `download_file` (Bash, 70 %)
-- [ ] `Find-TTMagiskApk` (PowerShell, 50 %)
-- [ ] `magisk_apk` (Bash, 50 %)
+- [ ] `download_file` (Bash, 95 %) — no progress bar, library
+- [ ] `Get-MagiskStable` (PowerShell, 90 %) — registry load stays caller-side
+- [ ] `Get-TTMagiskInfo` (PowerShell, 90 %) — sha512 omitted, sha2-only
+- [ ] `magisk_stable` (Bash, 90 %)
+- [ ] `Invoke-MagiskDownload` (PowerShell, 75 %) — prompt/cache UI stays CLI-side
+- [ ] `download_magisk` (Bash, 75 %)
 - [ ] `Invoke-RomDownload` (PowerShell, 40 %)
 - [ ] `download_rom` (Bash, 40 %)
-- [ ] `Invoke-MagiskDownload` (PowerShell, 30 %)
-- [ ] `download_magisk` (Bash, 30 %)
-- [ ] `Get-TTMagiskInfo` (PowerShell, 20 %)
-- [ ] `Get-MagiskStable` (PowerShell, 0 %)
-- [ ] `magisk_stable` (Bash, 0 %)
 
-## Pure Tests/Pruefer — 5 offen
+## Pure Tests/Pruefer — 3 offen
 
-- [ ] `Get-FileHashInfo` (PowerShell, 90 %) — sha512 missing
-- [ ] `file_hash` (Bash, 90 %)
 - [ ] `Test-RomAgainstRegistry` (PowerShell, 80 %) — gate wiring stays script
 - [ ] `test_image` (Bash, 60 %)
 - [ ] `test_system_image` (Bash, 60 %)
 
 ## Bootstrap-Logik — 2 offen
 
-- [ ] `Get-BootstrapReleaseFile` (PowerShell, 30 %) — Mechanik in gsi-update vorhanden, Release-File-Logik offen
-- [ ] `bootstrap_fetch` (Bash, 30 %) — Mechanik in gsi-update vorhanden, Release-File-Logik offen
+- [ ] `Get-BootstrapReleaseFile` (PowerShell, 70 %) — download/verify stays caller-side
+- [ ] `bootstrap_fetch` (Bash, 70 %)
 
-## TUI/interaktiv — 92 offen
+## TUI/interaktiv — 89 offen
 
 - [ ] `Get-CompatRegistry` (PowerShell, 90 %) — watch/policy UI stays script
 - [ ] `compat_broken_markers` (Bash, 90 %)
@@ -165,10 +149,7 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `compat_roms` (Bash, 90 %) — policy UI stays script
 - [ ] `Show-FlashVerdict` (PowerShell, 80 %) — ttcore prints verdicts
 - [ ] `compat_file` (Bash, 60 %) — profile discovery stays script
-- [ ] `Get-GoalSteps` (PowerShell, 30 %) — generic goals open
-- [ ] `Start-GoalWorkflow` (PowerShell, 30 %) — executes safe steps, refuses rest
-- [ ] `Test-FirmwareCompatibility` (PowerShell, 20 %)
-- [ ] `firmware_compat` (Bash, 20 %)
+- [ ] `Start-GoalWorkflow` (PowerShell, 40 %) — exec open
 - [ ] `L` (PowerShell, 0 %)
 - [ ] `Pause-TT` (PowerShell, 0 %)
 - [ ] `Screen-Analyze` (PowerShell, 0 %) — GUI Phase 9 (Slint)
@@ -252,4 +233,14 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `status_screen` (Bash, 0 %) — GUI Phase 9 (Slint)
 - [ ] `wizard` (Bash, 0 %) — GUI Phase 9 (Slint)
 
-Offen gesamt: 227 von 264 Funktionen.
+Offen gesamt: 204 von 264 Funktionen.
+
+## Nach 100 % blockiert / blocked until 100 % (POST-100)
+
+Qualcomm-Erweiterung (neue Geräteserie, Referenz: BQ Aquaris X Pro EU, Snapdragon 626/MSM8953) — strikt blockiert bis der Rewrite bei 100 % steht. Qualcomm extension (new device family) — strictly blocked until the rewrite reaches 100 %.
+
+- [ ] EDL/Deep-Flash-Protokoll (MSM8953) als `gsi-edl`-Crate (Firehose-Loader-Handling, signierte Loader, kein Bypass ohne Device-Consent) — BLOCKIERT bis 100 %
+- [ ] FRP-Reset-Flow (mit + ohne Deep Flash, nur wo der SoC es ohne erlaubt, dokumentiert pro Variante) — BLOCKIERT bis 100 %
+- [ ] Bootloader-Unlock-Flow (BQ Aquaris X Pro als Referenzgerät, Remote-Tests) — BLOCKIERT bis 100 %
+- [ ] Geräteprofil `data/compatibility/qualcomm/bq-aquaris-x-pro.yaml/json` + Registry-Anbindung — BLOCKIERT bis 100 %
+- [ ] Safety-Gates (Eigentümernachweis-Flow, Logging, Doppel-Confirm, kein stiller Bypass) — BLOCKIERT bis 100 %

@@ -5,7 +5,7 @@ Jede Script-Funktion mit Implementierungsort (PS1/Bash), Rust-Gegenstück und Po
 ## Pre-Rust-Ära (v2.1.0 – v2.17.x) / pre-Rust era
 
 Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BAT-Launcher) ohne Rust und ohne Cargo-Pflicht. Ihr dokumentiertes Verhalten (Wizard, Safety-Gates, Registries, CLI, Diagnostik) ist eingefroren und bleibt gültig — 0 % in den Tabellen unten ist dort die Script-Referenz, kein Mangel. Releases up to and including v2.17.x are script-only with no Rust dependency; their documented behavior stays valid as-is.
-## Gesamt: 264 Script-Funktionen, 74 Rust-`pub fn`, Schnitt 35 %
+## Gesamt: 264 Script-Funktionen, 146 Rust-`pub fn`, Schnitt 48 %
 
 > Interaktive TUI-Anteile (0 %) wandern in die Slint-GUI (Phase 9), nicht 1:1.
 
@@ -21,14 +21,14 @@ Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BA
 | `Invoke-TTUpdateAppAnalysis` | PowerShell | `—` | 20 % | Refusal-Logik portierbar, Dekomprimierung braucht Archive-Crate |
 | `zip_entries` | Bash | `gsi-archive::tar_list (zip still open)` | 20 % |  |
 
-## Bootstrap-Logik — 2 Funktionen, Schnitt 30 %
+## Bootstrap-Logik — 2 Funktionen, Schnitt 70 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
-| `bootstrap_fetch` | Bash | `—` | 30 % | Mechanik in gsi-update vorhanden, Release-File-Logik offen |
-| `Get-BootstrapReleaseFile` | PowerShell | `—` | 30 % | Mechanik in gsi-update vorhanden, Release-File-Logik offen |
+| `bootstrap_fetch` | Bash | `gsi-update::bootstrap_release` | 70 % |  |
+| `Get-BootstrapReleaseFile` | PowerShell | `gsi-update::bootstrap_release` | 70 % | download/verify stays caller-side |
 
-## Device-Ausfuehrung — 67 Funktionen, Schnitt 39 %
+## Device-Ausfuehrung — 67 Funktionen, Schnitt 52 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
@@ -36,17 +36,17 @@ Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BA
 | `adb_run` | Bash | `gsi-tool::run (binding)` | 50 % |  |
 | `add_to_path` | Bash | `gsi-root install (self only)` | 30 % | generic PATH mgmt open |
 | `android_analysis` | Bash | `sequence open (Phase 8)` | 10 % |  |
-| `check_readiness` | Bash | `—` | 10 % | Binding+Parser da, Protokoll Phase 8 |
+| `check_readiness` | Bash | `gsi-gates::check_readiness` | 90 % |  |
 | `ConvertFrom-AdbDevices` | PowerShell | `gsi-device::parse::adb_devices` | 100 % |  |
 | `ConvertFrom-ByNameListing` | PowerShell | `gsi-device::parse::byname` | 100 % |  |
 | `ConvertFrom-FastbootDevices` | PowerShell | `gsi-device::parse::fastboot_devices` | 100 % |  |
 | `ConvertFrom-FastbootGetvar` | PowerShell | `gsi-device::parse::getvar` | 100 % |  |
 | `ConvertFrom-GetpropDump` | PowerShell | `gsi-device::parse::getprop` | 100 % |  |
 | `detect_mode` | Bash | `state machine open (Phase 8)` | 10 % |  |
-| `developer_dump` | Bash | `adb dumps open (Phase 8)` | 0 % |  |
+| `developer_dump` | Bash | `gsi-diag::developer_dump (pure part)` | 55 % |  |
 | `device_states` | Bash | `gsi-device parse + detect open` | 30 % |  |
-| `do_backup` | Bash | `backup packaging open` | 10 % |  |
-| `do_diagnostic` | Bash | `zip packaging open` | 10 % |  |
+| `do_backup` | Bash | `gsi-diag::plan_backup` | 60 % |  |
+| `do_diagnostic` | Bash | `gsi-diag bundle builder` | 85 % |  |
 | `do_restore` | Bash | `plan exists, exec needs fastboot` | 20 % |  |
 | `download_firmware` | Bash | `gsi-update::download_to` | 70 % |  |
 | `fastboot_analysis` | Bash | `sequence open (Phase 8)` | 10 % |  |
@@ -57,18 +57,18 @@ Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BA
 | `flash_verdict` | Bash | `treble_core::fastboot::flash_verdict` | 100 % |  |
 | `Get-DeviceStates` | PowerShell | `gsi-device parse + detect open` | 30 % | parsers done, state machine open |
 | `Get-FlashVerdict` | PowerShell | `treble_core::fastboot::flash_verdict` | 100 % |  |
-| `Get-PatchBase` | PowerShell | `rule open (inputs via gsi-registry)` | 40 % | rule fn open |
-| `Get-TTFirmwareBaseline` | PowerShell | `string logic open` | 20 % |  |
+| `Get-PatchBase` | PowerShell | `gsi-gates::patch_base` | 95 % | fs search passed in |
+| `Get-TTFirmwareBaseline` | PowerShell | `gsi-gates::firmware_baseline_from_parts` | 85 % | live reads stay caller-side |
 | `Get-TTProp` | PowerShell | `gsi-device::parse::getprop + binding` | 60 % |  |
 | `guided_wipe` | Bash | `plan exists, exec needs fastboot` | 20 % |  |
 | `Install-PersistFixes` | PowerShell | `plan exists, exec needs adb` | 20 % |  |
 | `install_persist_fixes` | Bash | `plan exists, exec needs adb` | 20 % |  |
 | `install_platform_tools` | Bash | `URL pattern only` | 10 % |  |
-| `Invoke-DeveloperDump` | PowerShell | `adb dumps open (Phase 8)` | 0 % |  |
+| `Invoke-DeveloperDump` | PowerShell | `gsi-diag::developer_dump (pure part)` | 55 % | live adb refused |
 | `Invoke-FastbootLogged` | PowerShell | `gsi-tool::run (binding)` | 50 % |  |
 | `Invoke-FirmwareDownload` | PowerShell | `gsi-update::download_to` | 70 % | no progress events yet |
 | `Invoke-GuidedWipe` | PowerShell | `plan exists, exec needs fastboot` | 20 % |  |
-| `Invoke-Preflight` | PowerShell | `checks open` | 10 % | tool part via gsi-tool |
+| `Invoke-Preflight` | PowerShell | `gsi-gates::preflight (pure subset)` | 85 % | live parts refused |
 | `Invoke-SystemFlash` | PowerShell | `plan exists, exec needs fastboot` | 20 % |  |
 | `Invoke-TTAdb` | PowerShell | `gsi-tool::run + adb (binding)` | 50 % | protocol native: Phase 8 |
 | `Invoke-TTAndroidAnalysis` | PowerShell | `sequence open (Phase 8)` | 10 % | parsers done |
@@ -79,54 +79,54 @@ Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BA
 | `Invoke-TTValidate` | PowerShell | `adb sequence open (Phase 8)` | 0 % |  |
 | `Invoke-TwrpFlash` | PowerShell | `plan exists, exec needs fastboot` | 20 % |  |
 | `link_into_tools` | Bash | `symlink (trivial)` | 50 % |  |
-| `New-TTBackup` | PowerShell | `backup packaging open` | 10 % | needs device dump path |
-| `New-TTDiagnostic` | PowerShell | `zip packaging open (needs archive crate)` | 10 % |  |
-| `patch_base` | Bash | `rule open (inputs via gsi-registry)` | 40 % |  |
+| `New-TTBackup` | PowerShell | `gsi-diag::plan_backup` | 60 % | device dd refused, Phase 8 |
+| `New-TTDiagnostic` | PowerShell | `gsi-diag bundle builder` | 85 % | live adb capture stays caller-side |
+| `patch_base` | Bash | `gsi-gates::patch_base` | 95 % |  |
 | `platform_tools_url` | Bash | `registry tools block (data, no code yet)` | 20 % | URLs only in scripts |
-| `preflight` | Bash | `checks open` | 10 % |  |
+| `preflight` | Bash | `gsi-gates::preflight (pure subset)` | 85 % |  |
 | `Prepare-TTMagiskPatch` | PowerShell | `staging copy (trivial)` | 60 % | instructions text open |
 | `prepare_patch` | Bash | `staging copy (trivial)` | 60 % |  |
 | `safe_flash` | Bash | `plan exists, exec needs fastboot` | 20 % |  |
 | `scan_dir_for_tools` | Bash | `dir scan (trivial)` | 60 % |  |
 | `system_flash` | Bash | `plan exists, exec needs fastboot` | 20 % |  |
-| `Test-DownloadedFirmware` | PowerShell | `hash sidecar (trivial)` | 70 % | size heuristic open |
+| `Test-DownloadedFirmware` | PowerShell | `gsi-update::verify_downloaded_firmware` | 85 % | UPDATE.APP inner check deferred |
 | `Test-FirmwareUrl` | PowerShell | `treble_core::firmware::check_url` | 100 % | /download-strip parity |
-| `Test-TTFlashReadiness` | PowerShell | `gate types open` | 10 % |  |
+| `Test-TTFlashReadiness` | PowerShell | `gsi-gates::check_readiness` | 90 % | live re-query stays caller-side |
 | `twrp_flash` | Bash | `plan exists, exec needs fastboot` | 20 % |  |
 | `Unquote-Path` | PowerShell | `inline (trivial)` | 100 % |  |
 | `Update-TTMode` | PowerShell | `state machine open (Phase 8)` | 10 % | parsers done |
 | `validate_checked` | Bash | `adb sequence open (Phase 8)` | 0 % |  |
 | `validate_device` | Bash | `adb sequence open (Phase 8)` | 0 % |  |
-| `verify_download` | Bash | `hash sidecar (trivial)` | 70 % |  |
+| `verify_download` | Bash | `gsi-update::verify_hash_sidecar + heuristic` | 90 % |  |
 | `verify_root` | Bash | `adb sequence open (Phase 8)` | 0 % |  |
 
-## Download — 12 Funktionen, Schnitt 44 %
+## Download — 12 Funktionen, Schnitt 83 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
-| `download_file` | Bash | `gsi-update::download_to` | 70 % |  |
-| `download_magisk` | Bash | `gsi-update + stable.json (glue open)` | 30 % |  |
+| `download_file` | Bash | `gsi-update::download_file` | 95 % | no progress bar, library |
+| `download_magisk` | Bash | `gsi-update::magisk dest + download_file glue` | 75 % |  |
 | `download_rom` | Bash | `gsi-update + gsi-registry::target_config/rom_downloads (glue open)` | 40 % |  |
-| `Find-TTMagiskApk` | PowerShell | `glob (trivial)` | 50 % |  |
-| `Get-MagiskStable` | PowerShell | `manual fetch (no crate fn)` | 0 % |  |
+| `Find-TTMagiskApk` | PowerShell | `gsi-update::find_magisk_apk` | 100 % |  |
+| `Get-MagiskStable` | PowerShell | `gsi-update::fetch/parse_magisk_stable` | 90 % | registry load stays caller-side |
 | `Get-RomDownloads` | PowerShell | `gsi-registry::rom_downloads` | 100 % |  |
-| `Get-TTMagiskInfo` | PowerShell | `hash/size only` | 20 % |  |
-| `Invoke-MagiskDownload` | PowerShell | `gsi-update + stable.json (glue open)` | 30 % |  |
+| `Get-TTMagiskInfo` | PowerShell | `gsi-update::magisk_info` | 90 % | sha512 omitted, sha2-only |
+| `Invoke-MagiskDownload` | PowerShell | `gsi-update::magisk dest + download_file glue` | 75 % | prompt/cache UI stays CLI-side |
 | `Invoke-RomDownload` | PowerShell | `gsi-update + gsi-registry::target_config/rom_downloads (glue open)` | 40 % |  |
-| `magisk_apk` | Bash | `glob (trivial)` | 50 % |  |
-| `magisk_stable` | Bash | `manual fetch (no crate fn)` | 0 % |  |
+| `magisk_apk` | Bash | `gsi-update::find_magisk_apk` | 100 % |  |
+| `magisk_stable` | Bash | `gsi-update::fetch/parse_magisk_stable` | 90 % |  |
 | `rom_downloads` | Bash | `gsi-registry::rom_downloads` | 100 % |  |
 
-## Logik/State/Planung — 74 Funktionen, Schnitt 56 %
+## Logik/State/Planung — 74 Funktionen, Schnitt 81 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
 | `Find-LocalSystemImage` | PowerShell | `glob (trivial)` | 60 % |  |
 | `Find-TTRecoveryImage` | PowerShell | `glob (trivial)` | 60 % |  |
 | `Find-TTRomBaseImage` | PowerShell | `glob newest (trivial)` | 60 % |  |
-| `Get-InstalledRomFile` | PowerShell | `gsi-config paths` | 50 % |  |
-| `Get-OSClassification` | PowerShell | `string rules open` | 20 % |  |
-| `Get-PreferredRootMethod` | PowerShell | `static table open` | 10 % |  |
+| `Get-InstalledRomFile` | PowerShell | `gsi-state::installed_rom_file` | 100 % |  |
+| `Get-OSClassification` | PowerShell | `gsi-gates::os_classify` | 95 % |  |
+| `Get-PreferredRootMethod` | PowerShell | `gsi-gates::preferred_root_methods` | 100 % |  |
 | `Get-ResolverSystems` | PowerShell | `gsi-registry::systems_for` | 100 % |  |
 | `Get-ResolverVariants` | PowerShell | `gsi-registry::variants_for` | 100 % |  |
 | `Get-RomEntry` | PowerShell | `gsi-registry::entry_by_label` | 100 % |  |
@@ -140,69 +140,69 @@ Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BA
 | `Get-TargetConfig` | PowerShell | `gsi-registry::target_config` | 100 % |  |
 | `Get-TTScriptRoot` | PowerShell | `gsi-config (platform dirs)` | 70 % | same rule, different API |
 | `Get-TTToolRoot` | PowerShell | `gsi-config paths` | 50 % |  |
-| `Get-VendorAdvice` | PowerShell | `static strings open` | 0 % |  |
-| `Get-WorkflowStateFile` | PowerShell | `gsi-config paths` | 50 % |  |
+| `Get-VendorAdvice` | PowerShell | `gsi-registry::vendor_advice` | 100 % |  |
+| `Get-WorkflowStateFile` | PowerShell | `gsi-state::workflow_state_file` | 100 % |  |
 | `goal_screen` | Bash | `CLI dispatch (trivial)` | 60 % |  |
-| `goal_steps` | Bash | `gsi-workflow (one goal)` | 30 % |  |
+| `goal_steps` | Bash | `gsi-state::goal_steps` | 100 % |  |
 | `install_base_dir` | Bash | `gsi-config (platform dirs)` | 80 % | logic ported, tool-linking not |
-| `Invoke-FailureFlow` | PowerShell | `StepOutcome::Failed exists` | 20 % | no flow runner |
+| `Invoke-FailureFlow` | PowerShell | `gsi-gates::failure_outcome/message` | 80 % | TUI + restore exec refused |
 | `Invoke-TTFirstRun` | PowerShell | `guided flow open (GUI)` | 0 % |  |
 | `Invoke-TTRootVerification` | PowerShell | `adb sequence open (Phase 8)` | 0 % |  |
-| `Invoke-TTSelfElevate` | PowerShell | `platform guidance open` | 10 % | UAC stays OS-side |
-| `Load-InstalledRom` | PowerShell | `file read (trivial)` | 70 % | no dedicated fn |
-| `load_rom` | Bash | `file read (trivial)` | 70 % |  |
+| `Invoke-TTSelfElevate` | PowerShell | `gsi-gates::windows_admin_guidance` | 80 % | UAC stays OS-side by design |
+| `Load-InstalledRom` | PowerShell | `gsi-state::read_installed_rom` | 95 % | multi-token=Err, honest |
+| `load_rom` | Bash | `gsi-state::read_installed_rom` | 90 % | bash mangling replaced by Err |
 | `log` | Bash | `tracing planned (println today)` | 20 % |  |
 | `marketing_name` | Bash | `inline (trivial)` | 100 % |  |
-| `New-WorkflowPlan` | PowerShell | `gsi-workflow plan types` | 40 % | planner logic open |
-| `os_classify` | Bash | `string rules open` | 20 % |  |
+| `New-WorkflowPlan` | PowerShell | `gsi-state::new_workflow_plan` | 85 % | live gate blocking stays exec layer |
+| `os_classify` | Bash | `gsi-gates::os_classify` | 95 % | live prop collection stays caller-side |
 | `profile_gsi_advice` | Bash | `gsi-registry::target_config (gsi branch)` | 80 % | advice text stays script |
 | `profile_variant` | Bash | `gsi-registry::variants_for (needs android first)` | 40 % |  |
 | `profile_verified` | Bash | `gsi-registry::load_roms (parse), policy stays script` | 50 % |  |
-| `Read-WorkflowState` | PowerShell | `gsi-device (slot part)` | 40 % | full state open |
+| `Read-WorkflowState` | PowerShell | `gsi-state::read_workflow_state` | 95 % | corrupt=Err, honest |
 | `read_slot` | Bash | `gsi-device read_slot` | 100 % |  |
-| `read_state_goal` | Bash | `state file open` | 20 % |  |
+| `read_state_goal` | Bash | `gsi-state::read_state_goal` | 95 % |  |
 | `Resolve-RunMode` | PowerShell | `inline (trivial)` | 100 % | 2-line logic |
 | `resolve_mode` | Bash | `inline (trivial)` | 100 % |  |
 | `resolver_entries` | Bash | `gsi-registry queries (pieces ported)` | 70 % | chain glue stays script |
 | `rom_base_image` | Bash | `glob newest (trivial)` | 60 % |  |
 | `rom_broken` | Bash | `inline filter (trivial)` | 80 % |  |
 | `rom_entry_gsi` | Bash | `gsi-registry::entry_gsi` | 100 % |  |
-| `rom_file` | Bash | `gsi-config paths` | 50 % |  |
+| `rom_file` | Bash | `gsi-state::installed_rom_file` | 100 % |  |
 | `rom_label` | Bash | `treble_core::roms::rom_label` | 100 % |  |
 | `rom_options` | Bash | `gsi-registry::rom_options` | 90 % | listing UI stays script/GUI |
 | `rom_suggest` | Bash | `treble_core::roms::rom_suggest` | 100 % |  |
-| `root_method_ids` | Bash | `static table open` | 10 % |  |
-| `root_method_name` | Bash | `static table open` | 10 % |  |
-| `run_goal` | Bash | `gsi-workflow runner (partial)` | 30 % |  |
-| `Save-InstalledRom` | PowerShell | `file write (trivial)` | 70 % | no dedicated fn |
-| `Save-RootState` | PowerShell | `state file open` | 20 % | slot pattern exists in gsi-device |
+| `root_method_ids` | Bash | `gsi-gates::root_method_ids` | 100 % |  |
+| `root_method_name` | Bash | `gsi-gates::root_method_name` | 100 % |  |
+| `run_goal` | Bash | `gsi-state plan + gsi-gates refusals` | 40 % |  |
+| `Save-InstalledRom` | PowerShell | `gsi-state::write_installed_rom` | 100 % |  |
+| `Save-RootState` | PowerShell | `gsi-state::write/read_root_state` | 100 % |  |
 | `Save-SlotState` | PowerShell | `gsi-device read/write slot` | 100 % | same JSON shape |
 | `save_config` | Bash | `gsi-config dirs` | 40 % | tool-path JSON open |
-| `save_rom` | Bash | `file write (trivial)` | 70 % |  |
-| `save_root_state` | Bash | `state file open` | 20 % |  |
+| `save_rom` | Bash | `gsi-state::write_installed_rom` | 100 % |  |
+| `save_root_state` | Bash | `gsi-state::write_root_state` | 100 % |  |
 | `save_slot` | Bash | `gsi-device read/write slot` | 100 % |  |
 | `select_target` | Bash | `CLI select open` | 0 % |  |
-| `state_file` | Bash | `gsi-config paths` | 50 % |  |
-| `step_gate` | Bash | `gate types open` | 10 % |  |
+| `state_file` | Bash | `gsi-state::workflow_state_file` | 100 % |  |
+| `step_gate` | Bash | `gsi-gates::step_gate` | 95 % |  |
 | `target_androids` | Bash | `gsi-registry::target_androids` | 100 % |  |
-| `target_partition` | Bash | `—` | 30 % | Einzelfall pruefen |
+| `target_partition` | Bash | `gsi-gates::target_partition` | 100 % |  |
 | `Test-RecoveryImageFile` | PowerShell | `images::boot_magic_ver + size` | 60 % | size policy open |
-| `Test-StepGate` | PowerShell | `gate types open` | 10 % |  |
+| `Test-StepGate` | PowerShell | `gsi-gates::step_gate` | 95 % | live probing stays caller-side |
 | `Test-SystemImageFile` | PowerShell | `images + size` | 60 % |  |
-| `Test-TTAdmin` | PowerShell | `platform check (trivial)` | 70 % | not ported yet |
-| `vendor_advice` | Bash | `static strings open` | 0 % |  |
+| `Test-TTAdmin` | PowerShell | `gsi-gates::admin_from_proc_status + guidance` | 80 % | elevation OS-side by design |
+| `vendor_advice` | Bash | `gsi-registry::vendor_advice` | 100 % |  |
 | `Write-TTLog` | PowerShell | `tracing planned` | 20 % |  |
-| `Write-ValidationReport` | PowerShell | `manifest struct exists` | 30 % |  |
-| `Write-WorkflowState` | PowerShell | `gsi-device (slot part)` | 40 % |  |
-| `write_state` | Bash | `state file open` | 20 % |  |
+| `Write-ValidationReport` | PowerShell | `gsi-diag report builder` | 90 % | timestamping stays caller-side |
+| `Write-WorkflowState` | PowerShell | `gsi-state::write_workflow_state` | 95 % |  |
+| `write_state` | Bash | `gsi-state::write_step_state` | 100 % |  |
 
-## Pure Tests/Pruefer — 10 Funktionen, Schnitt 88 %
+## Pure Tests/Pruefer — 10 Funktionen, Schnitt 90 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
 | `boot_magic_ver` | Bash | `done above` | 100 % |  |
-| `file_hash` | Bash | `gsi-workflow::sha256_file` | 90 % |  |
-| `Get-FileHashInfo` | PowerShell | `gsi-workflow::sha256_file` | 90 % | sha512 missing |
+| `file_hash` | Bash | `gsi-workflow::sha256/512_file` | 100 % |  |
+| `Get-FileHashInfo` | PowerShell | `gsi-workflow::sha256/512_file` | 100 % |  |
 | `image_kind` | Bash | `done above` | 100 % |  |
 | `Test-BootImageMagic` | PowerShell | `done above` | 100 % |  |
 | `Test-ImageKind` | PowerShell | `done above` | 100 % |  |
@@ -211,7 +211,7 @@ Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BA
 | `test_system_image` | Bash | `images + size` | 60 % |  |
 | `valid_url` | Bash | `treble_core::firmware::check_url` | 100 % |  |
 
-## TUI/interaktiv — 92 Funktionen, Schnitt 7 %
+## TUI/interaktiv — 92 Funktionen, Schnitt 9 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
@@ -221,9 +221,9 @@ Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BA
 | `compat_roms` | Bash | `gsi-registry::load_roms` | 90 % | policy UI stays script |
 | `ensure_scrcpy` | Bash | `guided flow open (TUI)` | 0 % |  |
 | `ensure_tool` | Bash | `guided flow open (TUI)` | 0 % |  |
-| `firmware_compat` | Bash | `compat rule open (needs registry layer)` | 20 % |  |
+| `firmware_compat` | Bash | `gsi-gates::firmware_compat` | 100 % |  |
 | `Get-CompatRegistry` | PowerShell | `gsi-registry::load_roms` | 90 % | watch/policy UI stays script |
-| `Get-GoalSteps` | PowerShell | `gsi-workflow p10_lineage20 (one goal)` | 30 % | generic goals open |
+| `Get-GoalSteps` | PowerShell | `gsi-state::goal_steps (all 9 goals)` | 100 % |  |
 | `header` | Bash | `GUI/TUI (Phase 9)` | 0 % |  |
 | `iread` | Bash | `GUI (Phase 9)` | 0 % |  |
 | `L` | PowerShell | `i18n system open (GUI)` | 0 % |  |
@@ -301,13 +301,13 @@ Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BA
 | `Show-TTStepsMenu` | PowerShell | `—` | 0 % | GUI Phase 9 (Slint) |
 | `Show-TTWorkflowMenu` | PowerShell | `—` | 0 % | GUI Phase 9 (Slint) |
 | `show_help` | Bash | `—` | 0 % | GUI Phase 9 (Slint) |
-| `Start-GoalWorkflow` | PowerShell | `gsi-workflow runner (partial)` | 30 % | executes safe steps, refuses rest |
+| `Start-GoalWorkflow` | PowerShell | `gsi-state plan + gsi-gates refusals` | 40 % | exec open |
 | `Start-TTTui` | PowerShell | `—` | 0 % | GUI Phase 9 (Slint) |
 | `Start-TTWizard` | PowerShell | `—` | 0 % | GUI Phase 9 (Slint) |
 | `status_screen` | Bash | `—` | 0 % | GUI Phase 9 (Slint) |
-| `Test-FirmwareCompatibility` | PowerShell | `compat rule open` | 20 % |  |
+| `Test-FirmwareCompatibility` | PowerShell | `gsi-gates::firmware_compat` | 100 % |  |
 | `wizard` | Bash | `—` | 0 % | GUI Phase 9 (Slint) |
 
 ## Rust-Seite (portierbar, ohne Duplikate)
 
-`pub fn` insgesamt: 74 (treble_core + gsi-root-Crates + gsi-device/parse, gsi-fs, gsi-tool, gsi-update, gsi-workflow, gsi-config).
+`pub fn` insgesamt: 146 (treble_core + gsi-root-Crates + gsi-device/parse, gsi-fs, gsi-tool, gsi-update, gsi-workflow, gsi-config).

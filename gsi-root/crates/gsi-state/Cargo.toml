@@ -1,0 +1,16 @@
+[package]
+name = "gsi-state"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "State/persistence layer ported from scripts: installed-rom file, workflow-state.json, root/slot records, goal table and plan."
+
+[lib]
+name = "gsi_state"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+gsi-device = { path = "../gsi-device" }
+gsi-config = { path = "../gsi-config" }

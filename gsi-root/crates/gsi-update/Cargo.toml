@@ -10,5 +10,6 @@ name = "gsi_update"
 path = "src/lib.rs"
 
 [dependencies]
+gsi-registry = { path = "../gsi-registry" }
 sha2.workspace = true
 ureq.workspace = true

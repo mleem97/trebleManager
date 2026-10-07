@@ -1,0 +1,14 @@
+[package]
+name = "gsi-gates"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pure gate/rule layer ported from scripts: step gates, readiness, preflight, patch-base, compat verdict, failure flow, root table, baseline, partitions, OS class, admin core. No device execution."
+
+[lib]
+name = "gsi_gates"
+path = "src/lib.rs"
+
+[dependencies]
+gsi-registry = { path = "../gsi-registry" }
+serde_json.workspace = true

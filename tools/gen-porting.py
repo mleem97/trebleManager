@@ -55,6 +55,7 @@ KNOWN = {
     "Get-CompatRegistry": ("gsi-registry::load_roms", 90, "watch/policy UI stays script"),
     "Test-RomAgainstRegistry": ("gsi-registry::firmware_compat + vendor_advice", 80, "gate wiring stays script"),
     "Get-VendorAdvice": ("gsi-registry::vendor_advice", 100, ""),
+    "vendor_advice": ("gsi-registry::vendor_advice", 100, ""),
     "Get-ResolverSystems": ("gsi-registry::systems_for", 100, ""),
     "Get-ResolverVariants": ("gsi-registry::variants_for", 100, ""),
     "Get-TargetAndroidVersions": ("gsi-registry::target_androids", 100, ""),
@@ -66,49 +67,50 @@ KNOWN = {
     "profile_variant": ("gsi-registry::variants_for (needs android first)", 40, ""),
     "Get-RomDownloads": ("gsi-registry::rom_downloads", 100, ""),
     "rom_downloads": ("gsi-registry::rom_downloads", 100, ""),
-    "Get-MagiskStable": ("manual fetch (no crate fn)", 0, ""),
-    "magisk_stable": ("manual fetch (no crate fn)", 0, ""),
-    "Get-TTMagiskInfo": ("hash/size only", 20, ""),
-    "Find-TTMagiskApk": ("glob (trivial)", 50, ""),
-    "magisk_apk": ("glob (trivial)", 50, ""),
-    "Get-FileHashInfo": ("gsi-workflow::sha256_file", 90, "sha512 missing"),
-    "file_hash": ("gsi-workflow::sha256_file", 90, ""),
+    "Get-MagiskStable": ("gsi-update::fetch/parse_magisk_stable", 90, "registry load stays caller-side"),
+    "magisk_stable": ("gsi-update::fetch/parse_magisk_stable", 90, ""),
+    "Get-TTMagiskInfo": ("gsi-update::magisk_info", 90, "sha512 omitted, sha2-only"),
+    "Find-TTMagiskApk": ("gsi-update::find_magisk_apk", 100, ""),
+    "magisk_apk": ("gsi-update::find_magisk_apk", 100, ""),
+    "Get-FileHashInfo": ("gsi-workflow::sha256/512_file", 100, ""),
+    "file_hash": ("gsi-workflow::sha256/512_file", 100, ""),
     "Get-TTScriptRoot": ("gsi-config (platform dirs)", 70, "same rule, different API"),
     "Get-TTToolRoot": ("gsi-config paths", 50, ""),
-    "Get-InstalledRomFile": ("gsi-config paths", 50, ""),
-    "rom_file": ("gsi-config paths", 50, ""),
-    "Save-InstalledRom": ("file write (trivial)", 70, "no dedicated fn"),
-    "Load-InstalledRom": ("file read (trivial)", 70, "no dedicated fn"),
-    "save_rom": ("file write (trivial)", 70, ""),
-    "load_rom": ("file read (trivial)", 70, ""),
-    "Save-RootState": ("state file open", 20, "slot pattern exists in gsi-device"),
-    "save_root_state": ("state file open", 20, ""),
+    "Get-InstalledRomFile": ("gsi-state::installed_rom_file", 100, ""),
+    "rom_file": ("gsi-state::installed_rom_file", 100, ""),
+    "Save-InstalledRom": ("gsi-state::write_installed_rom", 100, ""),
+    "Load-InstalledRom": ("gsi-state::read_installed_rom", 95, "multi-token=Err, honest"),
+    "save_rom": ("gsi-state::write_installed_rom", 100, ""),
+    "load_rom": ("gsi-state::read_installed_rom", 90, "bash mangling replaced by Err"),
+    "Save-RootState": ("gsi-state::write/read_root_state", 100, ""),
+    "save_root_state": ("gsi-state::write_root_state", 100, ""),
     "Save-SlotState": ("gsi-device read/write slot", 100, "same JSON shape"),
     "save_slot": ("gsi-device read/write slot", 100, ""),
     "Get-SlotState": ("gsi-device read_slot", 100, ""),
     "read_slot": ("gsi-device read_slot", 100, ""),
-    "Read-WorkflowState": ("gsi-device (slot part)", 40, "full state open"),
-    "Write-WorkflowState": ("gsi-device (slot part)", 40, ""),
-    "Get-WorkflowStateFile": ("gsi-config paths", 50, ""),
-    "read_state_goal": ("state file open", 20, ""),
-    "write_state": ("state file open", 20, ""),
-    "state_file": ("gsi-config paths", 50, ""),
-    "Get-GoalSteps": ("gsi-workflow p10_lineage20 (one goal)", 30, "generic goals open"),
-    "goal_steps": ("gsi-workflow (one goal)", 30, ""),
-    "New-WorkflowPlan": ("gsi-workflow plan types", 40, "planner logic open"),
-    "Start-GoalWorkflow": ("gsi-workflow runner (partial)", 30, "executes safe steps, refuses rest"),
-    "run_goal": ("gsi-workflow runner (partial)", 30, ""),
+    "Read-WorkflowState": ("gsi-state::read_workflow_state", 95, "corrupt=Err, honest"),
+    "Write-WorkflowState": ("gsi-state::write_workflow_state", 95, ""),
+    "Get-WorkflowStateFile": ("gsi-state::workflow_state_file", 100, ""),
+    "read_state_goal": ("gsi-state::read_state_goal", 95, ""),
+    "write_state": ("gsi-state::write_step_state", 100, ""),
+    "state_file": ("gsi-state::workflow_state_file", 100, ""),
+    "Get-GoalSteps": ("gsi-state::goal_steps (all 9 goals)", 100, ""),
+    "goal_steps": ("gsi-state::goal_steps", 100, ""),
+    "New-WorkflowPlan": ("gsi-state::new_workflow_plan", 85, "live gate blocking stays exec layer"),
+    "Start-GoalWorkflow": ("gsi-state plan + gsi-gates refusals", 40, "exec open"),
+    "run_goal": ("gsi-state plan + gsi-gates refusals", 40, ""),
     "goal_screen": ("CLI dispatch (trivial)", 60, ""),
-    "Invoke-FailureFlow": ("StepOutcome::Failed exists", 20, "no flow runner"),
+    "Invoke-FailureFlow": ("gsi-gates::failure_outcome/message", 80, "TUI + restore exec refused"),
     "Get-DeviceStates": ("gsi-device parse + detect open", 30, "parsers done, state machine open"),
     "device_states": ("gsi-device parse + detect open", 30, ""),
     "Select-TargetDevice": ("CLI select open", 0, ""),
     "select_target": ("CLI select open", 0, ""),
-    "Test-StepGate": ("gate types open", 10, ""),
-    "step_gate": ("gate types open", 10, ""),
-    "Test-TTFlashReadiness": ("gate types open", 10, ""),
-    "Invoke-Preflight": ("checks open", 10, "tool part via gsi-tool"),
-    "preflight": ("checks open", 10, ""),
+    "Test-StepGate": ("gsi-gates::step_gate", 95, "live probing stays caller-side"),
+    "step_gate": ("gsi-gates::step_gate", 95, ""),
+    "Test-TTFlashReadiness": ("gsi-gates::check_readiness", 90, "live re-query stays caller-side"),
+    "check_readiness": ("gsi-gates::check_readiness", 90, ""),
+    "Invoke-Preflight": ("gsi-gates::preflight (pure subset)", 85, "live parts refused"),
+    "preflight": ("gsi-gates::preflight (pure subset)", 85, ""),
     "Show-PreflightBlocked": ("TUI (Phase 9)", 0, ""),
     "Find-TTTools": ("gsi-tool::locate", 80, "config-file merge open"),
     "find_tools": ("gsi-tool::locate", 80, ""),
@@ -123,8 +125,11 @@ KNOWN = {
     "Find-TTRomBaseImage": ("glob newest (trivial)", 60, ""),
     "rom_base_image": ("glob newest (trivial)", 60, ""),
     "Find-LocalSystemImage": ("glob (trivial)", 60, ""),
-    "Get-PatchBase": ("rule open (inputs via gsi-registry)", 40, "rule fn open"),
-    "patch_base": ("rule open (inputs via gsi-registry)", 40, ""),
+    "Get-PatchBase": ("gsi-gates::patch_base", 95, "fs search passed in"),
+    "patch_base": ("gsi-gates::patch_base", 95, ""),
+    "target_partition": ("gsi-gates::target_partition", 100, ""),
+    "Get-BootstrapReleaseFile": ("gsi-update::bootstrap_release", 70, "download/verify stays caller-side"),
+    "bootstrap_fetch": ("gsi-update::bootstrap_release", 70, ""),
     "Get-RomImageEntries": ("gsi-archive::tar_list (zip still open)", 20, "zip list open"),
     "zip_entries": ("gsi-archive::tar_list (zip still open)", 20, ""),
     "Expand-TTRomArchive": ("gsi-archive::extract_tar/classify (zip open)", 70, "zip extract open"),
@@ -134,14 +139,14 @@ KNOWN = {
     "export_recovery": ("gsi-archive + gsi-fs read ported, repack open", 40, ""),
     "Invoke-FirmwareDownload": ("gsi-update::download_to", 70, "no progress events yet"),
     "download_firmware": ("gsi-update::download_to", 70, ""),
-    "download_file": ("gsi-update::download_to", 70, ""),
-    "Test-DownloadedFirmware": ("hash sidecar (trivial)", 70, "size heuristic open"),
-    "verify_download": ("hash sidecar (trivial)", 70, ""),
+    "download_file": ("gsi-update::download_file", 95, "no progress bar, library"),
+    "Test-DownloadedFirmware": ("gsi-update::verify_downloaded_firmware", 85, "UPDATE.APP inner check deferred"),
+    "verify_download": ("gsi-update::verify_hash_sidecar + heuristic", 90, ""),
     "Invoke-RomDownload": ("gsi-update + gsi-registry::target_config/rom_downloads (glue open)", 40, ""),
     "download_rom": ("gsi-update + gsi-registry::target_config/rom_downloads (glue open)", 40, ""),
     "rom_downloads": ("gsi-registry::rom_downloads", 100, ""),
-    "Invoke-MagiskDownload": ("gsi-update + stable.json (glue open)", 30, ""),
-    "download_magisk": ("gsi-update + stable.json (glue open)", 30, ""),
+    "Invoke-MagiskDownload": ("gsi-update::magisk dest + download_file glue", 75, "prompt/cache UI stays CLI-side"),
+    "download_magisk": ("gsi-update::magisk dest + download_file glue", 75, ""),
     "Prepare-TTMagiskPatch": ("staging copy (trivial)", 60, "instructions text open"),
     "prepare_patch": ("staging copy (trivial)", 60, ""),
     "Test-RecoveryImageFile": ("images::boot_magic_ver + size", 60, "size policy open"),
@@ -152,8 +157,8 @@ KNOWN = {
     "boot_magic_ver": ("done above", 100, ""),
     "image_kind": ("done above", 100, ""),
     "Show-FlashVerdict": ("CLI text (trivial)", 80, "ttcore prints verdicts"),
-    "New-TTBackup": ("backup packaging open", 10, "needs device dump path"),
-    "do_backup": ("backup packaging open", 10, ""),
+    "New-TTBackup": ("gsi-diag::plan_backup", 60, "device dd refused, Phase 8"),
+    "do_backup": ("gsi-diag::plan_backup", 60, ""),
     "Invoke-TTSafeFlash": ("plan exists, exec needs fastboot", 20, ""),
     "safe_flash": ("plan exists, exec needs fastboot", 20, ""),
     "system_flash": ("plan exists, exec needs fastboot", 20, ""),
@@ -171,11 +176,11 @@ KNOWN = {
     "validate_device": ("adb sequence open (Phase 8)", 0, ""),
     "validate_checked": ("adb sequence open (Phase 8)", 0, ""),
     "Invoke-TTValidate": ("adb sequence open (Phase 8)", 0, ""),
-    "Write-ValidationReport": ("manifest struct exists", 30, ""),
-    "New-TTDiagnostic": ("zip packaging open (needs archive crate)", 10, ""),
-    "do_diagnostic": ("zip packaging open", 10, ""),
-    "Invoke-DeveloperDump": ("adb dumps open (Phase 8)", 0, ""),
-    "developer_dump": ("adb dumps open (Phase 8)", 0, ""),
+    "Write-ValidationReport": ("gsi-diag report builder", 90, "timestamping stays caller-side"),
+    "New-TTDiagnostic": ("gsi-diag bundle builder", 85, "live adb capture stays caller-side"),
+    "do_diagnostic": ("gsi-diag bundle builder", 85, ""),
+    "Invoke-DeveloperDump": ("gsi-diag::developer_dump (pure part)", 55, "live adb refused"),
+    "developer_dump": ("gsi-diag::developer_dump (pure part)", 55, ""),
     "Invoke-TTAdb": ("gsi-tool::run + adb (binding)", 50, "protocol native: Phase 8"),
     "Invoke-TTFastboot": ("gsi-tool::run + fastboot (binding)", 50, ""),
     "Invoke-FastbootLogged": ("gsi-tool::run (binding)", 50, ""),
@@ -190,14 +195,12 @@ KNOWN = {
     "android_analysis": ("sequence open (Phase 8)", 10, ""),
     "Invoke-TTFastbootAnalysis": ("sequence open (Phase 8)", 10, ""),
     "fastboot_analysis": ("sequence open (Phase 8)", 10, ""),
-    "Get-TTFirmwareBaseline": ("string logic open", 20, ""),
-    "firmware_compat": ("compat rule open (needs registry layer)", 20, ""),
-    "Test-FirmwareCompatibility": ("compat rule open", 20, ""),
-    "Get-PreferredRootMethod": ("static table open", 10, ""),
-    "root_method_ids": ("static table open", 10, ""),
-    "root_method_name": ("static table open", 10, ""),
-    "Get-VendorAdvice": ("static strings open", 0, ""),
-    "vendor_advice": ("static strings open", 0, ""),
+    "Get-TTFirmwareBaseline": ("gsi-gates::firmware_baseline_from_parts", 85, "live reads stay caller-side"),
+    "firmware_compat": ("gsi-gates::firmware_compat", 100, ""),
+    "Test-FirmwareCompatibility": ("gsi-gates::firmware_compat", 100, ""),
+    "Get-PreferredRootMethod": ("gsi-gates::preferred_root_methods", 100, ""),
+    "root_method_ids": ("gsi-gates::root_method_ids", 100, ""),
+    "root_method_name": ("gsi-gates::root_method_name", 100, ""),
     "Test-SystemImageFile": ("images + size", 60, ""),
     "log": ("tracing planned (println today)", 20, ""),
     "Write-TTLog": ("tracing planned", 20, ""),
@@ -208,13 +211,12 @@ KNOWN = {
     "Pause-TT": ("GUI (Phase 9)", 0, ""),
     "pause_tt": ("GUI (Phase 9)", 0, ""),
     "iread": ("GUI (Phase 9)", 0, ""),
-    "Test-TTAdmin": ("platform check (trivial)", 70, "not ported yet"),
-    "Invoke-TTSelfElevate": ("platform guidance open", 10, "UAC stays OS-side"),
+    "Test-TTAdmin": ("gsi-gates::admin_from_proc_status + guidance", 80, "elevation OS-side by design"),
+    "Invoke-TTSelfElevate": ("gsi-gates::windows_admin_guidance", 80, "UAC stays OS-side by design"),
     "Invoke-TTFirstRun": ("guided flow open (GUI)", 0, ""),
     "L": ("i18n system open (GUI)", 0, ""),
-    "os_classify": ("string rules open", 20, ""),
-    "Get-OSClassification": ("string rules open", 20, ""),
-    "step_gate": ("gate types open", 10, ""),
+    "os_classify": ("gsi-gates::os_classify", 95, "live prop collection stays caller-side"),
+    "Get-OSClassification": ("gsi-gates::os_classify", 95, ""),
 }
 
 # area fallback by name pattern: (area, default status, note)
@@ -400,6 +402,16 @@ def main():
         "Jeder offene Task = eine Script-Funktion mit Status < 100 %.\n"
         "Reihenfolge = Abhängigkeiten zuerst (Archive/Registry, dann Flows,\n"
         "dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.\n"
+        "\n"
+        "## 100-%-Definition / 100 % definition\n"
+        "\n"
+        "100 % = jede Script-Funktion ist portiert (100 %, Dry-Run-getestet) "
+        "oder als n/a markiert (bleibt per Spec §4 dauerhaft Script: Launcher, "
+        "OS-seitige Elevation). TUI-Screens zählen über ihre Slint-GUI-Seite "
+        "(Phase 9). Hardware-Ausführung (Flash/ADB-Sequenzen, Phase 8) zählt "
+        "über Plan-Typen mit ehrlicher Refusal-Logik + DRY RUN TESTS; "
+        "Live-Nachweis separat in VERIFICATION-*.md. POST-100 (Qualcomm) "
+        "zählt NICHT zu den 100 %.\n"
     )
     n_open = 0
     areas_ordered = [a for a in order if a in by_area] + sorted(
@@ -418,6 +430,26 @@ def main():
         t.append("\n")
         n_open += len(items)
     t.append(f"\nOffen gesamt: {n_open} von {total} Funktionen.\n")
+    t.append(
+        "\n## Nach 100 % blockiert / blocked until 100 % (POST-100)\n"
+        "\n"
+        "Qualcomm-Erweiterung (neue Geräteserie, Referenz: BQ Aquaris X Pro EU, "
+        "Snapdragon 626/MSM8953) — strikt blockiert bis der Rewrite bei 100 % "
+        "steht. Qualcomm extension (new device family) — strictly blocked "
+        "until the rewrite reaches 100 %.\n"
+        "\n- [ ] EDL/Deep-Flash-Protokoll (MSM8953) als `gsi-edl`-Crate "
+        "(Firehose-Loader-Handling, signierte Loader, kein Bypass ohne "
+        "Device-Consent) — BLOCKIERT bis 100 %\n"
+        "- [ ] FRP-Reset-Flow (mit + ohne Deep Flash, nur wo der SoC es ohne "
+        "erlaubt, dokumentiert pro Variante) — BLOCKIERT bis 100 %\n"
+        "- [ ] Bootloader-Unlock-Flow (BQ Aquaris X Pro als Referenzgerät, "
+        "Remote-Tests) — BLOCKIERT bis 100 %\n"
+        "- [ ] Geräteprofil "
+        "`data/compatibility/qualcomm/bq-aquaris-x-pro.yaml/json` + "
+        "Registry-Anbindung — BLOCKIERT bis 100 %\n"
+        "- [ ] Safety-Gates (Eigentümernachweis-Flow, Logging, Doppel-Confirm, "
+        "kein stiller Bypass) — BLOCKIERT bis 100 %\n"
+    )
     (ROOT / "TASKS.md").write_text("".join(t), encoding="utf-8")
     print(f"wrote TASKS.md: {n_open} open tasks")
 
