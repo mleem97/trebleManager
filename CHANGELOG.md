@@ -1,5 +1,9 @@
 # Changelog — trebleManager
 
+## v2.16.1
+
+- Root persistence clarified in-flow: after every verified root the tool points at Boot tricks → persistent boot as a conscious opt-in (it needs an eRecovery wipe, so it stays manual with double confirmation); fix persistence (service.d) remains automatic
+
 ## v2.16.0
 
 - APTouch fix integrated into the flows: every verified root (verify screen, wizard root paths) now attempts the permanent fix — immediate `stop aptouch` plus `service.d` persistence; non-destructive and removable, skips cleanly without live root, no double prompt in wizard runs

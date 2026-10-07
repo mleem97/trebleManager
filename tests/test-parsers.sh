@@ -233,6 +233,8 @@ grep -q "stop aptouch" "$ROOT_D/scripts/treble-toolkit.sh" && ok "bash immediate
 grep -q "stop aptouch" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 immediate aptouch stop" || bad "ps1 immediate aptouch stop"
 grep -q "SKIP_FIX_OFFER" "$ROOT_D/scripts/treble-toolkit.sh" && ok "bash wizard autofix, no double prompt" || bad "bash wizard autofix, no double prompt"
 grep -q "SkipFixOffer" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 wizard autofix, no double prompt" || bad "ps1 wizard autofix, no double prompt"
+grep -q "persistent boot. Conscious choice" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 persistent-boot pointer" || bad "ps1 persistent-boot pointer"
+grep -q "persistent boot. Conscious choice" "$ROOT_D/scripts/treble-toolkit.sh" && ok "bash persistent-boot pointer" || bad "bash persistent-boot pointer"
 grep -q "TT_BOOTSTRAPPED" "$ROOT_D/scripts/treble-toolkit.sh" && ok "bash self-bootstrap" || bad "bash self-bootstrap"
 grep -q "TT_BOOTSTRAPPED" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 self-bootstrap" || bad "ps1 self-bootstrap"
 grep -q "SHA256 MISMATCH" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 bootstrap aborts on mismatch" || bad "ps1 bootstrap aborts on mismatch"

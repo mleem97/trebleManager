@@ -50,7 +50,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.16.0"
+$TTVersion = "2.16.1"
 
 function Get-TTScriptRoot {
   # Script directory under -File AND irm|iex. Never Split-Path $null:
@@ -2584,6 +2584,7 @@ function Screen-RebootVerify {
         Write-Host (L "Persist install failed - will offer again next rooted boot. Immediate stop was attempted (see log)." "Persist-Install fehlgeschlagen - wird beim naechsten Root-Boot erneut angeboten. Sofort-Stopp wurde versucht (siehe Log).") -ForegroundColor Yellow
       }
     }
+    Write-Host (L "Want every power-on rooted (no Vol-Up trick)? Boot tricks -> persistent boot. Conscious choice: it needs an eRecovery wipe." "Jeden Power-On gerootet (ohne Vol-Up-Trick)? Boot-Tricks -> persistenter Boot. Bewusste Entscheidung: braucht eRecovery-Wipe.") -ForegroundColor Gray
   }
   Pause-TT
 }
@@ -3163,6 +3164,7 @@ function Start-TTWizard {
     } else {
       Write-Host (L "Fix not installed (no live root or install failed) - offered again at every verified root." "Fix nicht installiert (kein live Root oder Install fehlgeschlagen) - wird bei jedem verifizierten Root erneut angeboten.") -ForegroundColor Yellow
     }
+    Write-Host (L "Want every power-on rooted (no Vol-Up trick)? Boot tricks -> persistent boot. Conscious choice: it needs an eRecovery wipe." "Jeden Power-On gerootet (ohne Vol-Up-Trick)? Boot-Tricks -> persistenter Boot. Bewusste Entscheidung: braucht eRecovery-Wipe.") -ForegroundColor Gray
   }
   Write-TTLog ((L "Wizard path completed: " "Wizard-Weg fertig: ") + $goal) "SUCCESS"
 }

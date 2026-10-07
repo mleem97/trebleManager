@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.16.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.16.1-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -251,6 +251,7 @@ next to `adb.exe` and double-click it.
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
+- [`release/v2.16.1`](https://github.com/mleem97/trebleManager/tree/release/v2.16.1) ([tag `v2.16.1`](https://github.com/mleem97/trebleManager/releases/tag/v2.16.1))
 - [`release/v2.16.0`](https://github.com/mleem97/trebleManager/tree/release/v2.16.0) ([tag `v2.16.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.16.0))
 - [`release/v2.15.0`](https://github.com/mleem97/trebleManager/tree/release/v2.15.0) ([tag `v2.15.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.15.0))
 - [`release/v2.14.2`](https://github.com/mleem97/trebleManager/tree/release/v2.14.2) ([tag `v2.14.2`](https://github.com/mleem97/trebleManager/releases/tag/v2.14.2))

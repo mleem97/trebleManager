@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.16.0"
+TTVERSION="2.16.1"
 # Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
 # still enforced), developer (unlocks dump-* commands).
 RUNMODE_REQ=""
@@ -1392,6 +1392,7 @@ screen_verify() {
       if install_persist_fixes; then printf '%s\n' "$(L 'APTouch fix active now and on every rooted boot.' 'APTouch-Fix jetzt aktiv und bei jedem gerooteten Boot.')"
       else printf '%s\n' "$(L 'Persist install failed - offered again at every verified root.' 'Persist-Install fehlgeschlagen - wird bei jedem verifizierten Root erneut angeboten.')"; fi ;;
     esac
+    printf '%s\n' "$(L 'Want every power-on rooted (no Vol-Up trick)? Boot tricks -> persistent boot. Conscious choice: it needs an eRecovery wipe.' 'Jeden Power-On gerootet (ohne Vol-Up-Trick)? Boot-Tricks -> persistenter Boot. Bewusste Entscheidung: braucht eRecovery-Wipe.')"
   fi
   pause_tt
 }
@@ -1903,6 +1904,7 @@ wizard() { # ROM-aware guided path: detect -> analyze (+ROM question) -> goal wo
     detect_mode
     if install_persist_fixes; then printf '%s\n' "$(L 'APTouch fix active now and on every rooted boot.' 'APTouch-Fix jetzt aktiv und bei jedem gerooteten Boot.')"
     else printf '%s\n' "$(L 'Fix not installed (no live root or install failed) - offered again at every verified root.' 'Fix nicht installiert (kein live Root oder fehlgeschlagen) - wird bei jedem verifizierten Root erneut angeboten.')"; fi
+    printf '%s\n' "$(L 'Want every power-on rooted (no Vol-Up trick)? Boot tricks -> persistent boot. Conscious choice: it needs an eRecovery wipe.' 'Jeden Power-On gerootet (ohne Vol-Up-Trick)? Boot-Tricks -> persistenter Boot. Bewusste Entscheidung: braucht eRecovery-Wipe.')"
   fi
   log SUCCESS "$(L 'Wizard path completed: ' 'Wizard-Weg fertig: ')$goal"
 }
