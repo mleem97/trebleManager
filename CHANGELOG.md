@@ -1,5 +1,9 @@
 # Changelog — trebleManager
 
+## v2.16.0
+
+- APTouch fix integrated into the flows: every verified root (verify screen, wizard root paths) now attempts the permanent fix — immediate `stop aptouch` plus `service.d` persistence; non-destructive and removable, skips cleanly without live root, no double prompt in wizard runs
+
 ## v2.15.0
 
 - Slim step-by-step menus: main menu collapsed from ~27 entries to 5 (guided run / check device / single steps / workflows / settings) with submenus in both shells; each path runs automatically after one choice

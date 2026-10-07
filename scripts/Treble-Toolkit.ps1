@@ -50,7 +50,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.15.0"
+$TTVersion = "2.16.0"
 
 function Get-TTScriptRoot {
   # Script directory under -File AND irm|iex. Never Split-Path $null:
@@ -206,6 +206,7 @@ $TT = @{
   OS        = $null
   ProfileId = ""
   InstalledRom = ""
+  SkipFixOffer = $false
   FirmwareBaseline = ""
   FirmwareCompat   = $null
   StockImage  = ""
@@ -2572,6 +2573,17 @@ function Screen-RebootVerify {
   Write-Host ((L "Result: " "Ergebnis: ") + $r.Root) -ForegroundColor $(if ($r.Root -eq "ROOTED") { "Green" } else { "Yellow" })
   if ($r.Root -ne "ROOTED") {
     Write-Host (L "No faked success: boot alone != root. Repeat trick, check Magisk app, create diagnostic ZIP." "Kein Erfolg vortaeuschen: Boot allein != Root. Trick wiederholen, Magisk-App pruefen, Diagnose-ZIP erzeugen.") -ForegroundColor Yellow
+  } elseif (-not $TT.SkipFixOffer) {
+    Write-Host ""
+    Write-Host (L "Root is live right now - install the permanent APTouch fix? (service.d script + immediate stop, non-destructive, removable) [Y/n]: " "Root ist gerade live - permanenten APTouch-Fix installieren? (service.d-Skript + sofortiger Stopp, zerstoerungsfrei, entfernbar) [J/n]: ") -NoNewline -ForegroundColor Cyan
+    $pf = Read-Host
+    if ($pf -eq "" -or $pf -eq "Y" -or $pf -eq "y" -or $pf -eq "J" -or $pf -eq "j") {
+      if (Install-PersistFixes) {
+        Write-Host (L "APTouch fix active now and on every rooted boot." "APTouch-Fix jetzt aktiv und bei jedem gerooteten Boot.") -ForegroundColor Green
+      } else {
+        Write-Host (L "Persist install failed - will offer again next rooted boot. Immediate stop was attempted (see log)." "Persist-Install fehlgeschlagen - wird beim naechsten Root-Boot erneut angeboten. Sofort-Stopp wurde versucht (siehe Log).") -ForegroundColor Yellow
+      }
+    }
   }
   Pause-TT
 }
@@ -3086,9 +3098,10 @@ function Start-TTWizard {
   Write-Host (L "[3] Back to stock" "[3] Zurueck zu Stock") -ForegroundColor White
   Write-Host (L "[Esc] back" "[Esc] zurueck") -ForegroundColor DarkGray
   $k = [Console]::ReadKey($true)
-  $goal = ""; $steps = @(); $skipped = @()
+  $goal = ""; $steps = @(); $skipped = @(); $autoFix = $false
   if ($k.KeyChar -eq "1") {
     $goal = (L "Root only" "Nur Root")
+    $autoFix = $true
     if ($isCustom) {
       $steps = @(
         @{ Screen = "Screen-ExportRecovery"; Label = (L "Get patch base from YOUR rom package" "Patch-Basis aus DEINEM ROM-Paket holen") },
@@ -3136,8 +3149,20 @@ function Start-TTWizard {
   Write-Host (L "Run now? [Y/n]: " "Jetzt starten? [J/n]: ") -NoNewline -ForegroundColor Cyan
   $a = Read-Host
   if ($a -ne "" -and $a -ne "Y" -and $a -ne "y" -and $a -ne "J" -and $a -ne "j") { return }
+  $TT.SkipFixOffer = $autoFix
   foreach ($s in $steps) {
-    try { & $s.Screen | Out-Null } catch { Write-TTLog (("Wizard step failed: " + $s.Label + " - " + $_.Exception.Message)) "ERROR"; return }
+    try { & $s.Screen | Out-Null } catch { Write-TTLog (("Wizard step failed: " + $s.Label + " - " + $_.Exception.Message)) "ERROR"; $TT.SkipFixOffer = $false; return }
+  }
+  $TT.SkipFixOffer = $false
+  if ($autoFix) {
+    Write-Host ""
+    Write-Host (L "Automatic: permanent APTouch fix attempt (non-destructive service.d + immediate stop). Skips cleanly without live root." "Automatisch: permanenter APTouch-Fix-Versuch (zerstoerungsfreies service.d + Sofort-Stopp). Ohne live Root sauber uebersprungen.") -ForegroundColor Cyan
+    Update-TTMode | Out-Null
+    if (Install-PersistFixes) {
+      Write-Host (L "APTouch fix active now and on every rooted boot." "APTouch-Fix jetzt aktiv und bei jedem gerooteten Boot.") -ForegroundColor Green
+    } else {
+      Write-Host (L "Fix not installed (no live root or install failed) - offered again at every verified root." "Fix nicht installiert (kein live Root oder Install fehlgeschlagen) - wird bei jedem verifizierten Root erneut angeboten.") -ForegroundColor Yellow
+    }
   }
   Write-TTLog ((L "Wizard path completed: " "Wizard-Weg fertig: ") + $goal) "SUCCESS"
 }
@@ -3209,6 +3234,9 @@ function Install-PersistFixes {
     Write-TTLog (L "No live root (need uid=0). Boot rooted first (Vol-Up + Power), grant Magisk, retry." "Kein live Root (brauche uid=0). Erst gerootet booten (Vol-Up + Power), Magisk freigeben, erneut.") "ERROR"
     return $false
   }
+  # Immediate relief now (non-destructive: stops the service, nothing is deleted).
+  $stopOut = (Invoke-TTAdb @("shell","su -c 'stop aptouch' 2>&1") -join "`n").Trim()
+  Write-TTLog ("Immediate stop aptouch: " + $stopOut) "INFO"
   $okAll = $true
   foreach ($name in $PersistScripts.Keys) {
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) $name

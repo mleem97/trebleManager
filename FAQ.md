@@ -137,6 +137,11 @@ Partly — honestly split in two:
 - **What the tool does persist**: aptouch + speaker fixes as Magisk
   `service.d` boot scripts (menu Persist, needs live root once — no more manual
   adb after reboot), plus the verified root/boot-mode state across runs.
+- **APTouch after every root**: yes, automatically. Every verified root
+  (verify screen, wizard root paths) attempts the permanent APTouch fix:
+  immediate `stop aptouch` now + `service.d` script for every rooted boot.
+  Fully non-destructive (one service stopped, scripts removable), skips
+  cleanly without live root and asks again next time.
 
 ## No sound after Viper4Android / Magisk modules?
 

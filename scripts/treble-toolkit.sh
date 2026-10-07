@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.15.0"
+TTVERSION="2.16.0"
 # Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
 # still enforced), developer (unlocks dump-* commands).
 RUNMODE_REQ=""
@@ -1386,6 +1386,13 @@ screen_flash() {
 screen_verify() {
   header "$(L 'Step 8+9 - Reboot (Huawei procedure) + verify (real)' 'Step 8+9 - Reboot + Verify (echt)')"; printf '\n'
   local r; if r="$(verify_root)"; then printf 'Result: %s\n' "$r"; else printf 'Result: %s (see above)\n' "$r"; fi
+  if [ "$r" = "ROOTED" ] && [ -z "${SKIP_FIX_OFFER:-}" ]; then
+    printf '\n%s' "$(L 'Root is live right now - install the permanent APTouch fix? (service.d + immediate stop, non-destructive, removable) [Y/n]: ' 'Root ist gerade live - permanenten APTouch-Fix installieren? (service.d + Sofort-Stopp, zerstoerungsfrei, entfernbar) [J/n]: ')"; iread -r pf
+    case "$pf" in ""|y|Y|j|J)
+      if install_persist_fixes; then printf '%s\n' "$(L 'APTouch fix active now and on every rooted boot.' 'APTouch-Fix jetzt aktiv und bei jedem gerooteten Boot.')"
+      else printf '%s\n' "$(L 'Persist install failed - offered again at every verified root.' 'Persist-Install fehlgeschlagen - wird bei jedem verifizierten Root erneut angeboten.')"; fi ;;
+    esac
+  fi
   pause_tt
 }
 screen_unlock() {
@@ -1669,6 +1676,9 @@ install_persist_fixes() { # service.d boot scripts (aptouch+smartpa); needs uid=
   local id
   id="$(adb_run shell su -c id 2>&1 | tr -d '\r\n')"
   case "$id" in *uid=0*) ;; *) log ERROR "$(L 'No live root (need uid=0). Boot rooted first, grant Magisk, retry.' 'Kein live Root (uid=0 noetig). Erst gerootet booten, freigeben, erneut.')"; return 1 ;; esac
+  local stopout
+  stopout="$(adb_run shell "su -c 'stop aptouch' 2>&1" | tr -d '\r')"
+  log INFO "Immediate stop aptouch: $stopout"
   local ok=1 name tmp
   for name in 000-treblemanager-aptouch.sh 000-treblemanager-smartpa.sh; do
     tmp="/tmp/$name"
@@ -1845,9 +1855,10 @@ wizard() { # ROM-aware guided path: detect -> analyze (+ROM question) -> goal wo
   printf '%s\n' "$(L '[2] Install a custom ROM / GSI' '[2] Custom-ROM / GSI installieren')"
   printf '%s\n' "$(L '[3] Back to stock' '[3] Zurueck zu Stock')"
   printf '%s' "$(L '[Enter] back: ' '[Enter] zurueck: ')"; iread -r gk
-  local steps="" skipped="" goal=""
+  local steps="" skipped="" goal="" autofix=0
   case "$gk" in
     1) goal="$(L 'Root only' 'Nur Root')"
+       autofix=1
        if [ "$custom" = 1 ]; then
          steps="screen_export screen_patch screen_backup screen_flash screen_verify"
          skipped="$(L 'stock firmware search/download - not needed, base comes from ' 'Stock-Firmware-Suche/Download - nicht noetig, Basis kommt aus ')$rlabel|$(L 'stock UPDATE.APP extract - not needed' 'Stock-UPDATE.APP-Extrakt - nicht noetig')"
@@ -1884,7 +1895,15 @@ wizard() { # ROM-aware guided path: detect -> analyze (+ROM question) -> goal wo
   IFS="$old_ifs"
   printf '\n%s' "$(L 'Run now? [Y/n]: ' 'Jetzt starten? [J/n]: ')"; iread -r yn
   case "$yn" in ""|y|Y|j|J) ;; *) return ;; esac
+  if [ "$autofix" = 1 ]; then SKIP_FIX_OFFER=1; else unset SKIP_FIX_OFFER; fi
   for s in $steps; do "$s" || true; done
+  unset SKIP_FIX_OFFER
+  if [ "$autofix" = 1 ]; then
+    printf '\n%s\n' "$(L 'Automatic: permanent APTouch fix attempt (non-destructive service.d + immediate stop). Skips cleanly without live root.' 'Automatisch: permanenter APTouch-Fix-Versuch (zerstoerungsfreies service.d + Sofort-Stopp). Ohne live Root sauber uebersprungen.')"
+    detect_mode
+    if install_persist_fixes; then printf '%s\n' "$(L 'APTouch fix active now and on every rooted boot.' 'APTouch-Fix jetzt aktiv und bei jedem gerooteten Boot.')"
+    else printf '%s\n' "$(L 'Fix not installed (no live root or install failed) - offered again at every verified root.' 'Fix nicht installiert (kein live Root oder fehlgeschlagen) - wird bei jedem verifizierten Root erneut angeboten.')"; fi
+  fi
   log SUCCESS "$(L 'Wizard path completed: ' 'Wizard-Weg fertig: ')$goal"
 }
 
