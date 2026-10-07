@@ -96,7 +96,7 @@ CLI examples (append after `& $f` for remote runs):
 1. Check via A, evaluate TXT (`recovery_ramdisk` in by-name/fastboot?).
 2. Optional: unlock status (TUI unlock guide), ROM install first if no GSI yet
    (`Install ROM / GSI`, verified profiles only, eRecovery wipe after).
-3. TUI wizard steps 1–9: Detect → Analyze → Firmware → Extract → Patch → Backup → Flash (`FLASH`+`YES`) → reboot with `Vol-Up + Power until logo` → Verify (`uid=0`).
+3. TUI wizard: Detect → Analyze (says which system is on the phone: Stock/supported ROM/other) → goal in plain words (root only / install ROM / back to stock) → plan with visible `[SKIP]`s → run. Stock path: Firmware → Extract → Patch → Backup → Flash (`FLASH`+`YES`) → reboot with `Vol-Up + Power until logo` → Verify (`uid=0`). Custom-ROM path: ROM package → Recovery export → Patch → Backup → Flash → Verify (stock steps skipped — patch base MUST come from that ROM, never stock).
    Alternatives in the same menu: root-method priority (Magisk preferred), TWRP path (shared slot warning), ROM/GSI install (verified profiles only).
-4. LineageOS running? Valid start — version is detected, stock source still needed for Magisk.
+4. LineageOS (or any custom ROM) running? Valid start — tell the wizard which ROM it is; the patch base comes from that ROM's package, never from stock firmware.
 5. On problems: Restore (original from `backups\`) instead of experiments.

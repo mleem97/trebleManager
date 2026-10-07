@@ -1,5 +1,9 @@
 # Changelog — trebleManager
 
+## v2.14.2
+
+- Docs consistency: INSTRUCTIONS wizard flow rewritten ROM-aware (goal words, visible SKIPs, ROM patch-base rule); removed last stale "stock source still needed" statement; wiki synced (Root-Guide ROM question, FAQ patch-base rule, Troubleshooting verdicts + online-run, Home central starter)
+
 ## v2.14.1
 
 - Fixed `irm | iex` (no file path): new `Get-TTScriptRoot` (checks before splitting, `$PSScriptRoot`-based so it also works inside functions — `Get-TTToolRoot` used `$MyInvocation` inside a function and failed even via `-File`); test bootstrap/import use the same guarded resolution
