@@ -1,0 +1,15 @@
+[package]
+name = "gsi-exec"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Device-execution layer with injected executors (real gsi-tool run vs dry-run stub)."
+
+[lib]
+name = "gsi_exec"
+path = "src/lib.rs"
+
+[dependencies]
+gsi-tool = { path = "../gsi-tool" }
+gsi-workflow = { path = "../gsi-workflow" }
+gsi-state = { path = "../gsi-state" }

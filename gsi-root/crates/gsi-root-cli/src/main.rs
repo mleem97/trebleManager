@@ -1048,6 +1048,110 @@ pub fn render_readiness(r: &gsi_gates::FlashReadiness) -> String {
     s
 }
 
+/// Render firmware baseline (mirrors Get-TTFirmwareBaseline display).
+pub fn render_firmware_baseline(display: &str, incremental: &str, override_baseline: &str) -> String {
+    let base =
+        gsi_gates::firmware_baseline_from_parts(display, incremental, override_baseline);
+    format!("firmware baseline: {base}\n")
+}
+
+/// Render a preflight report (mirrors Show-PreflightBlocked text side).
+pub fn render_preflight_report(r: &gsi_gates::PreflightReport) -> String {
+    let mut s = String::new();
+    if r.go {
+        s.push_str("PREFLIGHT: GO — no blockers.\n");
+    } else {
+        s.push_str("PREFLIGHT: BLOCKED\n");
+        for b in &r.blocks {
+            s.push_str(&format!("  - {b}\n"));
+        }
+    }
+    s
+}
+
+/// Probe directory writability (create + remove probe file; no leftovers).
+fn dir_writable(dir: &std::path::Path) -> bool {
+    let probe = dir.join(".tt-write-probe");
+    match std::fs::write(&probe, b"tt") {
+        Ok(()) => {
+            let _ = std::fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+fn preflight_cmd(args: &[String]) -> i32 {
+    let adb = opt(args, "--adb")
+        .or_else(|| find_managed("adb").map(|t| t.path.display().to_string()))
+        .unwrap_or_default();
+    let fastboot = opt(args, "--fastboot")
+        .or_else(|| find_managed("fastboot").map(|t| t.path.display().to_string()))
+        .unwrap_or_default();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let mut writables = vec![("workdir".to_string(), dir_writable(&cwd))];
+    for (i, w) in args.iter().enumerate() {
+        if w == "--writable" {
+            if let Some(d) = args.get(i + 1) {
+                writables.push((d.clone(), dir_writable(std::path::Path::new(d))));
+            }
+        }
+    }
+    let mut files = Vec::new();
+    for (i, w) in args.iter().enumerate() {
+        if w == "--file" {
+            if let Some(f) = args.get(i + 1) {
+                files.push((f.clone(), std::path::Path::new(f).is_file()));
+            }
+        }
+    }
+    let mut hashes = Vec::new();
+    for (i, w) in args.iter().enumerate() {
+        if w == "--expect-hash" {
+            if let Some(spec) = args.get(i + 1) {
+                let mut it = spec.splitn(2, '=');
+                let name = it.next().unwrap_or("").to_string();
+                let expected = it.next().unwrap_or("").to_string();
+                let actual = gsi_workflow::sha256_file(std::path::Path::new(&name))
+                    .unwrap_or_default();
+                hashes.push((name, expected, actual));
+            }
+        }
+    }
+    let report = gsi_gates::preflight(&gsi_gates::PreflightInput {
+        adb_path: adb,
+        fastboot_path: fastboot,
+        shell_ok: true,
+        writables,
+        files,
+        hashes,
+    });
+    print!("{}", render_preflight_report(&report));
+    if report.go {
+        0
+    } else {
+        1
+    }
+}
+/// First-run flow text (mirrors Invoke-TTFirstRun): missing-tools notice +
+/// setup guidance + config note. No execution, no prompts in lib.
+pub fn first_run_text(adb_ok: bool, fastboot_ok: bool) -> String {
+    if adb_ok && fastboot_ok {
+        return "first run: required tools present (adb/fastboot).\n".to_string();
+    }
+    let mut s = String::new();
+    s.push_str("FIRST RUN: required tools are missing (adb/fastboot).\n");
+    if !adb_ok {
+        s.push_str("  - adb: missing — place platform-tools on PATH or run setup\n");
+    }
+    if !fastboot_ok {
+        s.push_str("  - fastboot: missing — place platform-tools on PATH or run setup\n");
+    }
+    s.push_str("Remote run: execute Setup-TrebleToolkit.bat from a local copy once,\n");
+    s.push_str("or place adb/fastboot on PATH. Tool paths are saved to data/config.json.\n");
+    s
+}
+
 /// Parse tool-path JSON (tolerates missing keys, rejects invalid JSON).
 pub fn parse_tool_config(text: &str) -> Result<ToolConfig, String> {
     if text.trim().is_empty() {
@@ -1208,6 +1312,249 @@ pub fn render_install_plan(p: &InstallPlan) -> String {
         "PLAN: download official platform-tools\n URL : {}\n Dest: {}\nNote: {} (needs confirm [y/N]).\n",
         p.url, p.dest_dir, p.note
     )
+}
+
+// ------------------------------------------------------------ thin remainders
+// Pure CLI compositions over registry/archive/update/workflow. No spawn,
+// no device access. Hermetic tests use local fixtures only.
+
+/// Stock EMUI version menu (guided text, mirrors Select-RootTarget).
+pub fn render_stock_version_menu() -> String {
+    String::from("Which Stock EMUI version?\n [1] Android 8 / EMUI 8\n [2] Android 9 / EMUI 9.0\n [3] Android 9 / EMUI 9.1\n")
+}
+
+/// Resolve a stock version pick to its EMUI label.
+pub fn resolve_stock_version_choice(input: &str) -> Result<String, String> {
+    let low = input.trim().to_lowercase();
+    let s: &str = match low.strip_prefix("stock:") {
+        Some(rest) => rest.trim(),
+        None => low.trim(),
+    };
+    if s == "1" || s == "8" || s == "emui 8" || s == "android 8" || s == "android 8 / emui 8" {
+        return Ok("EMUI 8 (Android 8)".to_string());
+    }
+    if s == "2" || s == "9.0" || s == "emui 9.0" || s == "android 9 / emui 9.0" {
+        return Ok("EMUI 9.0 (Android 9)".to_string());
+    }
+    if s == "3" || s == "9.1" || s == "emui 9.1" || s == "android 9 / emui 9.1" {
+        return Ok("EMUI 9.1 (Android 9)".to_string());
+    }
+    Err(format!(
+        "unknown stock version: '{}' (use 1/2/3 or 8/9.0/9.1)",
+        input.trim()
+    ))
+}
+
+/// Root-target detail with stock sub-choice as guided text.
+pub fn resolve_root_target_detail(choice: &str) -> Result<String, String> {
+    let t = choice.trim().to_lowercase();
+    if t == "1" || t == "current" || t == "keep" {
+        return Ok(
+            "target kept: keep system, root only (patch base from installed ROM)".to_string(),
+        );
+    }
+    if t == "2" || t == "stock" {
+        return Ok(render_stock_version_menu());
+    }
+    if t == "3" || t == "other" {
+        return Ok("target: other system (run `select image` to resolve Android -> system -> variant; system is NOT replaced for root)\n".to_string());
+    }
+    match resolve_stock_version_choice(choice) {
+        Ok(label) => {
+            let note = if label.contains("9.1") {
+                "EMUI 9.1 base ok (recovery_ramdisk method)"
+            } else if label.contains("9.0") {
+                "EMUI 9.0 instead of 9.1, method possible but prefer full 9.1 firmware"
+            } else {
+                "EMUI 8 base, different boot chain possible (see wiki/kernel notes)"
+            };
+            Ok(format!(
+                "Target: Stock {label}\nNote: {note}; full UPDATE.APP/ZIP into data/firmware/.\n"
+            ))
+        }
+        Err(_) => Err(format!(
+            "unknown root target choice: '{}' (use 1/2/3)",
+            choice.trim()
+        )),
+    }
+}
+
+/// Magisk APK facts with SHA-256 plus SHA-512.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MagiskInfoDetail {
+    /// APK path as text.
+    pub path: String,
+    /// Version from file name.
+    pub version: String,
+    /// SHA-256 hex.
+    pub sha256: String,
+    /// SHA-512 hex.
+    pub sha512: String,
+    /// File size in bytes.
+    pub size: u64,
+    /// Source hint.
+    pub source: String,
+}
+
+/// Local Magisk APK facts (never more than the file shows).
+pub fn magisk_info_detail(apk_path: &std::path::Path) -> Result<MagiskInfoDetail, String> {
+    let base = gsi_update::magisk_info(apk_path)?;
+    let sha512 = gsi_workflow::sha512_file(apk_path)?;
+    Ok(MagiskInfoDetail {
+        path: base.path.display().to_string(),
+        version: base.version,
+        sha256: base.sha256,
+        sha512,
+        size: base.size,
+        source: base.source,
+    })
+}
+
+/// Render Magisk facts as CLI text.
+pub fn render_magisk_info(info: &MagiskInfoDetail) -> String {
+    format!(
+        "APK: {}\nVersion: {}\nSHA256: {}\nSHA512: {}\nSize: {}\nSource: {}\n",
+        info.path, info.version, info.sha256, info.sha512, info.size, info.source
+    )
+}
+
+/// Registry context for the Magisk stable channel.
+#[derive(Debug, Clone)]
+pub struct MagiskRegistry {
+    /// Resolved profile file.
+    pub registry_path: PathBuf,
+    /// Stable.json URL (registry override wins).
+    pub stable_url: String,
+    /// Count of ROM entries.
+    pub rom_count: usize,
+}
+
+/// Load registry file for Magisk (registry load plus stable URL).
+pub fn load_registry_for_magisk(
+    data_dir: &std::path::Path,
+    model: &str,
+) -> Result<MagiskRegistry, String> {
+    let m = model.trim();
+    if m.is_empty() {
+        return Err("magisk registry: empty model".to_string());
+    }
+    if m.contains('/') || m.contains('\\') || m.contains("..") {
+        return Err(format!("magisk registry: bad model '{m}'"));
+    }
+    if data_dir.as_os_str().is_empty() {
+        return Err("magisk registry: empty data dir".to_string());
+    }
+    let c1 = data_dir
+        .join("data")
+        .join("compatibility")
+        .join("huawei")
+        .join("p10")
+        .join(format!("{m}.json"));
+    let c2 = data_dir.join(format!("{m}.json"));
+    let picked = if c1.is_file() { c1 } else { c2 };
+    let text = match std::fs::read_to_string(&picked) {
+        Ok(t) => t,
+        Err(e) => return Err(format!("read {}: {e}", picked.display())),
+    };
+    let roms = gsi_registry::load_roms(&picked)?;
+    let url = gsi_update::magisk_stable_url(Some(text.as_str()));
+    Ok(MagiskRegistry {
+        registry_path: picked,
+        stable_url: url,
+        rom_count: roms.len(),
+    })
+}
+
+/// Thin path wrapper over gsi-archive (mirrors Expand-TTRomArchive).
+pub fn extract_archive_cli(
+    path: &std::path::Path,
+    dest: &std::path::Path,
+) -> Result<Vec<PathBuf>, String> {
+    let name = match path.file_name().and_then(|n| n.to_str()) {
+        Some(n) => n.to_string(),
+        None => return Err("archive: bad file name".to_string()),
+    };
+    if dest.as_os_str().is_empty() {
+        return Err("archive: empty dest dir".to_string());
+    }
+    match gsi_archive::classify(name.as_str()) {
+        gsi_archive::ArchiveKind::Tar
+        | gsi_archive::ArchiveKind::TarGz
+        | gsi_archive::ArchiveKind::TarXz
+        | gsi_archive::ArchiveKind::Tgz => gsi_archive::extract_tar(path, dest),
+        gsi_archive::ArchiveKind::Zip => {
+            let data = match std::fs::read(path) {
+                Ok(d) => d,
+                Err(e) => return Err(format!("read {}: {e}", path.display())),
+            };
+            gsi_archive::extract_zip(data.as_slice(), dest, false)
+        }
+        gsi_archive::ArchiveKind::GzipSingle | gsi_archive::ArchiveKind::XzSingle => {
+            let out = gsi_archive::decompress_single(path, dest)?;
+            let rel = match out.file_name().and_then(|n| n.to_str()) {
+                Some(n) => PathBuf::from(n),
+                None => out,
+            };
+            Ok(vec![rel])
+        }
+        gsi_archive::ArchiveKind::Plain => Err(format!("unsupported archive: {name}")),
+    }
+}
+
+/// Guided install text (mirrors ensure_tool plus ensure_scrcpy).
+pub fn ensure_tool_plan(tool: &str) -> String {
+    let t = tool.trim().to_lowercase();
+    if t == "scrcpy" {
+        return String::from(
+            "scrcpy (screen mirror) is optional. Want it?\n [1] Install hint for your OS  [2] Select executable (scans folder)  [3] Skip (stays optional)\nHints:\n Debian/Ubuntu: sudo apt install scrcpy\n Fedora: sudo dnf install scrcpy\n Arch: sudo pacman -S scrcpy\n macOS: brew install scrcpy\n Windows: Setup-TrebleToolkit.bat or https://github.com/Genymobile/scrcpy/releases\nNote: scrcpy stays optional forever; skipping is valid.\n",
+        );
+    }
+    let name = if t.is_empty() {
+        "tool".to_string()
+    } else {
+        tool.trim().to_string()
+    };
+    format!(
+        "{name} missing. Install or point to it?\n [1] Install into PATH (official Google platform-tools, portable)\n [2] Select one executable (scans its folder for the others)\n [3] Select every needed executable manually\n [4] Use custom folder as PATH (adds folder to PATH / symlinks into central tools)  [q] Abort\nNote: library context never mutates env; confirm explicitly in the CLI.\n"
+    )
+}
+
+fn platform_zip_name(url: &str) -> String {
+    let no_q: &str = match url.split(&['?', '#'][..]).next() {
+        Some(s) => s,
+        None => "",
+    };
+    let trimmed = no_q.trim_end_matches('/');
+    let name: &str = match trimmed.rsplit('/').next() {
+        Some(s) => s,
+        None => "",
+    };
+    if name.is_empty() {
+        "platform-tools.zip".to_string()
+    } else {
+        name.to_string()
+    }
+}
+
+/// Full platform-tools install (URL plus fetch plus zip extract).
+pub fn install_platform_tools_run(
+    registry_path: &std::path::Path,
+    os: &str,
+    dest: &std::path::Path,
+) -> Result<Vec<PathBuf>, String> {
+    if dest.as_os_str().is_empty() {
+        return Err("install: empty dest dir".to_string());
+    }
+    let tools = gsi_registry::tools_block(registry_path)?;
+    let url = gsi_registry::platform_tools_url(&tools, os)?;
+    let zip_name = platform_zip_name(url.as_str());
+    let zip_dest = dest.join(zip_name.as_str());
+    let _ = gsi_update::download_file(url.as_str(), &zip_dest)?;
+    let data = match std::fs::read(&zip_dest) {
+        Ok(d) => d,
+        Err(e) => return Err(format!("read {}: {e}", zip_dest.display())),
+    };
+    gsi_archive::extract_auto(zip_name.as_str(), data.as_slice(), dest)
 }
 
 // ------------------------------------------------------------ dispatch
@@ -1454,20 +1801,17 @@ fn select_root_target_cmd(args: &[String]) -> i32 {
         installed_rom_label(&current)
     };
     match opt(args, "--pick") {
-        Some(pick) => match resolve_root_target_choice(&pick) {
-            Ok(tag) => {
-                if tag == "current" {
+        Some(pick) => match resolve_root_target_detail(pick.as_str()) {
+            Ok(detail) => {
+                if detail.starts_with("target kept") {
                     if current.is_empty() {
                         eprintln!("select root-target: no current system known (pass --current or --installed-file)");
                         return 1;
                     }
                     println!("target kept: {label} -> keep system, root only");
                     0
-                } else if tag == "stock" {
-                    println!("target: Stock EMUI (choose 8 / 9.0 / 9.1 explicitly in guided flow)");
-                    0
                 } else {
-                    println!("target: other system (run `select image` to resolve Android -> system -> variant)");
+                    print!("{detail}");
                     0
                 }
             }
@@ -1874,6 +2218,14 @@ fn main() {
             Some("readiness") => verdict_readiness_cmd(&args),
             _ => usage(),
         },
+        "preflight" => preflight_cmd(&args),
+        "firmware-baseline" => {
+            let d = opt(&args, "--display").unwrap_or_default();
+            let i = opt(&args, "--incremental").unwrap_or_default();
+            let o = opt(&args, "--baseline").unwrap_or_default();
+            print!("{}", render_firmware_baseline(&d, &i, &o));
+            0
+        }
         "install" => self_install(flag(&args, "--yes")),
         "adb" => match args.first().map(String::as_str) {
             Some("devices") => match find_managed("adb") {
@@ -2211,6 +2563,37 @@ mod tests {
 
     #[test]
     fn flash_verdict_matrix() {
+        // first-run flow text (guided, no execution).
+        assert!(first_run_text(true, true).contains("tools present"));
+        let fr = first_run_text(false, false);
+        assert!(fr.contains("FIRST RUN"));
+        assert!(fr.contains("config.json"));
+        // firmware-baseline + preflight renders (dedicated CLI coverage).
+        let b = render_firmware_baseline("9.1.0.297(C432E5R1P9)", "", "");
+        assert!(b.contains("firmware baseline:"));
+        assert!(b.contains("9.1.0.297"));
+        let go = gsi_gates::preflight(&gsi_gates::PreflightInput {
+            adb_path: "/usr/bin/adb".to_string(),
+            fastboot_path: "/usr/bin/fastboot".to_string(),
+            shell_ok: true,
+            writables: vec![("workdir".to_string(), true)],
+            files: vec![("x.img".to_string(), true)],
+            hashes: vec![("x.img".to_string(), "ab".to_string(), "ab".to_string())],
+        });
+        assert!(go.go);
+        assert!(render_preflight_report(&go).contains("PREFLIGHT: GO"));
+        let blocked = gsi_gates::preflight(&gsi_gates::PreflightInput {
+            adb_path: String::new(),
+            fastboot_path: String::new(),
+            shell_ok: false,
+            writables: vec![],
+            files: vec![],
+            hashes: vec![],
+        });
+        assert!(!blocked.go);
+        let bs = render_preflight_report(&blocked);
+        assert!(bs.contains("PREFLIGHT: BLOCKED"));
+        assert!(bs.contains("adb missing"));
         let ok = evaluate_flash_output(&["Sending 'x' (1 KB)", "OKAY [ 0.1s]", "Finished. Total time: 0.2s"]);
         assert_eq!(ok.verdict, "OK");
         assert_eq!(ok.okay, 1);
@@ -2315,5 +2698,299 @@ mod tests {
             tool_root_from_script_dir(std::path::Path::new("/r")),
             PathBuf::from("/r")
         );
+    }
+
+    #[test]
+    fn root_target_detail_stock_subchoice() {
+        let menu = render_stock_version_menu();
+        assert!(menu.contains("Android 8 / EMUI 8"));
+        assert!(menu.contains("Android 9 / EMUI 9.0"));
+        assert!(menu.contains("Android 9 / EMUI 9.1"));
+        assert_eq!(
+            resolve_stock_version_choice("1").unwrap(),
+            "EMUI 8 (Android 8)"
+        );
+        assert_eq!(
+            resolve_stock_version_choice("stock:2").unwrap(),
+            "EMUI 9.0 (Android 9)"
+        );
+        assert_eq!(
+            resolve_stock_version_choice("9.1").unwrap(),
+            "EMUI 9.1 (Android 9)"
+        );
+        assert_eq!(
+            resolve_stock_version_choice("EMUI 8").unwrap(),
+            "EMUI 8 (Android 8)"
+        );
+        assert!(resolve_stock_version_choice("9").is_err());
+        assert!(resolve_stock_version_choice("").is_err());
+        let keep = resolve_root_target_detail("1").unwrap();
+        assert!(keep.contains("target kept"));
+        let stock_menu = resolve_root_target_detail("stock").unwrap();
+        assert!(stock_menu.contains("Which Stock EMUI version?"));
+        let s91 = resolve_root_target_detail("stock:3").unwrap();
+        assert!(s91.contains("EMUI 9.1"));
+        assert!(s91.contains("recovery_ramdisk"));
+        let s80 = resolve_root_target_detail("emui 8").unwrap();
+        assert!(s80.contains("EMUI 8"));
+        let other = resolve_root_target_detail("other").unwrap();
+        assert!(other.contains("select image"));
+        assert!(resolve_root_target_detail("9").is_err());
+        assert!(resolve_root_target_detail("nope").is_err());
+    }
+
+    fn raw_tar_cli_bytes(name: &str, data: &[u8]) -> Vec<u8> {
+        let mut hdr = [0u8; 512];
+        let nb = name.as_bytes();
+        let n = if nb.len() < 100 { nb.len() } else { 100 };
+        hdr[..n].copy_from_slice(&nb[..n]);
+        hdr[100..108].copy_from_slice(b"0000777\0");
+        hdr[108..116].copy_from_slice(b"0000000\0");
+        hdr[116..124].copy_from_slice(b"0000000\0");
+        let size = format!("{:011o}\0", data.len());
+        hdr[124..136].copy_from_slice(size.as_bytes());
+        hdr[136..148].copy_from_slice(b"00000000000\0");
+        hdr[156] = b'0';
+        hdr[257..262].copy_from_slice(b"ustar");
+        let mut sum: u32 = 8 * 0x20;
+        for (i, b) in hdr.iter().enumerate() {
+            if !(148..156).contains(&i) {
+                sum += *b as u32;
+            }
+        }
+        let chk = format!("{:06o}\0 ", sum);
+        hdr[148..156].copy_from_slice(chk.as_bytes());
+        let mut out = Vec::from(&hdr[..]);
+        out.extend_from_slice(data);
+        let pad = (512 - data.len() % 512) % 512;
+        out.extend(std::iter::repeat(0u8).take(pad));
+        out.extend_from_slice(&[0u8; 1024]);
+        out
+    }
+
+    fn le16_cli(v: u16) -> [u8; 2] {
+        v.to_le_bytes()
+    }
+
+    fn le32_cli(v: u32) -> [u8; 4] {
+        v.to_le_bytes()
+    }
+
+    fn crc32_cli(data: &[u8]) -> u32 {
+        let mut crc: u32 = 0xFFFF_FFFF;
+        for &b in data {
+            crc ^= b as u32;
+            for _ in 0..8 {
+                if crc & 1 != 0 {
+                    crc = (crc >> 1) ^ 0xEDB8_8320;
+                } else {
+                    crc >>= 1;
+                }
+            }
+        }
+        !crc
+    }
+
+    fn raw_zip_cli_bytes(name: &str, data: &[u8]) -> Vec<u8> {
+        let nb = name.as_bytes();
+        let crc = crc32_cli(data);
+        let mut out = Vec::new();
+        out.extend_from_slice(&[0x50, 0x4b, 0x03, 0x04]);
+        out.extend_from_slice(&[0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        out.extend_from_slice(&crc.to_le_bytes());
+        out.extend_from_slice(&le32_cli(data.len() as u32));
+        out.extend_from_slice(&le32_cli(data.len() as u32));
+        out.extend_from_slice(&le16_cli(nb.len() as u16));
+        out.extend_from_slice(&[0x00, 0x00]);
+        out.extend_from_slice(nb);
+        out.extend_from_slice(data);
+        let cd_start = out.len() as u32;
+        let cdh_start = out.len();
+        out.extend_from_slice(&[0x50, 0x4b, 0x01, 0x02]);
+        out.extend_from_slice(&[
+            0x14, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ]);
+        out.extend_from_slice(&crc.to_le_bytes());
+        out.extend_from_slice(&le32_cli(data.len() as u32));
+        out.extend_from_slice(&le32_cli(data.len() as u32));
+        out.extend_from_slice(&le16_cli(nb.len() as u16));
+        out.extend_from_slice(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        out.extend_from_slice(&le32_cli(0));
+        out.extend_from_slice(nb);
+        let cd_size = (out.len() - cdh_start) as u32;
+        out.extend_from_slice(&[0x50, 0x4b, 0x05, 0x06]);
+        out.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+        out.extend_from_slice(&le16_cli(1));
+        out.extend_from_slice(&le16_cli(1));
+        out.extend_from_slice(&le32_cli(cd_size));
+        out.extend_from_slice(&le32_cli(cd_start));
+        out.extend_from_slice(&[0x00, 0x00]);
+        out
+    }
+
+    #[test]
+    fn archive_cli_wrapper_dispatch() {
+        let d = tmp_dir("archive-cli");
+        // tar success.
+        let tar_bytes = raw_tar_cli_bytes("boot.img", b"ANDROID!fake");
+        let tar_path = d.join("rom.tar");
+        std::fs::write(&tar_path, &tar_bytes).unwrap();
+        let out = extract_archive_cli(&tar_path, &d.join("out-tar")).unwrap();
+        assert_eq!(out.len(), 1);
+        assert!(d.join("out-tar").join("boot.img").is_file());
+        // zip success.
+        let zip_bytes = raw_zip_cli_bytes("platform-tools/adb", b"fake-adb");
+        let zip_path = d.join("tools.zip");
+        std::fs::write(&zip_path, &zip_bytes).unwrap();
+        let out2 = extract_archive_cli(&zip_path, &d.join("out-zip")).unwrap();
+        assert_eq!(out2.len(), 1);
+        assert!(d.join("out-zip").join("platform-tools/adb").is_file());
+        // gzip single success (embedded gzip for "hello treble test 123\n").
+        let gz: Vec<u8> = vec![
+            31, 139, 8, 0, 0, 0, 0, 0, 2, 255, 203, 72, 205, 201, 201, 87, 40, 41, 74, 77,
+            202, 73, 85, 40, 73, 45, 46, 81, 48, 52, 50, 230, 2, 0, 33, 102, 123, 183, 22,
+            0, 0, 0,
+        ];
+        let gz_path = d.join("hello.img.gz");
+        std::fs::write(&gz_path, &gz).unwrap();
+        let out3 = extract_archive_cli(&gz_path, &d.join("out-gz")).unwrap();
+        assert_eq!(out3.len(), 1);
+        assert_eq!(
+            std::fs::read(d.join("out-gz").join("hello.img")).unwrap(),
+            b"hello treble test 123\n"
+        );
+        // xz single success (embedded xz for "hello treble xz 456\n").
+        let xz: Vec<u8> = vec![
+            253, 55, 122, 88, 90, 0, 0, 4, 230, 214, 180, 70, 2, 0, 33, 1, 22, 0, 0, 0,
+            116, 47, 229, 163, 1, 0, 19, 104, 101, 108, 108, 111, 32, 116, 114, 101, 98,
+            108, 101, 32, 120, 122, 32, 52, 53, 54, 10, 0, 78, 187, 117, 255, 10, 122, 74,
+            139, 0, 1, 44, 20, 248, 10, 109, 3, 31, 182, 243, 125, 1, 0, 0, 0, 0, 4, 89,
+            90,
+        ];
+        let xz_path = d.join("hello.img.xz");
+        std::fs::write(&xz_path, &xz).unwrap();
+        let out4 = extract_archive_cli(&xz_path, &d.join("out-xz")).unwrap();
+        assert_eq!(out4.len(), 1);
+        assert_eq!(
+            std::fs::read(d.join("out-xz").join("hello.img")).unwrap(),
+            b"hello treble xz 456\n"
+        );
+        // plain refused.
+        let plain = d.join("rom.img");
+        std::fs::write(&plain, b"raw").unwrap();
+        assert!(extract_archive_cli(&plain, &d.join("out-plain")).is_err());
+        // missing file refused.
+        assert!(extract_archive_cli(&d.join("nope.zip"), &d.join("out-miss")).is_err());
+        // empty dest refused.
+        assert!(extract_archive_cli(&zip_path, std::path::Path::new("")).is_err());
+        std::fs::remove_dir_all(&d).ok();
+    }
+
+    #[test]
+    fn magisk_info_with_sha512() {
+        let d = tmp_dir("magisk512");
+        let apk = d.join("Magisk-v28.1.apk");
+        std::fs::write(&apk, b"fakapk").unwrap();
+        let info = magisk_info_detail(&apk).unwrap();
+        assert_eq!(info.version, "28.1");
+        assert_eq!(info.size, 6);
+        assert_eq!(info.sha256, gsi_update::sha256_file(&apk).unwrap());
+        assert_eq!(info.sha512.len(), 128);
+        assert_eq!(info.sha512, gsi_workflow::sha512_file(&apk).unwrap());
+        let text = render_magisk_info(&info);
+        assert!(text.contains("Version: 28.1"));
+        assert!(text.contains("SHA256: "));
+        assert!(text.contains("SHA512: "));
+        assert!(text.contains(&info.sha512));
+        assert!(magisk_info_detail(&d.join("missing.apk")).is_err());
+        std::fs::remove_dir_all(&d).ok();
+    }
+
+    #[test]
+    fn registry_for_magisk_loads() {
+        let d = tmp_dir("magreg");
+        let reg = d.join("VTR-L29.json");
+        let body = serde_json::json!({
+            "roms": [
+                {"name": "LineageOS", "version": 20, "android": 13, "status": "working",
+                 "gsi": "arm64_bgN", "file": "l.img.gz", "url": "https://x/l.img.gz"}
+            ],
+            "magisk": {"stable_json": "https://example.invalid/x/stable.json"}
+        });
+        std::fs::write(&reg, serde_json::to_string(&body).unwrap()).unwrap();
+        let ctx = load_registry_for_magisk(&d, "VTR-L29").unwrap();
+        assert_eq!(ctx.stable_url, "https://example.invalid/x/stable.json");
+        assert_eq!(ctx.rom_count, 1);
+        assert_eq!(ctx.registry_path, reg);
+        // default URL when no override.
+        let reg2 = d.join("VTR-L09.json");
+        let body2 = serde_json::json!({"roms": []});
+        std::fs::write(&reg2, serde_json::to_string(&body2).unwrap()).unwrap();
+        let ctx2 = load_registry_for_magisk(&d, "VTR-L09").unwrap();
+        assert_eq!(ctx2.stable_url, gsi_update::MAGISK_STABLE_DEFAULT_URL);
+        // nested tool-root layout also resolves.
+        let nested = d.join("nested");
+        let pdir = nested.join("data/compatibility/huawei/p10");
+        std::fs::create_dir_all(&pdir).unwrap();
+        std::fs::write(pdir.join("VTR-L29.json"), serde_json::to_string(&body).unwrap())
+            .unwrap();
+        let ctx3 = load_registry_for_magisk(&nested, "VTR-L29").unwrap();
+        assert_eq!(ctx3.stable_url, "https://example.invalid/x/stable.json");
+        assert!(load_registry_for_magisk(&d, "").is_err());
+        assert!(load_registry_for_magisk(&d, "a/b").is_err());
+        assert!(load_registry_for_magisk(&d, "MISSING").is_err());
+        std::fs::remove_dir_all(&d).ok();
+    }
+
+    #[test]
+    fn tool_plan_guided_text() {
+        let adb = ensure_tool_plan("adb");
+        assert!(adb.contains("adb missing"));
+        assert!(adb.contains("[1] Install into PATH"));
+        assert!(adb.contains("[q] Abort"));
+        let fb = ensure_tool_plan("fastboot");
+        assert!(fb.contains("fastboot missing"));
+        let scr = ensure_tool_plan("scrcpy");
+        assert!(scr.contains("optional"));
+        assert!(scr.contains("apt install scrcpy"));
+        assert!(scr.contains("brew install scrcpy"));
+        assert!(scr.contains("Setup-TrebleToolkit.bat"));
+        assert!(ensure_tool_plan("Scrcpy").contains("optional"));
+        let empty = ensure_tool_plan("");
+        assert!(empty.contains("tool missing"));
+        assert!(empty.contains("[q] Abort"));
+    }
+
+    #[test]
+    fn platform_tools_install_full_composition() {
+        let d = tmp_dir("ptinstall");
+        let reg = d.join("VTR-L29.json");
+        let body = serde_json::json!({
+            "roms": [],
+            "tools": {
+                "platform_tools": {
+                    "source": "direct-official",
+                    "url_pattern": "https://example.invalid/platform-tools-latest-{os}.zip",
+                    "provides": ["adb", "fastboot"]
+                }
+            }
+        });
+        std::fs::write(&reg, serde_json::to_string(&body).unwrap()).unwrap();
+        let dest = d.join("tools");
+        std::fs::create_dir_all(&dest).unwrap();
+        // Pre-seed cached zip so no network happens (download_file returns Cached).
+        let zip_name = "platform-tools-latest-linux.zip";
+        let zip_bytes = raw_zip_cli_bytes("platform-tools/adb", b"fake-adb");
+        std::fs::write(dest.join(zip_name), &zip_bytes).unwrap();
+        let out = install_platform_tools_run(&reg, "linux", &dest).unwrap();
+        assert_eq!(out.len(), 1);
+        assert!(dest.join("platform-tools/adb").is_file());
+        assert_eq!(
+            std::fs::read(dest.join("platform-tools/adb")).unwrap(),
+            b"fake-adb"
+        );
+        assert!(install_platform_tools_run(&reg, "linux", std::path::Path::new("")).is_err());
+        assert!(install_platform_tools_run(&d.join("missing.json"), "linux", &dest).is_err());
+        std::fs::remove_dir_all(&d).ok();
     }
 }

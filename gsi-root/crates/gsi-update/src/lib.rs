@@ -10,6 +10,7 @@
 //! release file names, and a validated `download_file` wrapper.
 
 use gsi_registry::{RomEntry, TargetConfig};
+use gsi_workflow::ProgressEvent;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
@@ -77,21 +78,10 @@ pub fn sha256_file(path: &Path) -> Result<String, String> {
 }
 
 /// Download a URL to `dest` (atomic: temp file + rename).
+/// Progress variant is [`download_to_with_progress`]; this wrapper
+/// reports no events (behavior unchanged).
 pub fn download_to(url: &str, dest: &Path) -> Result<(), String> {
-    if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
-    }
-    let tmp = dest.with_extension("part");
-    let resp = ureq::get(url)
-        .set("User-Agent", "gsi-root")
-        .call()
-        .map_err(|e| format!("download: {e}"))?;
-    let mut reader = resp.into_reader();
-    let mut out = std::fs::File::create(&tmp).map_err(|e| format!("create: {e}"))?;
-    std::io::copy(&mut reader, &mut out).map_err(|e| format!("write: {e}"))?;
-    drop(out);
-    std::fs::rename(&tmp, dest).map_err(|e| format!("rename: {e}"))?;
-    Ok(())
+    download_to_with_progress(url, dest, None)
 }
 
 /// Verify a staged file against an expected SHA-256.
@@ -219,7 +209,8 @@ pub enum DownloadOutcome {
 
 /// Validated download: rejects non-archive URLs, skips existing files
 /// (offline cache, no re-download), removes the partial temp file on
-/// failure. Network fetch reuses `download_to`.
+/// failure. Progress variant is [`download_file_with_progress`]; this
+/// wrapper reports no events (behavior unchanged for `http(s)` URLs).
 pub fn download_file(url: &str, dest: &Path) -> Result<DownloadOutcome, String> {
     if !valid_download_url(url) {
         return Err(format!("URL rejected (http(s) archive only): {url}"));
@@ -227,7 +218,7 @@ pub fn download_file(url: &str, dest: &Path) -> Result<DownloadOutcome, String> 
     if dest.is_file() {
         return Ok(DownloadOutcome::Cached);
     }
-    if let Err(e) = download_to(url, dest) {
+    if let Err(e) = download_to_with_progress(url, dest, None) {
         let tmp = dest.with_extension("part");
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
@@ -734,6 +725,436 @@ pub fn bootstrap_cached_file(cache_dir: &Path, tag: &str, rel_path: &str) -> Pat
     cache_dir.join(tag.trim()).join(rel_path)
 }
 
+// ------------------------------------------------------------ progress downloads
+//
+// Script mirror: `Invoke-FirmwareDownload` (BITS progress + WebClient
+// `Write-Progress`), `download_firmware` (curl `--progress-bar`).
+// Events are `gsi_workflow::ProgressEvent`: Started, Progress
+// { current, total } per chunk, Completed. `file://` URLs copy locally
+// (hermetic tests, offline fixtures); http(s) streams via ureq with the
+// total from Content-Length (0 when unknown).
+
+/// Progress reporter: `Some(&cb)` gets Started/Progress/Completed
+/// (plus Warning when the bootstrap sha is skipped). `None` disables.
+fn emit_progress(reporter: Option<&dyn Fn(ProgressEvent)>, ev: ProgressEvent) {
+    if let Some(r) = reporter {
+        r(ev);
+    }
+}
+
+/// True for `file://` sources (local copy, no network).
+fn is_file_url(url: &str) -> bool {
+    url.starts_with("file://")
+}
+
+/// Path part of a `file://` URL (never panics).
+fn file_url_path(url: &str) -> &str {
+    url.get("file://".len()..).unwrap_or("")
+}
+
+/// Archive check for `file://` paths (same extensions as http(s)).
+fn valid_source_url(url: &str) -> bool {
+    if is_file_url(url) {
+        let base = file_url_path(url)
+            .split(&['?', '#'][..])
+            .next()
+            .unwrap_or("");
+        let lower = base.to_ascii_lowercase();
+        return ARCHIVE_EXTS.iter().any(|e| lower.ends_with(e));
+    }
+    valid_download_url(url)
+}
+
+/// Stream `reader` to `dest` (atomic temp + rename), emitting
+/// Started/Progress/Completed. Cleans the temp file on failure.
+fn pump_copy(
+    reader: &mut dyn std::io::Read,
+    dest: &Path,
+    total: u64,
+    reporter: Option<&dyn Fn(ProgressEvent)>,
+    operation: &str,
+) -> Result<(), String> {
+    use std::io::Write;
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
+    }
+    let tmp = dest.with_extension("part");
+    emit_progress(
+        reporter,
+        ProgressEvent::Started {
+            operation: operation.to_string(),
+        },
+    );
+    let res: Result<(), String> = (|| {
+        let mut out = std::fs::File::create(&tmp).map_err(|e| format!("create: {e}"))?;
+        let mut buf = [0u8; 65536];
+        let mut done: u64 = 0;
+        loop {
+            let n = reader.read(&mut buf).map_err(|e| format!("download: {e}"))?;
+            if n == 0 {
+                break;
+            }
+            out.write_all(&buf[..n])
+                .map_err(|e| format!("write: {e}"))?;
+            done = done.saturating_add(n as u64);
+            emit_progress(
+                reporter,
+                ProgressEvent::Progress {
+                    current: done,
+                    total,
+                },
+            );
+        }
+        drop(out);
+        std::fs::rename(&tmp, dest).map_err(|e| format!("rename: {e}"))?;
+        Ok(())
+    })();
+    match res {
+        Ok(()) => {
+            emit_progress(reporter, ProgressEvent::Completed);
+            Ok(())
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&tmp);
+            Err(e)
+        }
+    }
+}
+
+/// Download with progress events. Existing `download_to` delegates here
+/// with no reporter (behavior unchanged).
+pub fn download_to_with_progress(
+    url: &str,
+    dest: &Path,
+    reporter: Option<&dyn Fn(ProgressEvent)>,
+) -> Result<(), String> {
+    let operation = format!("download {url}");
+    if is_file_url(url) {
+        let mut inp =
+            std::fs::File::open(file_url_path(url)).map_err(|e| format!("read: {e}"))?;
+        let total = inp.metadata().map(|m| m.len()).unwrap_or(0);
+        return pump_copy(&mut inp, dest, total, reporter, &operation);
+    }
+    let resp = ureq::get(url)
+        .set("User-Agent", "gsi-root")
+        .call()
+        .map_err(|e| format!("download: {e}"))?;
+    let total: u64 = resp
+        .header("Content-Length")
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0);
+    let mut reader = resp.into_reader();
+    pump_copy(&mut reader, dest, total, reporter, &operation)
+}
+
+/// Validated download with progress events. Cached files report
+/// Started + Completed with no bytes. Accepts `file://` archives in
+/// addition to `http(s)` (hermetic fixtures); `download_file` stays
+/// `http(s)`-only and shares the streaming core via
+/// `download_to_with_progress`.
+pub fn download_file_with_progress(
+    url: &str,
+    dest: &Path,
+    reporter: Option<&dyn Fn(ProgressEvent)>,
+) -> Result<DownloadOutcome, String> {
+    if !valid_source_url(url) {
+        return Err(format!("URL rejected (http(s)/file archive only): {url}"));
+    }
+    if dest.is_file() {
+        emit_progress(
+            reporter,
+            ProgressEvent::Started {
+                operation: format!("download {url}"),
+            },
+        );
+        emit_progress(reporter, ProgressEvent::Completed);
+        return Ok(DownloadOutcome::Cached);
+    }
+    download_to_with_progress(url, dest, reporter)?;
+    Ok(DownloadOutcome::Downloaded)
+}
+
+// ------------------------------------------------------------ ROM image validation
+//
+// Script mirror: `Invoke-RomDownload` / `download_rom` gunzip +
+// `Test-ImageKind` / `image_kind` (boot = ANDROID!, system =
+// sparse/ext4, else unclear). Container via gsi-archive classify +
+// gsi-image detect; the kind check itself is local and honest.
+
+/// ROM image kind (`boot` or `system`; `unknown` is never a valid ask).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImageKind {
+    Boot,
+    System,
+    Unknown,
+}
+
+impl ImageKind {
+    /// Lowercase id (`boot`, `system`, `unknown`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Boot => "boot",
+            Self::System => "system",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+/// Parse `boot`/`system` (case-insensitive); anything else is `None`.
+pub fn parse_image_kind(s: &str) -> Option<ImageKind> {
+    let lower = s.trim().to_ascii_lowercase();
+    if lower == "boot" {
+        Some(ImageKind::Boot)
+    } else if lower == "system" {
+        Some(ImageKind::System)
+    } else {
+        None
+    }
+}
+
+/// Classify a local image by magic bytes (mirrors `Test-ImageKind`).
+/// Missing/unreadable files report `Unknown` (never panics).
+pub fn image_kind_of(path: &Path) -> ImageKind {
+    use std::io::Read;
+    let mut f = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return ImageKind::Unknown,
+    };
+    let mut buf = [0u8; 1082];
+    let mut n = 0;
+    while n < buf.len() {
+        match f.read(&mut buf[n..]) {
+            Ok(0) => break,
+            Ok(r) => n += r,
+            Err(_) => return ImageKind::Unknown,
+        }
+    }
+    if n >= 8 && buf[..8] == *b"ANDROID!" {
+        return ImageKind::Boot;
+    }
+    if n >= 4 && buf[0] == 0x3A && buf[1] == 0xFF && buf[2] == 0x26 && buf[3] == 0xED {
+        return ImageKind::System;
+    }
+    if n >= 1082 && buf[1080] == 0x53 && buf[1081] == 0xEF {
+        return ImageKind::System;
+    }
+    if gsi_image::parse_sparse_header(path).is_some() {
+        return ImageKind::System;
+    }
+    ImageKind::Unknown
+}
+
+/// Typed post-download validation outcome.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RomImageValidation {
+    /// Content matches the expected kind.
+    Ok {
+        kind: ImageKind,
+        path: PathBuf,
+        message: String,
+    },
+    /// Download fine, kind mismatch (honest: never re-labeled).
+    WrongKind {
+        found: ImageKind,
+        expected: ImageKind,
+        path: PathBuf,
+        message: String,
+    },
+    /// Unreadable or unclear content (decompress fail, no magic).
+    Corrupt { reason: String, path: PathBuf },
+}
+
+impl RomImageValidation {
+    /// True only for the `Ok` variant.
+    pub fn is_ok(&self) -> bool {
+        matches!(self, Self::Ok { .. })
+    }
+}
+
+/// Short container note for messages (gsi-image detect).
+fn container_note(path: &Path) -> &'static str {
+    match gsi_image::detect_container(path) {
+        gsi_image::Container::Gzip => "gzip",
+        gsi_image::Container::AndroidSparse => "android-sparse",
+        gsi_image::Container::Raw => "raw",
+    }
+}
+
+/// Pure local check of a downloaded (already decompressed) image.
+pub fn validate_rom_image(path: &Path, expected: ImageKind) -> RomImageValidation {
+    if !path.is_file() {
+        return RomImageValidation::Corrupt {
+            reason: format!("file missing: {}", path.display()),
+            path: path.to_path_buf(),
+        };
+    }
+    let size = match std::fs::metadata(path) {
+        Ok(m) => m.len(),
+        Err(e) => {
+            return RomImageValidation::Corrupt {
+                reason: format!("meta: {e}"),
+                path: path.to_path_buf(),
+            }
+        }
+    };
+    if size == 0 {
+        return RomImageValidation::Corrupt {
+            reason: "empty file (0 bytes)".to_string(),
+            path: path.to_path_buf(),
+        };
+    }
+    let kind = image_kind_of(path);
+    let cont = container_note(path);
+    if kind == ImageKind::Unknown {
+        return RomImageValidation::Corrupt {
+            reason: format!(
+                "content unclear (container {cont}): no ANDROID!/sparse/ext4 magic - validate before use"
+            ),
+            path: path.to_path_buf(),
+        };
+    }
+    if kind != expected {
+        return RomImageValidation::WrongKind {
+            found: kind,
+            expected,
+            path: path.to_path_buf(),
+            message: format!(
+                "found {} image, expected {} (container {cont})",
+                kind.as_str(),
+                expected.as_str()
+            ),
+        };
+    }
+    RomImageValidation::Ok {
+        kind,
+        path: path.to_path_buf(),
+        message: format!(
+            "ready: {} image ({} bytes, container {cont})",
+            kind.as_str(),
+            size
+        ),
+    }
+}
+
+/// Download + decompress (`.gz`/`.xz` via gsi-archive) + kind check.
+/// Download/IO failures are `Err` (abort); content issues are
+/// `Ok(WrongKind/Corrupt)` with honest messages.
+pub fn fetch_rom_image_with_progress(
+    url: &str,
+    dest: &Path,
+    expected: ImageKind,
+    reporter: Option<&dyn Fn(ProgressEvent)>,
+) -> Result<RomImageValidation, String> {
+    download_file_with_progress(url, dest, reporter)?;
+    let name = dest
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+    let effective: PathBuf = match gsi_archive::classify(name) {
+        gsi_archive::ArchiveKind::GzipSingle | gsi_archive::ArchiveKind::XzSingle => {
+            let parent = dest.parent().unwrap_or(Path::new("."));
+            match gsi_archive::decompress_single(dest, parent) {
+                Ok(p) => p,
+                Err(e) => {
+                    return Ok(RomImageValidation::Corrupt {
+                        reason: format!("decompress failed (corrupt?): {e}"),
+                        path: dest.to_path_buf(),
+                    })
+                }
+            }
+        }
+        _ => dest.to_path_buf(),
+    };
+    Ok(validate_rom_image(&effective, expected))
+}
+
+/// `fetch_rom_image_with_progress` without events.
+pub fn fetch_rom_image(
+    url: &str,
+    dest: &Path,
+    expected: ImageKind,
+) -> Result<RomImageValidation, String> {
+    fetch_rom_image_with_progress(url, dest, expected, None)
+}
+
+// ------------------------------------------------------------ bootstrap install
+//
+// Script mirror: `Get-BootstrapReleaseFile` / `bootstrap_fetch`
+// (resolve names -> download zip -> verify .sha256 -> extract).
+// Each step aborts honestly; a missing .sha256 asset warns and skips
+// verify (like both scripts), a mismatch aborts.
+
+/// Verify + extract a local bootstrap zip (hermetic core).
+/// Returns absolute paths of extracted files, sorted.
+pub fn bootstrap_install_from_zip(
+    zip_path: &Path,
+    dest_dir: &Path,
+    expected_sha256: Option<&str>,
+    reporter: Option<&dyn Fn(ProgressEvent)>,
+) -> Result<Vec<PathBuf>, String> {
+    emit_progress(
+        reporter,
+        ProgressEvent::Started {
+            operation: format!("bootstrap {}", zip_path.display()),
+        },
+    );
+    if !zip_path.is_file() {
+        return Err(format!("zip missing: {}", zip_path.display()));
+    }
+    if let Some(exp) = expected_sha256 {
+        let token = exp.split_whitespace().next().unwrap_or("");
+        if token.is_empty() {
+            return Err("empty expected sha256".to_string());
+        }
+        verify_staged(zip_path, token)?;
+    }
+    let data = std::fs::read(zip_path).map_err(|e| format!("read: {e}"))?;
+    let fname = zip_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("bootstrap.zip");
+    let rels = gsi_archive::extract_auto(fname, &data, dest_dir)
+        .map_err(|e| format!("extract: {e}"))?;
+    let mut out: Vec<PathBuf> = rels.iter().map(|r| dest_dir.join(r)).collect();
+    out.sort();
+    emit_progress(reporter, ProgressEvent::Completed);
+    Ok(out)
+}
+
+/// Full orchestrator: names (existing `bootstrap_release`) -> download zip
+/// (existing `download_file` path) -> sha verify (`.sha256` asset, existing
+/// `verify_staged`; warn-skip when absent) -> extract via gsi-archive.
+/// Returns absolute paths of extracted files, sorted.
+pub fn bootstrap_install(
+    tag: &str,
+    cache_dir: &Path,
+    dest_dir: &Path,
+    reporter: Option<&dyn Fn(ProgressEvent)>,
+) -> Result<Vec<PathBuf>, String> {
+    let rel = bootstrap_release(tag)?;
+    let zip_dest = cache_dir.join(&rel.zip_name);
+    download_file_with_progress(&rel.zip_url, &zip_dest, reporter)?;
+    let sha_dest = sidecar_path(&zip_dest);
+    match download_to(&rel.sha_url, &sha_dest) {
+        Ok(()) => {
+            let raw =
+                std::fs::read_to_string(&sha_dest).map_err(|e| format!("sidecar: {e}"))?;
+            let token = raw.split_whitespace().next().unwrap_or("");
+            if token.is_empty() {
+                return Err("sha256 asset empty".to_string());
+            }
+            verify_staged(&zip_dest, token)?;
+        }
+        Err(e) => emit_progress(
+            reporter,
+            ProgressEvent::Warning {
+                message: format!("no .sha256 asset, skipping verify ({e})"),
+            },
+        ),
+    }
+    bootstrap_install_from_zip(&zip_dest, dest_dir, None, reporter)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1046,6 +1467,247 @@ mod tests {
             DownloadOutcome::Cached
         );
         assert!(download_file("ftp://example.invalid/f.zip", &d.join("g.zip")).is_err());
+        std::fs::remove_dir_all(&d).ok();
+    }
+
+    // ---------------- progress downloads (hermetic: file:// only, no network)
+
+    #[test]
+    fn progress_sequence_on_local_copy() {
+        use std::cell::RefCell;
+        let d = fresh_dir("progress");
+        let src = d.join("src.img.gz");
+        let bytes = vec![7u8; 100_000];
+        std::fs::write(&src, &bytes).unwrap();
+        let dest = d.join("sub").join("dst.img.gz");
+        let seen: RefCell<Vec<ProgressEvent>> = RefCell::new(Vec::new());
+        let cb = |ev: ProgressEvent| seen.borrow_mut().push(ev);
+        let url = format!("file://{}", src.display());
+        download_to_with_progress(&url, &dest, Some(&cb)).unwrap();
+        assert_eq!(std::fs::read(&dest).unwrap(), bytes);
+        let ev = seen.borrow();
+        assert!(matches!(ev.first(), Some(ProgressEvent::Started { .. })));
+        assert!(matches!(ev.last(), Some(ProgressEvent::Completed)));
+        let total = std::fs::metadata(&src).unwrap().len();
+        let progs: Vec<(u64, u64)> = ev
+            .iter()
+            .filter_map(|e| match e {
+                ProgressEvent::Progress { current, total } => Some((*current, *total)),
+                _ => None,
+            })
+            .collect();
+        assert!(!progs.is_empty());
+        assert!(progs.iter().all(|(_, t)| *t == total));
+        assert_eq!(progs.last().map(|p| p.0), Some(total));
+        for w in progs.windows(2) {
+            assert!(w[1].0 >= w[0].0);
+        }
+        assert!(download_to_with_progress("file:///no/such/file.img.gz", &d.join("x.gz"), None).is_err());
+        std::fs::remove_dir_all(&d).ok();
+    }
+
+    #[test]
+    fn cached_download_reports_completion_without_bytes() {
+        use std::cell::RefCell;
+        let d = fresh_dir("dlcached2");
+        let dest = d.join("f.img.gz");
+        std::fs::write(&dest, b"cached").unwrap();
+        let seen: RefCell<Vec<ProgressEvent>> = RefCell::new(Vec::new());
+        let cb = |ev: ProgressEvent| seen.borrow_mut().push(ev);
+        let out =
+            download_file_with_progress("file:///tmp/any/f.img.gz", &dest, Some(&cb)).unwrap();
+        assert_eq!(out, DownloadOutcome::Cached);
+        let ev = seen.borrow();
+        assert_eq!(ev.len(), 2);
+        assert!(matches!(ev[0], ProgressEvent::Started { .. }));
+        assert!(matches!(ev[1], ProgressEvent::Completed));
+        std::fs::remove_dir_all(&d).ok();
+    }
+
+    // ---------------- ROM validation matrix (crafted local files, no network)
+
+    /// gzip (mtime=0) of `ANDROID!` + version byte + filler (98 bytes raw).
+    const TEST_BOOT_GZ: &[u8] = &[
+        31, 139, 8, 0, 0, 0, 0, 0, 2, 255, 115, 244, 115, 9, 242, 247, 116, 81, 100,
+        118, 242, 247, 15, 113, 113, 12, 113, 212, 53, 48, 52, 50, 54, 49, 53, 51,
+        183, 176, 116, 116, 114, 118, 113, 117, 99, 160, 16, 0, 0, 5, 63, 145, 148,
+        98, 0, 0, 0,
+    ];
+
+    fn sparse_fixture() -> Vec<u8> {
+        let mut h = vec![0x3A, 0xFF, 0x26, 0xED, 0x01, 0x00, 0x00, 0x00];
+        h.extend_from_slice(&28u16.to_le_bytes());
+        h.extend_from_slice(&12u16.to_le_bytes());
+        h.extend_from_slice(&4096u32.to_le_bytes());
+        h.extend_from_slice(&100u32.to_le_bytes());
+        h.extend_from_slice(&5u32.to_le_bytes());
+        h.extend_from_slice(&[0u8; 4]);
+        h
+    }
+
+    #[test]
+    fn image_kind_shapes() {
+        let d = fresh_dir("romkind");
+        assert_eq!(parse_image_kind("boot"), Some(ImageKind::Boot));
+        assert_eq!(parse_image_kind("SYSTEM"), Some(ImageKind::System));
+        assert_eq!(parse_image_kind("unknown"), None);
+        assert_eq!(parse_image_kind(""), None);
+        let sys = d.join("s.img");
+        std::fs::write(&sys, sparse_fixture()).unwrap();
+        assert_eq!(image_kind_of(&sys), ImageKind::System);
+        let mut ext = vec![0u8; 1090];
+        ext[1080] = 0x53;
+        ext[1081] = 0xEF;
+        let pe = d.join("e.img");
+        std::fs::write(&pe, &ext).unwrap();
+        assert_eq!(image_kind_of(&pe), ImageKind::System);
+        let unk = d.join("u.img");
+        std::fs::write(&unk, b"hello, not an image").unwrap();
+        assert_eq!(image_kind_of(&unk), ImageKind::Unknown);
+        assert_eq!(image_kind_of(&d.join("missing.img")), ImageKind::Unknown);
+        assert_eq!(ImageKind::Boot.as_str(), "boot");
+        std::fs::remove_dir_all(&d).ok();
+    }
+
+    #[test]
+    fn rom_validation_matrix() {
+        let d = fresh_dir("romval");
+        // ok: gzip of ANDROID! content, expected boot.
+        let src_ok = d.join("ok-src.img.gz");
+        std::fs::write(&src_ok, TEST_BOOT_GZ).unwrap();
+        let dst_ok = d.join("dl").join("ok.img.gz");
+        let r = fetch_rom_image(
+            &format!("file://{}", src_ok.display()),
+            &dst_ok,
+            ImageKind::Boot,
+        )
+        .unwrap();
+        assert!(r.is_ok(), "got {r:?}");
+        assert!(matches!(
+            r,
+            RomImageValidation::Ok {
+                kind: ImageKind::Boot,
+                ..
+            }
+        ));
+        // wrong-kind: sparse system image, expected boot.
+        let sys = d.join("sys.img");
+        std::fs::write(&sys, sparse_fixture()).unwrap();
+        let dst_sys = d.join("dl2").join("sys.img");
+        let r2 = fetch_rom_image(
+            &format!("file://{}", sys.display()),
+            &dst_sys,
+            ImageKind::Boot,
+        )
+        .unwrap();
+        assert!(!r2.is_ok());
+        assert!(matches!(
+            r2,
+            RomImageValidation::WrongKind {
+                found: ImageKind::System,
+                expected: ImageKind::Boot,
+                ..
+            }
+        ));
+        // corrupt: truncated gzip.
+        let bad = d.join("bad.img.gz");
+        std::fs::write(&bad, &TEST_BOOT_GZ[..10]).unwrap();
+        let dst_bad = d.join("dl3").join("bad.img.gz");
+        let r3 = fetch_rom_image(
+            &format!("file://{}", bad.display()),
+            &dst_bad,
+            ImageKind::Boot,
+        )
+        .unwrap();
+        assert!(matches!(r3, RomImageValidation::Corrupt { .. }), "got {r3:?}");
+        // corrupt: unclear content (plain text, expected system).
+        let unk = d.join("unk.img");
+        std::fs::write(&unk, b"hello, not an image").unwrap();
+        let dst_unk = d.join("dl4").join("unk.img");
+        let r4 = fetch_rom_image(
+            &format!("file://{}", unk.display()),
+            &dst_unk,
+            ImageKind::System,
+        )
+        .unwrap();
+        assert!(matches!(r4, RomImageValidation::Corrupt { .. }), "got {r4:?}");
+        // pure helper: missing file is corrupt, download failure is Err.
+        assert!(matches!(
+            validate_rom_image(&d.join("nope.img"), ImageKind::Boot),
+            RomImageValidation::Corrupt { .. }
+        ));
+        assert!(fetch_rom_image("ftp://example.invalid/f.img.gz", &d.join("z.gz"), ImageKind::Boot)
+            .is_err());
+        std::fs::remove_dir_all(&d).ok();
+    }
+
+    // ---------------- bootstrap from local zip+sha (no network)
+
+    /// Stored (uncompressed) zip: scripts/treble-toolkit.sh + README.md.
+    const TEST_BOOTSTRAP_ZIP: &[u8] = &[
+        80, 75, 3, 4, 20, 0, 0, 0, 0, 0, 72, 69, 71, 93, 47, 58, 218, 233, 18, 0, 0,
+        0, 18, 0, 0, 0, 25, 0, 0, 0, 115, 99, 114, 105, 112, 116, 115, 47, 116, 114,
+        101, 98, 108, 101, 45, 116, 111, 111, 108, 107, 105, 116, 46, 115, 104, 35,
+        33, 47, 98, 105, 110, 47, 115, 104, 10, 101, 99, 104, 111, 32, 104, 105, 10,
+        80, 75, 3, 4, 20, 0, 0, 0, 0, 0, 72, 69, 71, 93, 97, 19, 161, 131, 9, 0, 0,
+        0, 9, 0, 0, 0, 9, 0, 0, 0, 82, 69, 65, 68, 77, 69, 46, 109, 100, 35, 32, 116,
+        114, 101, 98, 108, 101, 10, 80, 75, 1, 2, 20, 3, 20, 0, 0, 0, 0, 0, 72, 69,
+        71, 93, 47, 58, 218, 233, 18, 0, 0, 0, 18, 0, 0, 0, 25, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 128, 1, 0, 0, 0, 0, 115, 99, 114, 105, 112, 116, 115, 47, 116,
+        114, 101, 98, 108, 101, 45, 116, 111, 111, 108, 107, 105, 116, 46, 115, 104,
+        80, 75, 1, 2, 20, 3, 20, 0, 0, 0, 0, 0, 72, 69, 71, 93, 97, 19, 161, 131, 9,
+        0, 0, 0, 9, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 1, 73, 0, 0, 0,
+        82, 69, 65, 68, 77, 69, 46, 109, 100, 80, 75, 5, 6, 0, 0, 0, 0, 2, 0, 2, 0,
+        126, 0, 0, 0, 121, 0, 0, 0, 0, 0,
+    ];
+
+    #[test]
+    fn bootstrap_from_local_zip() {
+        use std::cell::RefCell;
+        let d = fresh_dir("bootstrap");
+        let zip = d.join("trebleManager-v9.9.zip");
+        std::fs::write(&zip, TEST_BOOTSTRAP_ZIP).unwrap();
+        let sha = sha256_file(&zip).unwrap();
+        let out = d.join("out");
+        let files = bootstrap_install_from_zip(&zip, &out, Some(&sha), None).unwrap();
+        assert_eq!(files.len(), 2);
+        assert_eq!(
+            std::fs::read(out.join("scripts/treble-toolkit.sh")).unwrap(),
+            b"#!/bin/sh\necho hi\n"
+        );
+        assert_eq!(
+            std::fs::read(out.join("README.md")).unwrap(),
+            b"# treble\n"
+        );
+        assert!(files.iter().all(|p| p.is_file()));
+        // sha as sidecar-style first token also verifies.
+        let out_b = d.join("out-b");
+        let sidecar = format!("{sha}  trebleManager-v9.9.zip");
+        assert_eq!(
+            bootstrap_install_from_zip(&zip, &out_b, Some(&sidecar), None)
+                .unwrap()
+                .len(),
+            2
+        );
+        // wrong sha aborts honestly.
+        assert!(bootstrap_install_from_zip(&zip, &d.join("out-c"), Some("deadbeef"), None)
+            .is_err());
+        // corrupt zip aborts.
+        let cz = d.join("c.zip");
+        std::fs::write(&cz, b"not a zip at all................").unwrap();
+        assert!(bootstrap_install_from_zip(&cz, &d.join("out-d"), None, None).is_err());
+        // missing zip aborts.
+        assert!(bootstrap_install_from_zip(&d.join("no.zip"), &d.join("out-e"), None, None)
+            .is_err());
+        // events: Started .. Completed.
+        let seen: RefCell<Vec<ProgressEvent>> = RefCell::new(Vec::new());
+        let cb = |ev: ProgressEvent| seen.borrow_mut().push(ev);
+        let files2 =
+            bootstrap_install_from_zip(&zip, &d.join("out-f"), None, Some(&cb)).unwrap();
+        assert_eq!(files2.len(), 2);
+        let ev = seen.borrow();
+        assert!(matches!(ev.first(), Some(ProgressEvent::Started { .. })));
+        assert!(matches!(ev.last(), Some(ProgressEvent::Completed)));
         std::fs::remove_dir_all(&d).ok();
     }
 }

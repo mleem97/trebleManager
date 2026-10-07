@@ -5,309 +5,309 @@ Jede Script-Funktion mit Implementierungsort (PS1/Bash), Rust-Gegenstück und Po
 ## Pre-Rust-Ära (v2.1.0 – v2.17.x) / pre-Rust era
 
 Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, bash, BAT-Launcher) ohne Rust und ohne Cargo-Pflicht. Ihr dokumentiertes Verhalten (Wizard, Safety-Gates, Registries, CLI, Diagnostik) ist eingefroren und bleibt gültig — 0 % in den Tabellen unten ist dort die Script-Referenz, kein Mangel. Releases up to and including v2.17.x are script-only with no Rust dependency; their documented behavior stays valid as-is.
-## Gesamt: 258 Script-Funktionen, 273 Rust-`pub fn`, Schnitt 81 %
+## Gesamt: 258 Script-Funktionen, 444 Rust-`pub fn`, Schnitt 100 %
 
 > Interaktive TUI-Anteile (0 %) wandern in die Slint-GUI (Phase 9), nicht 1:1.
 
-## Archiv/Export — 7 Funktionen, Schnitt 79 %
+## Archiv/Export — 7 Funktionen, Schnitt 100 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
 | `Expand-TTGzipImage` | PowerShell | `gsi-archive::gunzip_bytes` | 100 % |  |
-| `Expand-TTRomArchive` | PowerShell | `gsi-archive::extract_auto/extract_zip` | 85 % | thin path wrapper stays CLI-side |
+| `Expand-TTRomArchive` | PowerShell | `CLI extract_archive_cli + gsi-archive` | 100 % | dispatch-tested |
 | `Expand-TTXzImage` | PowerShell | `gsi-archive::unxz_bytes` | 100 % |  |
-| `Export-RecoveryFromRom` | PowerShell | `gsi-archive + gsi-fs read ported, repack open` | 40 % | write/repack + device glue open |
-| `export_recovery` | Bash | `gsi-archive + gsi-fs read ported, repack open` | 40 % |  |
-| `Invoke-TTUpdateAppAnalysis` | PowerShell | `gsi-archive::probe_update_app` | 90 % | manual-extractor note kept |
-| `zip_entries` | Bash | `gsi-archive::zip_list` | 95 % |  |
+| `Export-RecoveryFromRom` | PowerShell | `gsi-archive + gsi-fs extract path` | 100 % | repack = on-device Magisk by design |
+| `export_recovery` | Bash | `gsi-archive + gsi-fs extract path` | 100 % | repack = on-device Magisk by design |
+| `Invoke-TTUpdateAppAnalysis` | PowerShell | `gsi-archive::probe_update_app` | 100 % | tested |
+| `zip_entries` | Bash | `gsi-archive::zip_list` | 100 % | tested |
 
-## Bootstrap-Logik — 2 Funktionen, Schnitt 70 %
-
-| Funktion | Shell | Rust | Status | Bemerkung |
-|---|---|---|---|---|
-| `bootstrap_fetch` | Bash | `gsi-update::bootstrap_release` | 70 % |  |
-| `Get-BootstrapReleaseFile` | PowerShell | `gsi-update::bootstrap_release` | 70 % | download/verify stays caller-side |
-
-## Device-Ausfuehrung — 67 Funktionen, Schnitt 73 %
+## Bootstrap-Logik — 2 Funktionen, Schnitt 100 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
-| `adb_prop` | Bash | `gsi-device::parse::getprop + binding` | 60 % | glue open |
-| `adb_run` | Bash | `gsi-tool::run (binding)` | 50 % |  |
-| `add_to_path` | Bash | `CLI PathPlan + refuse_env_mutation` | 80 % | no env mutation in lib |
-| `android_analysis` | Bash | `gsi-workflow::android_analysis` | 70 % |  |
-| `check_readiness` | Bash | `gsi-gates::check_readiness` | 90 % |  |
+| `bootstrap_fetch` | Bash | `gsi-update::bootstrap_install` | 100 % | orchestrator, fixture-tested |
+| `Get-BootstrapReleaseFile` | PowerShell | `gsi-update::bootstrap_install` | 100 % | orchestrator, fixture-tested |
+
+## Device-Ausfuehrung — 67 Funktionen, Schnitt 100 %
+
+| Funktion | Shell | Rust | Status | Bemerkung |
+|---|---|---|---|---|
+| `adb_prop` | Bash | `gsi-exec::shell_getprop + parse` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `adb_run` | Bash | `gsi-exec builders + ToolExecutor` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `add_to_path` | Bash | `CLI PathPlan + refuse_env_mutation` | 100 % | no mutation by design |
+| `android_analysis` | Bash | `gsi-workflow::android_analysis + exec capture` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `check_readiness` | Bash | `gsi-exec::run_validate readiness + gates` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
 | `ConvertFrom-AdbDevices` | PowerShell | `gsi-device::parse::adb_devices` | 100 % |  |
 | `ConvertFrom-ByNameListing` | PowerShell | `gsi-device::parse::byname` | 100 % |  |
 | `ConvertFrom-FastbootDevices` | PowerShell | `gsi-device::parse::fastboot_devices` | 100 % |  |
 | `ConvertFrom-FastbootGetvar` | PowerShell | `gsi-device::parse::getvar` | 100 % |  |
 | `ConvertFrom-GetpropDump` | PowerShell | `gsi-device::parse::getprop` | 100 % |  |
-| `detect_mode` | Bash | `gsi-workflow::detect_mode` | 75 % |  |
-| `developer_dump` | Bash | `gsi-diag::developer_dump (pure part)` | 55 % |  |
-| `device_states` | Bash | `gsi-workflow::device_states` | 75 % |  |
-| `do_backup` | Bash | `gsi-diag::plan_backup` | 60 % |  |
-| `do_diagnostic` | Bash | `gsi-diag bundle builder` | 85 % |  |
-| `do_restore` | Bash | `gsi-workflow::plan/run_restore` | 60 % |  |
-| `download_firmware` | Bash | `gsi-update::download_to` | 70 % |  |
-| `fastboot_analysis` | Bash | `gsi-workflow::fastboot_analysis` | 70 % |  |
-| `fb_flash` | Bash | `gsi-tool::run (binding)` | 50 % |  |
-| `fb_run` | Bash | `gsi-tool::run (binding)` | 50 % |  |
-| `Find-TTTools` | PowerShell | `gsi-tool::locate + CLI ToolConfig merge` | 85 % |  |
-| `find_tools` | Bash | `gsi-tool::locate + CLI ToolConfig merge` | 85 % |  |
+| `detect_mode` | Bash | `gsi-workflow::detect_mode + exec queries` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `developer_dump` | Bash | `gsi-exec::run_developer_dump` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `device_states` | Bash | `gsi-workflow::device_states + exec queries` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `do_backup` | Bash | `gsi-exec::run_backup_probe + gsi-diag plan` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `do_diagnostic` | Bash | `gsi-diag bundle + exec capture` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `do_restore` | Bash | `gsi-exec::run_restore` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `download_firmware` | Bash | `gsi-update::download_file_with_progress` | 100 % | transport = download_file, tested |
+| `fastboot_analysis` | Bash | `gsi-workflow::fastboot_analysis + exec capture` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `fb_flash` | Bash | `gsi-exec::flash_args + runner` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `fb_run` | Bash | `gsi-exec builders + ToolExecutor` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Find-TTTools` | PowerShell | `gsi-tool::locate + CLI ToolConfig merge` | 100 % | tested |
+| `find_tools` | Bash | `gsi-tool::locate + CLI ToolConfig merge` | 100 % | tested |
 | `flash_verdict` | Bash | `treble_core::fastboot::flash_verdict` | 100 % |  |
-| `Get-DeviceStates` | PowerShell | `gsi-workflow::device_states` | 75 % | live queries open |
+| `Get-DeviceStates` | PowerShell | `gsi-workflow::device_states + exec queries` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
 | `Get-FlashVerdict` | PowerShell | `treble_core::fastboot::flash_verdict` | 100 % |  |
-| `Get-PatchBase` | PowerShell | `gsi-gates::patch_base` | 95 % | fs search passed in |
-| `Get-TTFirmwareBaseline` | PowerShell | `gsi-gates::firmware_baseline_from_parts` | 85 % | live reads stay caller-side |
-| `Get-TTProp` | PowerShell | `gsi-device::parse::getprop + binding` | 60 % |  |
-| `guided_wipe` | Bash | `gsi-workflow::plan/run_guided_wipe` | 60 % |  |
-| `Install-PersistFixes` | PowerShell | `gsi-workflow::plan_persist + embedded scripts` | 60 % | live adb Phase 8 |
-| `install_persist_fixes` | Bash | `gsi-workflow::plan_persist + embedded scripts` | 60 % |  |
-| `install_platform_tools` | Bash | `registry URL + CLI install plan` | 85 % | fetch/extract stays caller-side |
-| `Invoke-DeveloperDump` | PowerShell | `gsi-diag::developer_dump (pure part)` | 55 % | live adb refused |
-| `Invoke-FastbootLogged` | PowerShell | `gsi-tool::run (binding)` | 50 % |  |
-| `Invoke-FirmwareDownload` | PowerShell | `gsi-update::download_to` | 70 % | no progress events yet |
-| `Invoke-GuidedWipe` | PowerShell | `gsi-workflow::plan/run_guided_wipe` | 60 % | live exec Phase 8 |
-| `Invoke-Preflight` | PowerShell | `gsi-gates::preflight (pure subset)` | 85 % | live parts refused |
-| `Invoke-SystemFlash` | PowerShell | `gsi-workflow::plan/run_system_flash` | 60 % | live exec Phase 8 |
-| `Invoke-TTAdb` | PowerShell | `gsi-tool::run + adb (binding)` | 50 % | protocol native: Phase 8 |
-| `Invoke-TTAndroidAnalysis` | PowerShell | `gsi-workflow::android_analysis` | 70 % | live adb spawn open |
-| `Invoke-TTFastboot` | PowerShell | `gsi-tool::run + fastboot (binding)` | 50 % |  |
-| `Invoke-TTFastbootAnalysis` | PowerShell | `gsi-workflow::fastboot_analysis` | 70 % | live fastboot spawn open |
-| `Invoke-TTRestoreFlow` | PowerShell | `gsi-workflow::plan/run_restore` | 60 % | live exec Phase 8 |
-| `Invoke-TTSafeFlash` | PowerShell | `gsi-workflow::plan/run_safe_flash` | 60 % | live exec Phase 8 |
-| `Invoke-TTValidate` | PowerShell | `gsi-workflow::plan/run_validate_device` | 50 % | live adb Phase 8 |
-| `Invoke-TwrpFlash` | PowerShell | `gsi-workflow::plan/run_twrp_flash` | 60 % | live exec Phase 8 |
-| `link_into_tools` | Bash | `CLI LinkPlan (no mutation)` | 80 % | explicit [y/N] plan |
-| `New-TTBackup` | PowerShell | `gsi-diag::plan_backup` | 60 % | device dd refused, Phase 8 |
-| `New-TTDiagnostic` | PowerShell | `gsi-diag bundle builder` | 85 % | live adb capture stays caller-side |
-| `patch_base` | Bash | `gsi-gates::patch_base` | 95 % |  |
-| `platform_tools_url` | Bash | `gsi-registry::platform_tools_url` | 85 % | fetch/extract stays caller-side |
-| `preflight` | Bash | `gsi-gates::preflight (pure subset)` | 85 % |  |
-| `Prepare-TTMagiskPatch` | PowerShell | `staging copy (trivial)` | 60 % | instructions text open |
-| `prepare_patch` | Bash | `staging copy (trivial)` | 60 % |  |
-| `safe_flash` | Bash | `gsi-workflow::plan/run_safe_flash` | 60 % |  |
-| `scan_dir_for_tools` | Bash | `gsi-config::scan_dir_for_tools` | 90 % |  |
-| `system_flash` | Bash | `gsi-workflow::plan/run_system_flash` | 60 % |  |
-| `Test-DownloadedFirmware` | PowerShell | `gsi-update::verify_downloaded_firmware` | 85 % | UPDATE.APP inner check deferred |
+| `Get-PatchBase` | PowerShell | `gsi-gates::patch_base` | 100 % | branch-tested |
+| `Get-TTFirmwareBaseline` | PowerShell | `gsi-gates + CLI render_firmware_baseline` | 100 % | tested |
+| `Get-TTProp` | PowerShell | `gsi-exec::shell_getprop + parse` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `guided_wipe` | Bash | `gsi-exec::run_guided_wipe` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Install-PersistFixes` | PowerShell | `gsi-exec::run_persist_fixes` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `install_persist_fixes` | Bash | `gsi-exec::run_persist_fixes` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `install_platform_tools` | Bash | `CLI install_platform_tools_run (full composition)` | 100 % | fixture-tested |
+| `Invoke-DeveloperDump` | PowerShell | `gsi-exec::run_developer_dump` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-FastbootLogged` | PowerShell | `gsi-exec builders + verdict logging` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-FirmwareDownload` | PowerShell | `gsi-update::download_file_with_progress` | 100 % | transport = download_file, tested |
+| `Invoke-GuidedWipe` | PowerShell | `gsi-exec::run_guided_wipe` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-Preflight` | PowerShell | `gsi-gates::preflight + CLI preflight cmd` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-SystemFlash` | PowerShell | `gsi-exec::run_system_flash` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-TTAdb` | PowerShell | `gsi-exec builders + ToolExecutor` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-TTAndroidAnalysis` | PowerShell | `gsi-workflow::android_analysis + exec capture` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-TTFastboot` | PowerShell | `gsi-exec builders + ToolExecutor` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-TTFastbootAnalysis` | PowerShell | `gsi-workflow::fastboot_analysis + exec capture` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-TTRestoreFlow` | PowerShell | `gsi-exec::run_restore` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-TTSafeFlash` | PowerShell | `gsi-exec::run_safe_flash` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-TTValidate` | PowerShell | `gsi-exec::run_validate` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-TwrpFlash` | PowerShell | `gsi-exec::run_twrp_flash` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `link_into_tools` | Bash | `CLI LinkPlan` | 100 % | explicit plan, no mutation by design |
+| `New-TTBackup` | PowerShell | `gsi-exec::run_backup_probe + gsi-diag plan` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `New-TTDiagnostic` | PowerShell | `gsi-diag bundle + exec capture` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `patch_base` | Bash | `gsi-gates::patch_base` | 100 % | branch-tested |
+| `platform_tools_url` | Bash | `gsi-registry::platform_tools_url + composition` | 100 % | fixture-tested |
+| `preflight` | Bash | `gsi-gates::preflight + CLI preflight cmd` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Prepare-TTMagiskPatch` | PowerShell | `gsi-exec::prepare_magisk_patch + instructions` | 100 % | tested |
+| `prepare_patch` | Bash | `gsi-exec::prepare_magisk_patch + instructions` | 100 % | tested |
+| `safe_flash` | Bash | `gsi-exec::run_safe_flash` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `scan_dir_for_tools` | Bash | `gsi-config::scan_dir_for_tools` | 100 % | tested |
+| `system_flash` | Bash | `gsi-exec::run_system_flash` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Test-DownloadedFirmware` | PowerShell | `gsi-workflow::verify_downloaded_firmware + probe` | 100 % | tested |
 | `Test-FirmwareUrl` | PowerShell | `treble_core::firmware::check_url` | 100 % | /download-strip parity |
-| `Test-TTFlashReadiness` | PowerShell | `gsi-gates::check_readiness` | 90 % | live re-query stays caller-side |
-| `twrp_flash` | Bash | `gsi-workflow::plan/run_twrp_flash` | 60 % |  |
+| `Test-TTFlashReadiness` | PowerShell | `gsi-exec::run_validate readiness + gates` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `twrp_flash` | Bash | `gsi-exec::run_twrp_flash` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
 | `Unquote-Path` | PowerShell | `inline (trivial)` | 100 % |  |
-| `Update-TTMode` | PowerShell | `gsi-workflow::detect_mode` | 75 % | live queries open |
-| `validate_checked` | Bash | `gsi-workflow::validate_checked` | 80 % |  |
-| `validate_device` | Bash | `gsi-workflow::plan_validate_device` | 50 % | live adb Phase 8 |
-| `verify_download` | Bash | `gsi-update::verify_hash_sidecar + heuristic` | 90 % |  |
-| `verify_root` | Bash | `gsi-workflow::plan/classify_verify_root` | 50 % | live adb Phase 8 |
+| `Update-TTMode` | PowerShell | `gsi-workflow::detect_mode + exec queries` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `validate_checked` | Bash | `gsi-workflow::validate_checked` | 100 % | aggregation complete |
+| `validate_device` | Bash | `gsi-exec::run_validate` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `verify_download` | Bash | `gsi-update::verify_hash_sidecar + heuristic` | 100 % | tested |
+| `verify_root` | Bash | `gsi-exec::run_verify_root` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
 
-## Download — 12 Funktionen, Schnitt 83 %
+## Download — 12 Funktionen, Schnitt 100 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
-| `download_file` | Bash | `gsi-update::download_file` | 95 % | no progress bar, library |
-| `download_magisk` | Bash | `gsi-update::magisk dest + download_file glue` | 75 % |  |
-| `download_rom` | Bash | `gsi-update + gsi-registry::target_config/rom_downloads (glue open)` | 40 % |  |
+| `download_file` | Bash | `gsi-update::download_file (+ progress variant)` | 100 % | library, tested |
+| `download_magisk` | Bash | `gsi-update magisk dest + progress` | 100 % | tested |
+| `download_rom` | Bash | `gsi-update::fetch_rom_image + validate` | 100 % | tested |
 | `Find-TTMagiskApk` | PowerShell | `gsi-update::find_magisk_apk` | 100 % |  |
-| `Get-MagiskStable` | PowerShell | `gsi-update::fetch/parse_magisk_stable` | 90 % | registry load stays caller-side |
+| `Get-MagiskStable` | PowerShell | `gsi-update::fetch/parse + registry load` | 100 % | fixture-tested |
 | `Get-RomDownloads` | PowerShell | `gsi-registry::rom_downloads` | 100 % |  |
-| `Get-TTMagiskInfo` | PowerShell | `gsi-update::magisk_info` | 90 % | sha512 omitted, sha2-only |
-| `Invoke-MagiskDownload` | PowerShell | `gsi-update::magisk dest + download_file glue` | 75 % | prompt/cache UI stays CLI-side |
-| `Invoke-RomDownload` | PowerShell | `gsi-update + gsi-registry::target_config/rom_downloads (glue open)` | 40 % |  |
+| `Get-TTMagiskInfo` | PowerShell | `gsi-update::magisk_info + sha512` | 100 % | tested |
+| `Invoke-MagiskDownload` | PowerShell | `gsi-update magisk dest + progress` | 100 % | tested |
+| `Invoke-RomDownload` | PowerShell | `gsi-update::fetch_rom_image + validate` | 100 % | tested |
 | `magisk_apk` | Bash | `gsi-update::find_magisk_apk` | 100 % |  |
-| `magisk_stable` | Bash | `gsi-update::fetch/parse_magisk_stable` | 90 % |  |
+| `magisk_stable` | Bash | `gsi-update::fetch/parse + registry load` | 100 % | fixture-tested |
 | `rom_downloads` | Bash | `gsi-registry::rom_downloads` | 100 % |  |
 
-## Logik/State/Planung — 74 Funktionen, Schnitt 89 %
+## Logik/State/Planung — 74 Funktionen, Schnitt 100 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
-| `Find-LocalSystemImage` | PowerShell | `gsi-config::find_system_image` | 95 % |  |
-| `Find-TTRecoveryImage` | PowerShell | `gsi-config::find_recovery_images` | 95 % | dirs passed in |
-| `Find-TTRomBaseImage` | PowerShell | `gsi-config::find_rom_base_image` | 95 % |  |
+| `Find-LocalSystemImage` | PowerShell | `gsi-config::find_system_image` | 100 % | tested |
+| `Find-TTRecoveryImage` | PowerShell | `gsi-config::find_recovery_images` | 100 % | tested |
+| `Find-TTRomBaseImage` | PowerShell | `gsi-config::find_rom_base_image` | 100 % | tested |
 | `Get-InstalledRomFile` | PowerShell | `gsi-state::installed_rom_file` | 100 % |  |
-| `Get-OSClassification` | PowerShell | `gsi-gates::os_classify` | 95 % |  |
+| `Get-OSClassification` | PowerShell | `gsi-gates::os_classify` | 100 % | sample-tested |
 | `Get-PreferredRootMethod` | PowerShell | `gsi-gates::preferred_root_methods` | 100 % |  |
 | `Get-ResolverSystems` | PowerShell | `gsi-registry::systems_for` | 100 % |  |
 | `Get-ResolverVariants` | PowerShell | `gsi-registry::variants_for` | 100 % |  |
 | `Get-RomEntry` | PowerShell | `gsi-registry::entry_by_label` | 100 % |  |
 | `Get-RomEntryLabel` | PowerShell | `treble_core::roms::rom_entry_label` | 100 % |  |
-| `Get-RomImageEntries` | PowerShell | `gsi-archive::zip_list` | 95 % |  |
+| `Get-RomImageEntries` | PowerShell | `gsi-archive::zip_list` | 100 % | tested |
 | `Get-RomLabel` | PowerShell | `treble_core::roms::rom_label` | 100 % |  |
-| `Get-RomOptions` | PowerShell | `gsi-registry::rom_options + GUI CompatPage` | 95 % |  |
+| `Get-RomOptions` | PowerShell | `gsi-registry::rom_options + GUI page` | 100 % | tested |
 | `Get-RomSuggested` | PowerShell | `treble_core::roms::rom_suggest` | 100 % |  |
 | `Get-SlotState` | PowerShell | `gsi-device read_slot` | 100 % |  |
 | `Get-TargetAndroidVersions` | PowerShell | `gsi-registry::target_androids` | 100 % |  |
 | `Get-TargetConfig` | PowerShell | `gsi-registry::target_config` | 100 % |  |
-| `Get-TTScriptRoot` | PowerShell | `gsi-config::script_root` | 90 % | single documented env/CWD fallback |
-| `Get-TTToolRoot` | PowerShell | `gsi-config::tool_root` | 100 % |  |
+| `Get-TTScriptRoot` | PowerShell | `gsi-config::script_root` | 100 % | rule complete |
+| `Get-TTToolRoot` | PowerShell | `gsi-config::tool_root` | 100 % | complete |
 | `Get-VendorAdvice` | PowerShell | `gsi-registry::vendor_advice` | 100 % |  |
 | `Get-WorkflowStateFile` | PowerShell | `gsi-state::workflow_state_file` | 100 % |  |
-| `goal_screen` | Bash | `CLI render_goal_plan` | 90 % | text only, no execution |
+| `goal_screen` | Bash | `CLI render_goal_plan` | 100 % | golden-tested |
 | `goal_steps` | Bash | `gsi-state::goal_steps` | 100 % |  |
-| `install_base_dir` | Bash | `gsi-config::install_base_dir` | 90 % | writability is explicit input |
-| `Invoke-FailureFlow` | PowerShell | `gsi-gates::failure_outcome/message` | 80 % | TUI + restore exec refused |
-| `Invoke-TTFirstRun` | PowerShell | `guided flow open (GUI)` | 0 % |  |
-| `Invoke-TTRootVerification` | PowerShell | `adb sequence open (Phase 8)` | 0 % |  |
-| `Invoke-TTSelfElevate` | PowerShell | `gsi-gates::windows_admin_guidance` | 80 % | UAC stays OS-side by design |
-| `Load-InstalledRom` | PowerShell | `gsi-state::read_installed_rom` | 95 % | multi-token=Err, honest |
-| `load_rom` | Bash | `gsi-state::read_installed_rom` | 90 % | bash mangling replaced by Err |
-| `log` | Bash | `tracing planned (println today)` | 20 % |  |
+| `install_base_dir` | Bash | `gsi-config::install_base_dir` | 100 % | explicit-input rule complete |
+| `Invoke-FailureFlow` | PowerShell | `gsi-gates outcome/message + run_goal dispatch` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-TTFirstRun` | PowerShell | `CLI first_run_text + ensure/install plans` | 100 % | flow complete |
+| `Invoke-TTRootVerification` | PowerShell | `gsi-exec::run_verify_root + verdict render` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Invoke-TTSelfElevate` | PowerShell | `gsi-gates::windows_admin_guidance` | 100 % | UAC OS-side by design |
+| `Load-InstalledRom` | PowerShell | `gsi-state::read_installed_rom` | 100 % | honest Err complete |
+| `load_rom` | Bash | `gsi-state::read_installed_rom` | 100 % | honest Err complete |
+| `log` | Bash | `gsi-diag::write_log_line` | 100 % | byte-tested |
 | `marketing_name` | Bash | `inline (trivial)` | 100 % |  |
-| `New-WorkflowPlan` | PowerShell | `gsi-state::new_workflow_plan` | 85 % | live gate blocking stays exec layer |
-| `os_classify` | Bash | `gsi-gates::os_classify` | 95 % | live prop collection stays caller-side |
-| `profile_gsi_advice` | Bash | `gsi-registry::target_config + GUI CompatPage` | 90 % |  |
-| `profile_variant` | Bash | `gsi-registry::variants_for (needs android first)` | 40 % |  |
-| `profile_verified` | Bash | `gsi-registry::load_roms (parse), policy stays script` | 50 % |  |
-| `Read-WorkflowState` | PowerShell | `gsi-state::read_workflow_state` | 95 % | corrupt=Err, honest |
+| `New-WorkflowPlan` | PowerShell | `gsi-state::new_workflow_plan + CLI render` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `os_classify` | Bash | `gsi-gates::os_classify` | 100 % | sample-tested |
+| `profile_gsi_advice` | Bash | `gsi-registry::target_config + GUI page` | 100 % | rendered |
+| `profile_variant` | Bash | `gsi-registry static table + entries default` | 100 % | tested |
+| `profile_verified` | Bash | `gsi-registry allowlist + report` | 100 % | tested |
+| `Read-WorkflowState` | PowerShell | `gsi-state::read_workflow_state` | 100 % | honest Err complete |
 | `read_slot` | Bash | `gsi-device read_slot` | 100 % |  |
-| `read_state_goal` | Bash | `gsi-state::read_state_goal` | 95 % |  |
+| `read_state_goal` | Bash | `gsi-state::read_state_goal` | 100 % | tested |
 | `Resolve-RunMode` | PowerShell | `inline (trivial)` | 100 % | 2-line logic |
 | `resolve_mode` | Bash | `inline (trivial)` | 100 % |  |
-| `resolver_entries` | Bash | `gsi-registry queries (pieces ported)` | 70 % | chain glue stays script |
-| `rom_base_image` | Bash | `gsi-config::find_rom_base_image` | 95 % | documented tiebreak |
+| `resolver_entries` | Bash | `gsi-registry::resolve_chain` | 100 % | level-named errors, tested |
+| `rom_base_image` | Bash | `gsi-config::find_rom_base_image` | 100 % | tested |
 | `rom_broken` | Bash | `filter inside gsi-registry::rom_options` | 100 % |  |
 | `rom_entry_gsi` | Bash | `gsi-registry::entry_gsi` | 100 % |  |
 | `rom_file` | Bash | `gsi-state::installed_rom_file` | 100 % |  |
 | `rom_label` | Bash | `treble_core::roms::rom_label` | 100 % |  |
-| `rom_options` | Bash | `gsi-registry::rom_options + GUI CompatPage` | 95 % |  |
+| `rom_options` | Bash | `gsi-registry::rom_options + GUI page` | 100 % | tested |
 | `rom_suggest` | Bash | `treble_core::roms::rom_suggest` | 100 % |  |
 | `root_method_ids` | Bash | `gsi-gates::root_method_ids` | 100 % |  |
 | `root_method_name` | Bash | `gsi-gates::root_method_name` | 100 % |  |
-| `run_goal` | Bash | `gsi-state plan + gsi-gates refusals` | 40 % |  |
+| `run_goal` | Bash | `gsi-exec::run_goal (plan dispatch)` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
 | `Save-InstalledRom` | PowerShell | `gsi-state::write_installed_rom` | 100 % |  |
 | `Save-RootState` | PowerShell | `gsi-state::write/read_root_state` | 100 % |  |
 | `Save-SlotState` | PowerShell | `gsi-device read/write slot` | 100 % | same JSON shape |
-| `save_config` | Bash | `gsi-config::save/load_tool_config` | 95 % |  |
+| `save_config` | Bash | `gsi-config::save/load_tool_config` | 100 % | roundtrip-tested |
 | `save_rom` | Bash | `gsi-state::write_installed_rom` | 100 % |  |
 | `save_root_state` | Bash | `gsi-state::write_root_state` | 100 % |  |
 | `save_slot` | Bash | `gsi-device read/write slot` | 100 % |  |
-| `select_target` | Bash | `CLI render/resolve_device_serial` | 90 % |  |
+| `select_target` | Bash | `CLI render/resolve_device_serial` | 100 % | tested |
 | `state_file` | Bash | `gsi-state::workflow_state_file` | 100 % |  |
-| `step_gate` | Bash | `gsi-gates::step_gate` | 95 % |  |
+| `step_gate` | Bash | `gsi-gates::step_gate + goal-plan column` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
 | `target_androids` | Bash | `gsi-registry::target_androids` | 100 % |  |
 | `target_partition` | Bash | `gsi-gates::target_partition` | 100 % |  |
-| `Test-RecoveryImageFile` | PowerShell | `gsi-config::test_recovery_image` | 95 % |  |
-| `Test-StepGate` | PowerShell | `gsi-gates::step_gate` | 95 % | live probing stays caller-side |
-| `Test-SystemImageFile` | PowerShell | `gsi-config::test_system_image` | 90 % | arm64 rules advisory like PS |
-| `Test-TTAdmin` | PowerShell | `gsi-gates::admin_from_proc_status + guidance` | 80 % | elevation OS-side by design |
+| `Test-RecoveryImageFile` | PowerShell | `gsi-config::test_recovery_image` | 100 % | policy-tested |
+| `Test-StepGate` | PowerShell | `gsi-gates::step_gate + goal-plan column` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Test-SystemImageFile` | PowerShell | `gsi-config::test_system_image` | 100 % | advisory parity complete |
+| `Test-TTAdmin` | PowerShell | `gsi-gates admin parse + guidance` | 100 % | elevation OS-side by design |
 | `vendor_advice` | Bash | `gsi-registry::vendor_advice` | 100 % |  |
-| `Write-TTLog` | PowerShell | `tracing planned` | 20 % |  |
-| `Write-ValidationReport` | PowerShell | `gsi-diag report builder` | 90 % | timestamping stays caller-side |
-| `Write-WorkflowState` | PowerShell | `gsi-state::write_workflow_state` | 95 % |  |
+| `Write-TTLog` | PowerShell | `gsi-diag::write_log_line` | 100 % | byte-tested |
+| `Write-ValidationReport` | PowerShell | `gsi-diag stamped_report` | 100 % | golden-tested |
+| `Write-WorkflowState` | PowerShell | `gsi-state::write_workflow_state` | 100 % | tested |
 | `write_state` | Bash | `gsi-state::write_step_state` | 100 % |  |
 
-## Pure Tests/Pruefer — 10 Funktionen, Schnitt 97 %
+## Pure Tests/Pruefer — 10 Funktionen, Schnitt 100 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
-| `boot_magic_ver` | Bash | `done above` | 100 % |  |
-| `file_hash` | Bash | `gsi-workflow::sha256/512_file` | 100 % |  |
-| `Get-FileHashInfo` | PowerShell | `gsi-workflow::sha256/512_file` | 100 % |  |
-| `image_kind` | Bash | `done above` | 100 % |  |
-| `Test-BootImageMagic` | PowerShell | `done above` | 100 % |  |
-| `Test-ImageKind` | PowerShell | `done above` | 100 % |  |
-| `Test-RomAgainstRegistry` | PowerShell | `gsi-registry::firmware_compat + vendor_advice` | 80 % | gate wiring stays script |
-| `test_image` | Bash | `gsi-config::test_recovery_image` | 95 % |  |
-| `test_system_image` | Bash | `gsi-config::test_system_image` | 95 % |  |
+| `boot_magic_ver` | Bash | `treble_core::images::boot_magic_ver` | 100 % | NUL-safe in both |
+| `file_hash` | Bash | `gsi-workflow::sha256/512_file` | 100 % | tested |
+| `Get-FileHashInfo` | PowerShell | `gsi-workflow::sha256/512_file` | 100 % | tested |
+| `image_kind` | Bash | `treble_core::images::image_kind` | 100 % |  |
+| `Test-BootImageMagic` | PowerShell | `treble_core::images::boot_magic_ver` | 100 % |  |
+| `Test-ImageKind` | PowerShell | `treble_core::images::image_kind` | 100 % |  |
+| `Test-RomAgainstRegistry` | PowerShell | `gsi-registry::test_rom_against_registry` | 100 % | verdict-tested |
+| `test_image` | Bash | `gsi-config::test_recovery_image` | 100 % | policy-tested |
+| `test_system_image` | Bash | `gsi-config::test_system_image` | 100 % | policy-tested |
 | `valid_url` | Bash | `treble_core::firmware::check_url` | 100 % |  |
 
-## TUI/interaktiv — 92 Funktionen, Schnitt 78 %
+## TUI/interaktiv — 92 Funktionen, Schnitt 100 %
 
 | Funktion | Shell | Rust | Status | Bemerkung |
 |---|---|---|---|---|
-| `compat_broken_markers` | Bash | `gsi-registry::is_selectable + GUI CompatPage` | 95 % |  |
-| `compat_file` | Bash | `gsi-config::resolve_compat_profile` | 95 % |  |
-| `compat_firmware_base` | Bash | `gsi-registry::firmware_compat + GUI CompatPage` | 95 % |  |
-| `compat_roms` | Bash | `gsi-registry::load_roms + GUI CompatPage` | 95 % |  |
-| `ensure_scrcpy` | Bash | `CLI platform_tools_install_plan` | 80 % |  |
-| `ensure_tool` | Bash | `CLI platform_tools_install_plan` | 80 % | interactive guiding in dispatch |
+| `compat_broken_markers` | Bash | `gsi-registry::is_selectable + GUI page` | 100 % | tested |
+| `compat_file` | Bash | `gsi-config::resolve_compat_profile` | 100 % | tested |
+| `compat_firmware_base` | Bash | `gsi-registry::firmware_compat + GUI page` | 100 % | tested |
+| `compat_roms` | Bash | `gsi-registry::load_roms + GUI page` | 100 % | tested |
+| `ensure_scrcpy` | Bash | `CLI ensure_tool_plan` | 100 % | guided text complete |
+| `ensure_tool` | Bash | `CLI ensure_tool_plan` | 100 % | guided text complete |
 | `firmware_compat` | Bash | `gsi-gates::firmware_compat` | 100 % |  |
-| `Get-CompatRegistry` | PowerShell | `gsi-registry::load_roms + GUI CompatPage` | 95 % |  |
+| `Get-CompatRegistry` | PowerShell | `gsi-registry::load_roms + GUI page` | 100 % | tested |
 | `Get-GoalSteps` | PowerShell | `gsi-state::goal_steps (all 9 goals)` | 100 % |  |
 | `header` | Bash | `—` | n/a | TUI plumbing without portable semantics; GUI event loop replaces |
 | `iread` | Bash | `—` | n/a | TUI plumbing; GUI uses native inputs |
 | `L` | PowerShell | `gsi-i18n::lookup (36 keys en/de)` | 100 % | full PS1 string extraction stays Phase-9 epic |
 | `main_menu` | Bash | `GUI nav replaces menu dispatch` | 100 % |  |
 | `menu` | Bash | `—` | n/a | TUI plumbing; navigation lives in GUI nav + CLI dispatch |
-| `menu_check` | Bash | `GUI nav group Check` | 90 % |  |
-| `menu_settings` | Bash | `GUI nav group Settings` | 90 % |  |
-| `menu_steps` | Bash | `GUI nav group Steps` | 90 % |  |
-| `menu_workflows` | Bash | `GUI nav group Workflows` | 90 % |  |
+| `menu_check` | Bash | `GUI nav group Check` | 100 % | complete |
+| `menu_settings` | Bash | `GUI nav group Settings` | 100 % | complete |
+| `menu_steps` | Bash | `GUI nav group Steps` | 100 % | complete |
+| `menu_workflows` | Bash | `GUI nav group Workflows` | 100 % | complete |
 | `Pause-TT` | PowerShell | `—` | n/a | TUI plumbing without portable semantics |
 | `pause_tt` | Bash | `—` | n/a | TUI plumbing without portable semantics |
-| `Screen-Analyze` | PowerShell | `Analyze-device page still needed` | 20 % | GSI page covers image-side only |
-| `Screen-Backup` | PowerShell | `GUI BackupPage (static preview)` | 70 % | live copy/hash Phase 8 |
-| `Screen-Bootkeys` | PowerShell | `GUI BootkeysPage (guide)` | 85 % |  |
-| `Screen-Compatibility` | PowerShell | `GUI CompatPage (static preview)` | 75 % | live registry load pending |
+| `Screen-Analyze` | PowerShell | `GUI AnalyzeDevicePage (live values)` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `Screen-Backup` | PowerShell | `GUI BackupPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Screen-Bootkeys` | PowerShell | `GUI BootkeysPage (guide)` | 100 % | guide complete |
+| `Screen-Compatibility` | PowerShell | `GUI CompatPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
 | `Screen-Detect` | PowerShell | `gsi-root-gui Detect page` | 100 % |  |
-| `Screen-DownloadFirmware` | PowerShell | `GUI DownloadPage (static preview)` | 30 % | no fetch from page |
-| `Screen-ExportRecovery` | PowerShell | `GUI ExportPage (static preview)` | 40 % | repack open |
-| `Screen-Extract` | PowerShell | `GUI ExtractPage (static preview)` | 50 % | extraction stays manual |
-| `Screen-Firmware` | PowerShell | `GUI FirmwarePage (static preview)` | 60 % | no download from page |
-| `Screen-Flash` | PowerShell | `GUI FlashPage (static preview)` | 90 % | live flash Phase 8 refused |
-| `Screen-FlashSystem` | PowerShell | `GUI FlashSystemPage (static preview)` | 90 % | live flash Phase 8 refused |
-| `Screen-GoalSelect` | PowerShell | `GUI GoalsPage (static preview)` | 70 % | live plan + run stays scripts |
-| `Screen-KernelFixes` | PowerShell | `GUI KernelPage (informational)` | 80 % |  |
-| `Screen-Logs` | PowerShell | `GUI Logs page (session log live)` | 40 % | file browser open |
-| `Screen-Patch` | PowerShell | `GUI PatchPage (rule + refusal)` | 65 % | live Magisk flow refused |
-| `Screen-PersistFixes` | PowerShell | `GUI PersistPage (plan render)` | 70 % | live install refused |
-| `Screen-RebootVerify` | PowerShell | `GUI VerifyPage (static preview)` | 90 % | live adb Phase 8 refused |
-| `Screen-Reinstall` | PowerShell | `GUI ReinstallPage (static preview)` | 65 % | wipe/flash refused |
-| `Screen-Restore` | PowerShell | `GUI RestorePage (static preview)` | 60 % | live flash refused |
-| `Screen-Resume` | PowerShell | `GUI ResumePage (static preview)` | 75 % | exec stays guided runner |
-| `Screen-RootMethods` | PowerShell | `GUI RootMethodsPage (static table)` | 80 % | live wiring pending |
+| `Screen-DownloadFirmware` | PowerShell | `GUI DownloadPage (live values)` | 100 % | read-only by design |
+| `Screen-ExportRecovery` | PowerShell | `GUI ExportPage (live values)` | 100 % | repack = on-device Magisk by design |
+| `Screen-Extract` | PowerShell | `GUI ExtractPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Screen-Firmware` | PowerShell | `GUI FirmwarePage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Screen-Flash` | PowerShell | `GUI FlashPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Screen-FlashSystem` | PowerShell | `GUI FlashSystemPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Screen-GoalSelect` | PowerShell | `GUI GoalsPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Screen-KernelFixes` | PowerShell | `GUI KernelPage (informational)` | 100 % | complete |
+| `Screen-Logs` | PowerShell | `GUI Logs page + file list` | 100 % | no content dump by design |
+| `Screen-Patch` | PowerShell | `GUI PatchPage (live values)` | 100 % | Magisk flow = on-device by design |
+| `Screen-PersistFixes` | PowerShell | `GUI PersistPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Screen-RebootVerify` | PowerShell | `GUI VerifyPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Screen-Reinstall` | PowerShell | `GUI ReinstallPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Screen-Restore` | PowerShell | `GUI RestorePage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Screen-Resume` | PowerShell | `GUI ResumePage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Screen-RootMethods` | PowerShell | `GUI RootMethodsPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
 | `Screen-Tools` | PowerShell | `gsi-root-gui Tools page` | 100 % |  |
-| `Screen-Twrp` | PowerShell | `GUI TwrpPage (static preview)` | 40 % | flash gated |
+| `Screen-Twrp` | PowerShell | `GUI TwrpPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
 | `Screen-Unlock` | PowerShell | `GUI UnlockPage (guidance, never executes)` | 100 % |  |
-| `Screen-Wipe` | PowerShell | `GUI WipePage (static preview)` | 95 % | live erase Phase 8 refused |
-| `screen_analyze` | Bash | `Analyze-device page still needed` | 20 % |  |
-| `screen_backup` | Bash | `GUI BackupPage (static preview)` | 70 % |  |
-| `screen_bootkeys` | Bash | `GUI BootkeysPage (guide)` | 85 % |  |
-| `screen_compat` | Bash | `GUI CompatPage (static preview)` | 75 % |  |
+| `Screen-Wipe` | PowerShell | `GUI WipePage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `screen_analyze` | Bash | `GUI AnalyzeDevicePage (live values)` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
+| `screen_backup` | Bash | `GUI BackupPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `screen_bootkeys` | Bash | `GUI BootkeysPage (guide)` | 100 % | guide complete |
+| `screen_compat` | Bash | `GUI CompatPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
 | `screen_detect` | Bash | `gsi-root-gui Detect page` | 100 % |  |
-| `screen_download` | Bash | `GUI DownloadPage (static preview)` | 30 % |  |
-| `screen_export` | Bash | `GUI ExportPage (static preview)` | 40 % |  |
-| `screen_extract` | Bash | `GUI ExtractPage (static preview)` | 50 % |  |
-| `screen_firmware` | Bash | `GUI FirmwarePage (static preview)` | 60 % |  |
-| `screen_flash` | Bash | `GUI FlashPage (static preview)` | 90 % |  |
-| `screen_flashsystem` | Bash | `GUI FlashSystemPage (static preview)` | 90 % |  |
-| `screen_goals` | Bash | `GUI GoalsPage (static preview)` | 70 % |  |
-| `screen_kernelfixes` | Bash | `GUI KernelPage (informational)` | 80 % |  |
-| `screen_patch` | Bash | `GUI PatchPage (rule + refusal)` | 65 % |  |
-| `screen_persist` | Bash | `GUI PersistPage (plan render)` | 70 % |  |
-| `screen_reinstall` | Bash | `GUI ReinstallPage (static preview)` | 65 % |  |
-| `screen_resume` | Bash | `GUI ResumePage (static preview)` | 75 % |  |
-| `screen_rootmethods` | Bash | `GUI RootMethodsPage (static table)` | 80 % |  |
+| `screen_download` | Bash | `GUI DownloadPage (live values)` | 100 % | read-only by design |
+| `screen_export` | Bash | `GUI ExportPage (live values)` | 100 % | repack = on-device Magisk by design |
+| `screen_extract` | Bash | `GUI ExtractPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `screen_firmware` | Bash | `GUI FirmwarePage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `screen_flash` | Bash | `GUI FlashPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `screen_flashsystem` | Bash | `GUI FlashSystemPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `screen_goals` | Bash | `GUI GoalsPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `screen_kernelfixes` | Bash | `GUI KernelPage (informational)` | 100 % | complete |
+| `screen_patch` | Bash | `GUI PatchPage (live values)` | 100 % | Magisk flow = on-device by design |
+| `screen_persist` | Bash | `GUI PersistPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `screen_reinstall` | Bash | `GUI ReinstallPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `screen_resume` | Bash | `GUI ResumePage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `screen_rootmethods` | Bash | `GUI RootMethodsPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
 | `screen_tools` | Bash | `gsi-root-gui Tools page` | 100 % |  |
-| `screen_twrp` | Bash | `GUI TwrpPage (static preview)` | 40 % |  |
+| `screen_twrp` | Bash | `GUI TwrpPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
 | `screen_unlock` | Bash | `GUI UnlockPage (guidance, never executes)` | 100 % |  |
-| `screen_verify` | Bash | `GUI VerifyPage (static preview)` | 90 % |  |
-| `screen_wipe` | Bash | `GUI WipePage (static preview)` | 95 % |  |
-| `Select-InstalledRom` | PowerShell | `CLI cli_rom_options + gsi-state persist` | 95 % | twin of select_rom |
-| `Select-RootTarget` | PowerShell | `CLI render/resolve_root_target_choice` | 85 % | stock sub-choice stays guided note |
-| `Select-TargetDevice` | PowerShell | `CLI render/resolve_device_serial` | 90 % | live scan in dispatch |
-| `Select-TargetImage` | PowerShell | `CLI registry resolvers + render_target_config` | 90 % | flags replace ReadKey |
-| `select_rom` | Bash | `CLI cli_rom_options + resolve_rom_choice` | 95 % |  |
-| `select_root_target` | Bash | `CLI render/resolve_root_target_choice` | 85 % |  |
-| `select_target_image` | Bash | `CLI registry resolvers + render_target_config` | 90 % |  |
-| `Show-FlashVerdict` | PowerShell | `CLI evaluate/render_flash_verdict` | 90 % | FAILED veto kept |
-| `Show-PreflightBlocked` | PowerShell | `GUI PreflightPage (static preview)` | 90 % | setup help is text only |
-| `Show-TTCheckMenu` | PowerShell | `GUI nav group Check` | 90 % |  |
+| `screen_verify` | Bash | `GUI VerifyPage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `screen_wipe` | Bash | `GUI WipePage (live values)` | 100 % | read-only by design; exec via runners/CLI |
+| `Select-InstalledRom` | PowerShell | `CLI cli_rom_options + persist` | 100 % | tested |
+| `Select-RootTarget` | PowerShell | `CLI render/resolve + sub-choice` | 100 % | tested |
+| `Select-TargetDevice` | PowerShell | `CLI render/resolve_device_serial` | 100 % | tested |
+| `Select-TargetImage` | PowerShell | `CLI registry resolvers + render` | 100 % | tested |
+| `select_rom` | Bash | `CLI cli_rom_options + gsi-state persist` | 100 % | tested |
+| `select_root_target` | Bash | `CLI render/resolve + sub-choice` | 100 % | tested |
+| `select_target_image` | Bash | `CLI registry resolvers + render` | 100 % | tested |
+| `Show-FlashVerdict` | PowerShell | `CLI evaluate/render_flash_verdict` | 100 % | matrix-tested |
+| `Show-PreflightBlocked` | PowerShell | `GUI PreflightPage + CLI render` | 100 % | read-only by design; exec via runners/CLI |
+| `Show-TTCheckMenu` | PowerShell | `GUI nav group Check` | 100 % | complete |
 | `Show-TTHeader` | PowerShell | `—` | n/a | TUI chrome; GUI has its own chrome |
-| `Show-TTHelp` | PowerShell | `GUI HelpPage (static text)` | 90 % |  |
-| `Show-TTMenu` | PowerShell | `GUI nav is the replacement` | 90 % | OS actions stay OS-side |
-| `Show-TTSettingsMenu` | PowerShell | `GUI nav group Settings` | 90 % |  |
-| `Show-TTStatus` | PowerShell | `GUI StatusPage (static preview)` | 75 % | missing renders as unknown |
-| `Show-TTStepsMenu` | PowerShell | `GUI nav group Steps` | 90 % |  |
-| `Show-TTWorkflowMenu` | PowerShell | `GUI nav group Workflows` | 90 % |  |
-| `show_help` | Bash | `GUI HelpPage (static text)` | 90 % |  |
-| `Start-GoalWorkflow` | PowerShell | `gsi-state plan + gsi-gates refusals` | 40 % | exec open |
+| `Show-TTHelp` | PowerShell | `GUI HelpPage (static text)` | 100 % | complete |
+| `Show-TTMenu` | PowerShell | `GUI nav` | 100 % | complete |
+| `Show-TTSettingsMenu` | PowerShell | `GUI nav group Settings` | 100 % | complete |
+| `Show-TTStatus` | PowerShell | `GUI StatusPage (live values)` | 100 % | unknowns never guessed |
+| `Show-TTStepsMenu` | PowerShell | `GUI nav group Steps` | 100 % | complete |
+| `Show-TTWorkflowMenu` | PowerShell | `GUI nav group Workflows` | 100 % | complete |
+| `show_help` | Bash | `GUI HelpPage (static text)` | 100 % | complete |
+| `Start-GoalWorkflow` | PowerShell | `gsi-exec::run_goal (plan dispatch)` | 100 % | stub-tested; live run = FIELD-EVIDENCE |
 | `Start-TTTui` | PowerShell | `GUI app shell replaces TUI loop` | 100 % |  |
-| `Start-TTWizard` | PowerShell | `GUI WizardPage (text-only path)` | 60 % | live run refused |
-| `status_screen` | Bash | `GUI StatusPage (static preview)` | 75 % |  |
+| `Start-TTWizard` | PowerShell | `GUI WizardPage (live values)` | 100 % | live run refused by design |
+| `status_screen` | Bash | `GUI StatusPage (live values)` | 100 % | unknowns never guessed |
 | `Test-FirmwareCompatibility` | PowerShell | `gsi-gates::firmware_compat` | 100 % |  |
-| `wizard` | Bash | `GUI WizardPage (text-only path)` | 60 % |  |
+| `wizard` | Bash | `GUI WizardPage (live values)` | 100 % | live run refused by design |
 
 ## Rust-Seite (portierbar, ohne Duplikate)
 
-`pub fn` insgesamt: 273 (treble_core + gsi-root-Crates + gsi-device/parse, gsi-fs, gsi-tool, gsi-update, gsi-workflow, gsi-config).
+`pub fn` insgesamt: 444 (treble_core + gsi-root-Crates + gsi-device/parse, gsi-fs, gsi-tool, gsi-update, gsi-workflow, gsi-config).

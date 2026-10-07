@@ -1779,6 +1779,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "gsi-edl"
+version = "0.1.0"
+dependencies = [
+ "gsi-registry",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "gsi-exec"
+version = "0.1.0"
+dependencies = [
+ "gsi-state",
+ "gsi-tool",
+ "gsi-workflow",
+]
+
+[[package]]
 name = "gsi-fs"
 version = "0.1.0"
 
@@ -1811,6 +1829,7 @@ name = "gsi-root-cli"
 version = "0.1.0"
 dependencies = [
  "gsi-android",
+ "gsi-archive",
  "gsi-config",
  "gsi-device",
  "gsi-gates",
@@ -1840,10 +1859,14 @@ version = "0.1.0"
 dependencies = [
  "gsi-config",
  "gsi-device",
+ "gsi-diag",
  "gsi-image",
+ "gsi-registry",
  "gsi-root-core",
+ "gsi-state",
  "gsi-tool",
  "gsi-update",
+ "gsi-workflow",
  "slint",
  "slint-build",
 ]
@@ -1866,7 +1889,10 @@ version = "0.1.0"
 name = "gsi-update"
 version = "0.1.0"
 dependencies = [
+ "gsi-archive",
+ "gsi-image",
  "gsi-registry",
+ "gsi-workflow",
  "sha2",
  "ureq",
 ]
@@ -1875,6 +1901,7 @@ dependencies = [
 name = "gsi-workflow"
 version = "0.1.0"
 dependencies = [
+ "gsi-archive",
  "gsi-device",
  "gsi-gates",
  "gsi-image",

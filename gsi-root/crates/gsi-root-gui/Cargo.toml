@@ -16,6 +16,10 @@ gsi-config = { path = "../gsi-config" }
 gsi-update = { path = "../gsi-update" }
 gsi-device = { path = "../gsi-device" }
 gsi-tool = { path = "../gsi-tool" }
+gsi-state = { path = "../gsi-state" }
+gsi-registry = { path = "../gsi-registry" }
+gsi-diag = { path = "../gsi-diag" }
+gsi-workflow = { path = "../gsi-workflow" }
 slint.workspace = true
 
 [build-dependencies]

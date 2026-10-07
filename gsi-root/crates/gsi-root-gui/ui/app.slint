@@ -49,6 +49,8 @@ export component App inherits Window {
     in-out property <string> help-result: "";
     in-out property <string> status-result: "";
     in-out property <string> wizard-result: "";
+    in-out property <string> analyze-device-result: "";
+    in-out property <string> logs-files-result: "";
 
     callback flash-refresh() -> string;
     callback flash-system-refresh() -> string;
@@ -79,7 +81,9 @@ export component App inherits Window {
     callback analyze-image(string) -> string;
     callback patch-image(string) -> string;
     callback detect-devices() -> string;
+    callback analyze-device-refresh() -> string;
     callback list-tools() -> string;
+    callback logs-files-refresh() -> string;
     callback check-update(string) -> string;
     callback append-log(string);
 
@@ -108,6 +112,7 @@ export component App inherits Window {
                 { id: "dashboard", label: "Dashboard", icon: @image-url("../../../assets/icons/home.svg") },
                 { id: "gsi", label: "GSI", icon: @image-url("../../../assets/icons/file-text.svg") },
                 { id: "detect", label: "Detect", icon: @image-url("../../../assets/icons/smartphone.svg") },
+                { id: "analyze-device", label: "Analyze Device", icon: @image-url("../../../assets/icons/activity.svg") },
                 { id: "tools", label: "Tools", icon: @image-url("../../../assets/icons/folder.svg") },
                 { id: "updates", label: "Updates", icon: @image-url("../../../assets/icons/refresh-cw.svg") },
                 { id: "logs", label: "Logs", icon: @image-url("../../../assets/icons/terminal.svg") },
@@ -242,6 +247,28 @@ export component App inherits Window {
                 }
             }
 
+            if page == "analyze-device": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Analyze Device"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Live-device analysis over injected values (read-only, nothing executed). Transcripts need live adb queries, so this view shows the saved system plus the honest no-device form until device capture lands (Phase 8)."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            analyze-device-result = analyze-device-refresh();
+                            append-log("analyze-device refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> analyze-device-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
             if page == "tools": VerticalLayout {
                 spacing: 8px;
                 Text { text: "Tools"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
@@ -302,6 +329,23 @@ export component App inherits Window {
                     read-only: true;
                     font-size: 12px;
                     vertical-stretch: 1;
+                }
+                Text { text: "Log files (names + sizes, no content)"; font-size: 14px; font-weight: 700; color: #e8eaf0; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            logs-files-result = logs-files-refresh();
+                            append-log("logs files refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> logs-files-result;
+                    read-only: true;
+                    font-size: 12px;
+                    height: 160px;
                 }
             }
 

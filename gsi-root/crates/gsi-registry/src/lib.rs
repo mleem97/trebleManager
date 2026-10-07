@@ -598,6 +598,292 @@ pub fn firmware_extractor_url(tools: &ToolsBlock) -> Result<String, String> {
     }
 }
 
+// ------------------------------------------------------------ resolver chain
+
+/// Registry entry by display label (mirrors `Get-RomEntry`).
+/// Exact `entry_label` match; leading `rom:` prefix is tolerated.
+pub fn entry_by_label<'a>(entries: &'a [RomEntry], label: &str) -> Option<&'a RomEntry> {
+    let mut want = label.trim();
+    if let Some(rest) = want.strip_prefix("rom:") {
+        want = rest.trim();
+    }
+    for e in entries {
+        if entry_label(e) == want {
+            return Some(e);
+        }
+    }
+    None
+}
+
+/// Chained resolver: android -> system -> variant -> target config.
+/// Reuses `systems_for` / `variants_for` / `target_config`.
+/// Errors name the failing level. Firmware base is empty (caller fills it).
+pub fn resolve_chain(
+    entries: &[RomEntry],
+    android: i64,
+    system: &str,
+    variant: &str,
+) -> Result<TargetConfig, String> {
+    let systems = systems_for(entries, android);
+    if systems.is_empty() {
+        return Err(format!("android {android}: no systems in registry"));
+    }
+    let sys = system.trim();
+    if !systems.iter().any(|s| s == sys) {
+        return Err(format!(
+            "system '{sys}': unknown for android {android} (available: {})",
+            systems.join(", ")
+        ));
+    }
+    let cands = variants_for(entries, sys);
+    if cands.is_empty() {
+        return Err(format!("system '{sys}': no variants in registry"));
+    }
+    let want_v = variant.trim();
+    let chosen: &RomEntry = if want_v.is_empty() {
+        if cands.len() == 1 {
+            match cands.first() {
+                Some(e) => e,
+                None => {
+                    return Err(format!("system '{sys}': no variants in registry"));
+                }
+            }
+        } else {
+            let mut avail: Vec<String> = Vec::new();
+            for e in &cands {
+                if !avail.iter().any(|a| a == &e.variant) {
+                    avail.push(e.variant.clone());
+                }
+            }
+            return Err(format!(
+                "variant '': ambiguous for system '{sys}' (available: {})",
+                avail.join(", ")
+            ));
+        }
+    } else {
+        let mut found: Option<&RomEntry> = None;
+        for e in &cands {
+            if e.variant == want_v {
+                found = Some(e);
+                break;
+            }
+        }
+        if found.is_none() {
+            for e in &cands {
+                if str_val(&e.build) == want_v {
+                    found = Some(e);
+                    break;
+                }
+            }
+        }
+        match found {
+            Some(e) => e,
+            None => {
+                let mut avail: Vec<String> = Vec::new();
+                for e in &cands {
+                    let tag = if e.variant.is_empty() {
+                        str_val(&e.build)
+                    } else {
+                        e.variant.clone()
+                    };
+                    let tag = if tag.is_empty() {
+                        "(base)".to_string()
+                    } else {
+                        tag
+                    };
+                    if !avail.iter().any(|a| a == &tag) {
+                        avail.push(tag);
+                    }
+                }
+                return Err(format!(
+                    "variant '{want_v}': no match for system '{sys}' (available: {})",
+                    avail.join(", ")
+                ));
+            }
+        }
+    };
+    Ok(target_config(chosen, ""))
+}
+
+/// Default profile variant from entries.
+/// Bash `profile_variant` maps PROFILE_ID to a description; from entries
+/// alone the honest default is the first selectable non-empty variant.
+pub fn profile_variant(entries: &[RomEntry]) -> String {
+    for e in entries {
+        if is_selectable(&e.status) && !e.variant.trim().is_empty() {
+            return e.variant.clone();
+        }
+    }
+    String::new()
+}
+
+/// Static per-model variant table mirroring bash `profile_variant`
+/// (PROFILE_ID allowlist text). Pure, no entries needed.
+pub fn profile_variant_for_model(model: &str) -> &'static str {
+    match model.trim() {
+        "VTR-L29" => "Global market (UFS storage)",
+        "VTR-L09" => "Europe (UFS storage)",
+        "VKY-L29" => "Global market Plus (UFS storage)",
+        "VTR-AL00" => "China, no SIM restriction (eMMC or UFS - check!)",
+        "VTR-TL00" => "China Mobile customized (eMMC or UFS - check!)",
+        "VKY-L09" => "Europe Plus (UFS storage)",
+        "VKY-AL00" => "China Plus, no SIM restriction (eMMC or UFS - check!)",
+        "VKY-TL00" => "China Mobile Plus customized (eMMC or UFS - check!)",
+        _ => "Fallback (analyze only)",
+    }
+}
+
+/// Verified-model allowlist mirroring bash `profile_verified`
+/// (`VTR-L29|VTR-L09|VKY-L29` gate flash; others do not).
+pub fn profile_model_verified(model: &str) -> bool {
+    matches!(model.trim(), "VTR-L29" | "VTR-L09" | "VKY-L29")
+}
+
+/// Profile verification summary.
+/// Bash `profile_verified` gates flash on an allowlist; from entries alone
+/// verified means at least one `working*` image (`variant-dependent` alone
+/// does not verify).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedReport {
+    pub total: usize,
+    pub selectable: usize,
+    pub broken: usize,
+    pub has_verified: bool,
+}
+
+/// Count totals plus verified flag.
+pub fn profile_verified(entries: &[RomEntry]) -> VerifiedReport {
+    let mut selectable = 0usize;
+    let mut broken = 0usize;
+    let mut has_verified = false;
+    for e in entries {
+        if is_selectable(&e.status) {
+            selectable += 1;
+        }
+        if e.status == "broken" {
+            broken += 1;
+        }
+        if matches!(
+            e.status.as_str(),
+            "working" | "working-slim" | "working-with-fixes"
+        ) {
+            has_verified = true;
+        }
+    }
+    VerifiedReport {
+        total: entries.len(),
+        selectable,
+        broken,
+        has_verified,
+    }
+}
+
+/// Single ROM gate verdict (wires `entry_by_label` + `firmware_compat` + `vendor_advice`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GateVerdict {
+    pub pass: bool,
+    pub reasons: Vec<String>,
+}
+
+/// Gate a ROM label against registry plus firmware and vendor strings.
+/// `firmware_base` is the full firmware string for `firmware_compat`;
+/// `vendor` is the EMUI base for `vendor_advice` (target Android from entry).
+/// `FAIL` firmware blocks, `WARN` still passes. Broken markers block.
+pub fn test_rom_against_registry(
+    label: &str,
+    entries: &[RomEntry],
+    firmware_base: &str,
+    vendor: &str,
+) -> GateVerdict {
+    let mut reasons: Vec<String> = Vec::new();
+    let want = label.trim();
+    if want.is_empty() {
+        return GateVerdict {
+            pass: false,
+            reasons: vec!["unknown system '': empty label".to_string()],
+        };
+    }
+    // Broken-marker hit (mirrors PS1 `Test-RomAgainstRegistry`).
+    let low = want.to_lowercase();
+    let mut marker_hit: Option<String> = None;
+    for e in entries {
+        if e.status != "broken" {
+            continue;
+        }
+        for m in &e.markers {
+            let mk = m.trim().to_lowercase();
+            if !mk.is_empty() && low.contains(&mk) {
+                marker_hit = Some(e.name.clone());
+                break;
+            }
+        }
+        if marker_hit.is_some() {
+            break;
+        }
+    }
+    let found = entry_by_label(entries, want);
+    let entry = match found {
+        Some(e) => Some(e),
+        None => None,
+    };
+    if entry.is_none() {
+        if let Some(nm) = marker_hit {
+            reasons.push(format!("BLOCKED: '{nm}' is researched BROKEN (marker hit)."));
+        }
+        reasons.push(format!("unknown system '{want}': no registry entry"));
+        let fw = firmware_compat("", firmware_base, "");
+        reasons.push(format!("firmware: {} ({})", fw.status, fw.reasons.join("; ")));
+        return GateVerdict {
+            pass: false,
+            reasons,
+        };
+    }
+    let e = match entry {
+        Some(v) => v,
+        None => {
+            return GateVerdict {
+                pass: false,
+                reasons: vec!["unknown system".to_string()],
+            };
+        }
+    };
+    let mut pass = true;
+    if e.status == "broken" {
+        let r = if e.reason.is_empty() { e.note.clone() } else { e.reason.clone() };
+        if r.is_empty() {
+            reasons.push(format!("BLOCKED: '{}' is researched BROKEN.", e.name));
+        } else {
+            reasons.push(format!("BLOCKED: '{}' is researched BROKEN ({r}).", e.name));
+        }
+        pass = false;
+    } else if !is_selectable(&e.status) {
+        reasons.push(format!(
+            "status '{}' not selectable for '{}'.",
+            e.status,
+            entry_label(e)
+        ));
+        pass = false;
+    }
+    if let Some(nm) = marker_hit {
+        reasons.push(format!("BLOCKED: '{nm}' marker matched '{want}'."));
+        pass = false;
+    }
+    let fw = firmware_compat("", firmware_base, "");
+    for r in &fw.reasons {
+        reasons.push(format!("firmware: {r}"));
+    }
+    if fw.status == "FAIL" {
+        reasons.push("firmware: FAIL blocks.".to_string());
+        pass = false;
+    } else {
+        reasons.push(format!("firmware: {}", fw.status));
+    }
+    let android_s = android_of(e).to_string();
+    let adv = vendor_advice(vendor, &android_s);
+    reasons.push(format!("vendor: {adv}"));
+    GateVerdict { pass, reasons }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -769,5 +1055,197 @@ mod tests {
         assert!(url.starts_with("https://dl.google.com/"));
         let ext = firmware_extractor_url(&t).expect("extractor expected");
         assert!(ext.starts_with("https://"));
+    }
+
+    fn bq_profile_path() -> std::path::PathBuf {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../data/compatibility/qualcomm/bq-aquaris-x-pro.json")
+    }
+
+    #[test]
+    fn entry_by_label_tolerates_prefix() {
+        let e = sample();
+        let lbl = entry_label(&e[0]);
+        assert!(entry_by_label(&e, &lbl).is_some());
+        assert!(entry_by_label(&e, &format!("rom:{lbl}")).is_some());
+        assert!(entry_by_label(&e, "Nope 99").is_none());
+    }
+
+    #[test]
+    fn resolve_chain_fixture() {
+        let e = sample();
+        let c = resolve_chain(&e, 13, "LineageOS 20", "").expect("base must resolve");
+        assert_eq!(c.android, 13);
+        assert_eq!(c.system, "LineageOS 20");
+        let c2 = resolve_chain(&e, 13, "LineageOS 20 vndklite (20251021)", "vndklite")
+            .expect("variant must resolve");
+        assert_eq!(c2.variant, "vndklite");
+        let err_a = resolve_chain(&e, 10, "LineageOS 20", "").expect_err("bad android");
+        assert!(err_a.contains("android"), "got: {err_a}");
+        let err_s =
+            resolve_chain(&e, 13, "Nope 99", "").expect_err("bad system");
+        assert!(err_s.contains("system"), "got: {err_s}");
+        let err_v = resolve_chain(&e, 13, "LineageOS 20", "nope").expect_err("bad variant");
+        assert!(err_v.contains("variant"), "got: {err_v}");
+    }
+
+    #[test]
+    fn resolve_chain_ambiguous_variant() {
+        let v: serde_json::Value = serde_json::json!([
+            {"name": "TestOS", "version": 13, "android": 13, "status": "working", "gsi": "a"},
+            {"name": "TestOS", "version": 13, "android": 13, "status": "working", "gsi": "b"}
+        ]);
+        let entries: Vec<RomEntry> = v
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| serde_json::from_value(r.clone()).unwrap())
+            .collect();
+        let err = resolve_chain(&entries, 13, "TestOS 13", "").expect_err("ambiguous");
+        assert!(err.contains("variant"), "got: {err}");
+    }
+
+    #[test]
+    fn resolve_chain_live_profiles() {
+        for prof in ["VTR-L09", "VTR-L29"] {
+            let entries = load_roms(&repo_profile_path(prof)).expect("profile must load");
+            let systems = systems_for(&entries, 13);
+            assert!(!systems.is_empty(), "{prof} needs android 13 systems");
+            let sys = systems
+                .iter()
+                .find(|s| s.contains("UNOFFICIAL"))
+                .expect("UNOFFICIAL system expected");
+            let cfg =
+                resolve_chain(&entries, 13, sys, "UNOFFICIAL").expect("chain must resolve");
+            assert_eq!(cfg.android, 13);
+            assert_eq!(cfg.variant, "UNOFFICIAL");
+            assert_eq!(cfg.gsi, "arm64_bgN");
+        }
+        let bq = load_roms(&bq_profile_path()).expect("bq must load");
+        let systems = systems_for(&bq, 13);
+        assert_eq!(systems, vec!["AOSP 13".to_string()]);
+        let cfg = resolve_chain(&bq, 13, "AOSP 13", "").expect("bq chain must resolve");
+        assert_eq!(cfg.android, 13);
+    }
+
+    #[test]
+    fn profile_variant_fixture_and_live() {
+        assert_eq!(profile_variant(&sample()), "vndklite");
+        assert_eq!(profile_variant(&[]), "");
+        for prof in ["VTR-L09", "VTR-L29"] {
+            let entries = load_roms(&repo_profile_path(prof)).expect("profile must load");
+            assert_eq!(profile_variant(&entries), "UNOFFICIAL", "{prof}");
+        }
+        let bq = load_roms(&bq_profile_path()).expect("bq must load");
+        assert_eq!(profile_variant(&bq), "");
+    }
+
+    #[test]
+    fn profile_model_static_table() {
+        // Mirrors bash profile_variant PROFILE_ID text exactly.
+        assert_eq!(profile_variant_for_model("VTR-L29"), "Global market (UFS storage)");
+        assert_eq!(profile_variant_for_model("VTR-L09"), "Europe (UFS storage)");
+        assert_eq!(profile_variant_for_model("VKY-L29"), "Global market Plus (UFS storage)");
+        assert_eq!(
+            profile_variant_for_model("VTR-AL00"),
+            "China, no SIM restriction (eMMC or UFS - check!)"
+        );
+        assert_eq!(
+            profile_variant_for_model("VTR-TL00"),
+            "China Mobile customized (eMMC or UFS - check!)"
+        );
+        assert_eq!(profile_variant_for_model("VKY-L09"), "Europe Plus (UFS storage)");
+        assert_eq!(
+            profile_variant_for_model("VKY-AL00"),
+            "China Plus, no SIM restriction (eMMC or UFS - check!)"
+        );
+        assert_eq!(
+            profile_variant_for_model("VKY-TL00"),
+            "China Mobile Plus customized (eMMC or UFS - check!)"
+        );
+        assert_eq!(profile_variant_for_model("UNKNOWN"), "Fallback (analyze only)");
+        // Mirrors bash profile_verified allowlist (VTR-L29|VTR-L09|VKY-L29).
+        for m in ["VTR-L29", "VTR-L09", "VKY-L29"] {
+            assert!(profile_model_verified(m), "{m}");
+        }
+        for m in ["VTR-AL00", "VKY-L09", "UNKNOWN", ""] {
+            assert!(!profile_model_verified(m), "{m}");
+        }
+    }
+
+    #[test]
+    fn profile_verified_counts() {
+        let r = profile_verified(&sample());
+        assert_eq!(r.total, 3);
+        assert_eq!(r.selectable, 2);
+        assert_eq!(r.broken, 1);
+        assert!(r.has_verified);
+        for prof in ["VTR-L09", "VTR-L29"] {
+            let entries = load_roms(&repo_profile_path(prof)).expect("profile must load");
+            let rep = profile_verified(&entries);
+            assert_eq!(rep.total, entries.len());
+            assert!(rep.selectable > 0, "{prof}");
+            assert!(rep.broken > 0, "{prof}");
+            assert!(rep.has_verified, "{prof} verified");
+        }
+        let bq = load_roms(&bq_profile_path()).expect("bq must load");
+        let rep = profile_verified(&bq);
+        assert_eq!(rep.total, 5);
+        assert_eq!(rep.selectable, 1);
+        assert_eq!(rep.broken, 4);
+        assert!(!rep.has_verified, "bq unverified");
+    }
+
+    #[test]
+    fn gate_fixture() {
+        let e = sample();
+        let good = test_rom_against_registry(
+            "LineageOS 20",
+            &e,
+            "VTR-L29 9.1.0.297(C432E5R1P9)",
+            "9.1",
+        );
+        assert!(good.pass, "reasons: {:?}", good.reasons);
+        let light_lbl = entry_label(&e[2]);
+        assert!(light_lbl.to_lowercase().contains("light"));
+        let bad = test_rom_against_registry(&light_lbl, &e, "VTR-L29 9.1.0.297(C432E5R1P9)", "9.1");
+        assert!(!bad.pass);
+        assert!(bad.reasons.iter().any(|r| r.contains("BLOCKED")));
+        let unknown = test_rom_against_registry("Nope 99", &e, "VTR-L29 9.1.0.297(C432E5R1P9)", "9.1");
+        assert!(!unknown.pass);
+        let nofw = test_rom_against_registry("LineageOS 20", &e, "", "9.1");
+        assert!(!nofw.pass);
+    }
+
+    #[test]
+    fn gate_live_profiles() {
+        for prof in ["VTR-L09", "VTR-L29"] {
+            let entries = load_roms(&repo_profile_path(prof)).expect("profile must load");
+            let sys = systems_for(&entries, 13)
+                .into_iter()
+                .find(|s| s.contains("UNOFFICIAL"))
+                .expect("UNOFFICIAL expected");
+            let good = test_rom_against_registry(
+                &sys,
+                &entries,
+                "VTR-L29 9.1.0.297(C432E5R1P9)",
+                "9.1",
+            );
+            assert!(good.pass, "{prof}: {:?}", good.reasons);
+            let light: Vec<_> = entries
+                .iter()
+                .filter(|x| x.status == "broken" && x.markers.iter().any(|m| m == "light"))
+                .collect();
+            assert!(!light.is_empty(), "{prof} light broken expected");
+            let lbl = entry_label(light[0]);
+            let blocked = test_rom_against_registry(&lbl, &entries, "VTR-L29 9.1.0.297(C432E5R1P9)", "9.1");
+            assert!(!blocked.pass, "{prof} light must block");
+        }
+        let bq = load_roms(&bq_profile_path()).expect("bq must load");
+        let good = test_rom_against_registry(&entry_label(&bq[2]), &bq, "BardockPro-EU Oreo stock", "8.1");
+        assert!(good.pass, "bq variant-dependent passes with WARN: {:?}", good.reasons);
+        let broken_lbl = entry_label(&bq[0]);
+        let blocked = test_rom_against_registry(&broken_lbl, &bq, "BardockPro-EU Oreo stock", "8.1");
+        assert!(!blocked.pass);
     }
 }

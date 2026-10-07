@@ -1178,6 +1178,84 @@ pub fn run_verify_root() -> (Vec<ProgressEvent>, StepOutcome) {
     )
 }
 
+// ------------------------------------------------------------ downloaded firmware
+//
+// `Test-DownloadedFirmware`: size heuristic plus UPDATE.APP probe.
+
+/// Below this size a firmware package is implausible (delta/short package).
+pub const FIRMWARE_MIN_SIZE: u64 = 100 * 1024 * 1024;
+
+/// Downloaded-firmware check (mirrors `Test-DownloadedFirmware`).
+#[derive(Debug, Clone)]
+pub struct DownloadedFirmwareCheck {
+    /// Lowercase hex SHA-256 of the file.
+    pub sha256: String,
+    /// File size in bytes.
+    pub size: u64,
+    /// False when implausibly small.
+    pub ok: bool,
+    /// Size, hash and container notes.
+    pub notes: Vec<String>,
+}
+
+/// Check a downloaded firmware file: size heuristic plus UPDATE.APP probe.
+///
+/// Reads the file hash plus at most 32 header bytes for
+/// `gsi_archive::probe_update_app`; surfaces its verdict note for
+/// UPDATE.APP containers. No network, no extraction.
+pub fn verify_downloaded_firmware(path: &Path) -> Result<DownloadedFirmwareCheck, String> {
+    if !path.is_file() {
+        return Err(format!("file missing: {}", path.display()));
+    }
+    let size = std::fs::metadata(path)
+        .map_err(|e| format!("meta: {e}"))?
+        .len();
+    let sha256 = sha256_file(path)?;
+    let mut header = [0u8; 32];
+    let header_len = match std::fs::File::open(path) {
+        Ok(mut f) => {
+            use std::io::Read as _;
+            match f.read(&mut header) {
+                Ok(n) => n,
+                Err(e) => return Err(format!("read header: {e}")),
+            }
+        }
+        Err(e) => return Err(format!("open: {e}")),
+    };
+    let probe = gsi_archive::probe_update_app(&header[..header_len]);
+    let mb = size as f64 / (1024.0 * 1024.0);
+    let mut notes = vec![
+        format!("Size: {mb:.1} MB"),
+        format!("SHA-256: {sha256}"),
+    ];
+    let mut ok = true;
+    if size < FIRMWARE_MIN_SIZE {
+        ok = false;
+        notes.push(
+            "WARN: < 100 MB - implausibly small for full firmware (maybe delta/short package)."
+                .to_string(),
+        );
+    }
+    if probe.is_update_app {
+        notes.push(format!(
+            "UPDATE.APP container detected (size {size}, header {}): {}",
+            probe.header_hex, probe.note
+        ));
+    } else if probe.is_zip {
+        notes.push("ZIP container: check entries for UPDATE.APP manually.".to_string());
+    } else if probe.is_gzip {
+        notes.push("gzip container: not a firmware ZIP.".to_string());
+    } else {
+        notes.push("Not a ZIP - unpack / UPDATE.APP search manually.".to_string());
+    }
+    Ok(DownloadedFirmwareCheck {
+        sha256,
+        size,
+        ok,
+        notes,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1449,6 +1527,9 @@ mod tests {
     }
 
     // ------------------------- persist
+    // Key-line asserts kept: no standalone service.d files exist in the repo
+    // (scripts embed them inline in Treble-Toolkit.ps1/treble-toolkit.sh),
+    // so no stable relative file path is available for byte-match.
 
     #[test]
     fn persist_contents_and_plan() {
@@ -1527,5 +1608,49 @@ mod tests {
         assert_eq!(VerifyVerdict::Rooted.as_str(), "ROOTED");
         let (_, out) = run_verify_root();
         assert!(matches!(out, StepOutcome::RefusedExperimental(_)));
+    }
+
+    // ------------------------- downloaded firmware (hermetic temp dirs)
+
+    fn fw_tmp_dir(tag: &str) -> PathBuf {
+        let mut p = std::env::temp_dir();
+        p.push(format!(
+            "gsi-workflow-fw-{tag}-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&p).unwrap();
+        p
+    }
+
+    #[test]
+    fn downloaded_firmware_probes_update_app() {
+        let d = fw_tmp_dir("app");
+        let f = d.join("UPDATE.APP");
+        let mut bytes = vec![0x55, 0xAA, 0x5A, 0xA5];
+        bytes.extend_from_slice(b"firmware-bytes");
+        std::fs::write(&f, &bytes).unwrap();
+        let chk = verify_downloaded_firmware(&f).unwrap();
+        assert_eq!(chk.size, bytes.len() as u64);
+        assert!(!chk.ok);
+        assert_eq!(chk.sha256, sha256_file(&f).unwrap());
+        assert!(chk.notes.iter().any(|n| n.contains("UPDATE.APP container detected")));
+        assert!(chk
+            .notes
+            .iter()
+            .any(|n| n.contains(gsi_archive::probe_update_app(&bytes).note)));
+        assert!(verify_downloaded_firmware(&d.join("missing.APP")).is_err());
+        std::fs::remove_dir_all(&d).ok();
+    }
+
+    #[test]
+    fn downloaded_firmware_plain_gets_manual_note() {
+        let d = fw_tmp_dir("plain");
+        let f = d.join("fw.bin");
+        std::fs::write(&f, b"tiny-plain").unwrap();
+        let chk = verify_downloaded_firmware(&f).unwrap();
+        assert!(!chk.ok);
+        assert!(chk.notes.iter().any(|n| n.contains("Not a ZIP")));
+        assert!(!chk.notes.iter().any(|n| n.contains("UPDATE.APP container detected")));
+        std::fs::remove_dir_all(&d).ok();
     }
 }

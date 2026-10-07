@@ -11,5 +11,8 @@ path = "src/lib.rs"
 
 [dependencies]
 gsi-registry = { path = "../gsi-registry" }
+gsi-archive = { path = "../gsi-archive" }
+gsi-image = { path = "../gsi-image" }
+gsi-workflow = { path = "../gsi-workflow" }
 sha2.workspace = true
 ureq.workspace = true

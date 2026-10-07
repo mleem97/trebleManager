@@ -13,7 +13,7 @@
 //! magic vs sparse/ext4 filesystem, see the `gsi-fs` extents reader).
 
 use std::io::{Cursor, Write};
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 /// Upper bound for total bundled bytes (texts plus staged files).
 pub const MAX_BUNDLE_BYTES: u64 = 64 * 1024 * 1024;
@@ -716,6 +716,148 @@ pub fn developer_dump_filename(kind: &str, stamp: &str) -> Result<String, String
     Ok(format!("{kind}-{stamp}.txt"))
 }
 
+// ------------------------------------------------- log file list
+
+/// One log file entry (name plus size in bytes, no content).
+///
+/// Mirrors `Screen-Logs` file listing: names plus sizes only, never a
+/// content dump. Sorted by name for deterministic output.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogFile {
+    /// File name only (no directory part).
+    pub name: String,
+    /// File size in bytes (0 when unreadable).
+    pub size: u64,
+}
+
+/// List regular log files directly under `log_dir`.
+///
+/// Pure over an explicit dir: a missing or unreadable dir yields an empty
+/// list, subdirectories and symlinks are skipped, entries are sorted by
+/// name. Never panics, never touches the network, a device, or file
+/// content.
+pub fn list_log_files(log_dir: &Path) -> Vec<LogFile> {
+    let mut out: Vec<LogFile> = Vec::new();
+    let entries = match std::fs::read_dir(log_dir) {
+        Ok(e) => e,
+        Err(_) => return out,
+    };
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let ftype = match entry.file_type() {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        if ftype.is_symlink() {
+            continue;
+        }
+        if !ftype.is_file() {
+            continue;
+        }
+        let name = match entry.file_name().into_string() {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        if name.trim().is_empty() {
+            continue;
+        }
+        let size = match entry.metadata() {
+            Ok(m) => m.len(),
+            Err(_) => 0,
+        };
+        out.push(LogFile { name, size });
+    }
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out
+}
+
+// ------------------------------------------------- log filename + line
+
+/// Build a log file name (`toolkit-<stamp>.log`).
+///
+/// Pure builder mirroring `Write-TTLog`/`log` (`toolkit-$STAMP.log`).
+/// `stamp` is caller-provided (`yyyyMMdd-HHmmss`); no clock reads.
+pub fn log_filename(stamp: &str) -> String {
+    format!("toolkit-{stamp}.log")
+}
+
+/// Append one line as `[timestamp] line` plus newline.
+///
+/// All inputs are caller-provided; no clock reads. Creates `log_dir` when
+/// missing. `name` must be a plain file name; `timestamp` must be a
+/// single non-empty line (`yyyy-MM-dd HH:mm:ss` like the scripts).
+/// Returns the file path.
+pub fn write_log_line(
+    log_dir: &Path,
+    name: &str,
+    timestamp: &str,
+    line: &str,
+) -> Result<PathBuf, String> {
+    if name.is_empty() {
+        return Err("refused: empty log name".to_string());
+    }
+    if name.len() > 200 {
+        return Err(format!("refused: log name too long: {name}"));
+    }
+    if name.contains('/') || name.contains('\\') || name.contains(':') {
+        return Err(format!("refused: bad log name: {name}"));
+    }
+    if name == "." || name == ".." {
+        return Err(format!("refused: bad log name: {name}"));
+    }
+    if timestamp.is_empty() {
+        return Err("refused: empty timestamp".to_string());
+    }
+    if timestamp.contains('\n') || timestamp.contains('\r') {
+        return Err("refused: multi-line timestamp".to_string());
+    }
+    if line.contains('\n') || line.contains('\r') {
+        return Err("refused: multi-line log line".to_string());
+    }
+    std::fs::create_dir_all(log_dir).map_err(|e| format!("mkdir: {e}"))?;
+    let path = log_dir.join(name);
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| format!("open log: {e}"))?;
+    let text = format!("[{timestamp}] {line}\n");
+    f.write_all(text.as_bytes())
+        .map_err(|e| format!("write log: {e}"))?;
+    Ok(path)
+}
+
+// ------------------------------------------------- stamped report
+
+/// Render checks as JSON with a caller-provided timestamp.
+///
+/// Mirrors `Write-ValidationReport` (`tool` + `timestamp` + `results`).
+/// `stamp` is `yyyy-MM-dd HH:mm:ss`; no clock reads.
+pub fn stamped_report(checks: &[Check], stamp: &str) -> String {
+    let mut s = String::from("{\"tool\":");
+    s.push_str(&quote_json("gsi-diag"));
+    s.push_str(",\"timestamp\":");
+    s.push_str(&quote_json(stamp));
+    s.push_str(",\"results\":[");
+    for (i, c) in checks.iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push_str("{\"name\":");
+        s.push_str(&quote_json(&c.name));
+        s.push_str(",\"pass\":");
+        s.push_str(if c.pass { "true" } else { "false" });
+        s.push_str(",\"detail\":");
+        s.push_str(&quote_json(&c.detail));
+        s.push('}');
+    }
+    s.push_str("]}");
+    s
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1079,5 +1221,105 @@ mod tests {
             }
         };
         assert!(zip_names(&bytes).contains(&"host.txt".to_string()));
+    }
+
+    #[test]
+    fn log_files_list_names_and_sizes() {
+        let dir = unique_dir("logs");
+        match std::fs::write(dir.join("b.log"), b"12345") {
+            Ok(()) => {}
+            Err(e) => {
+                assert!(false, "write: {e}");
+            }
+        }
+        match std::fs::write(dir.join("a.log"), b"12") {
+            Ok(()) => {}
+            Err(e) => {
+                assert!(false, "write: {e}");
+            }
+        }
+        match std::fs::create_dir_all(dir.join("sub")) {
+            Ok(()) => {}
+            Err(e) => {
+                assert!(false, "mkdir sub: {e}");
+            }
+        }
+        let files = list_log_files(dir.as_path());
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].name, "a.log");
+        assert_eq!(files[0].size, 2);
+        assert_eq!(files[1].name, "b.log");
+        assert_eq!(files[1].size, 5);
+        // Missing dir yields empty list, never fails.
+        let missing = dir.join("nope");
+        let empty = list_log_files(missing.as_path());
+        assert!(empty.is_empty());
+        match std::fs::remove_dir_all(&dir) {
+            Ok(()) => {}
+            Err(_) => {}
+        }
+    }
+
+    #[test]
+    fn log_filename_golden() {
+        assert_eq!(log_filename("20240101-120000"), "toolkit-20240101-120000.log");
+        assert_eq!(log_filename("20261231-235959"), "toolkit-20261231-235959.log");
+    }
+
+    #[test]
+    fn write_log_line_golden_bytes() {
+        let dir = unique_dir("writelog");
+        let name = log_filename("20240101-120000");
+        assert_eq!(name, "toolkit-20240101-120000.log");
+        let stamp = "2024-01-01 12:00:00";
+        match write_log_line(dir.as_path(), &name, stamp, "INFO hello") {
+            Ok(p) => assert_eq!(p, dir.join(&name)),
+            Err(e) => assert!(false, "write: {e}"),
+        }
+        match write_log_line(dir.as_path(), &name, "2024-01-01 12:00:01", "ERROR boom") {
+            Ok(_) => {}
+            Err(e) => assert!(false, "append: {e}"),
+        }
+        let raw = match std::fs::read(dir.join(&name)) {
+            Ok(b) => b,
+            Err(e) => {
+                assert!(false, "read: {e}");
+                Vec::new()
+            }
+        };
+        assert_eq!(
+            raw,
+            b"[2024-01-01 12:00:00] INFO hello\n[2024-01-01 12:00:01] ERROR boom\n".to_vec()
+        );
+        // Bad inputs refused, no clock reads anywhere.
+        assert!(write_log_line(dir.as_path(), "../evil.log", stamp, "x").is_err());
+        assert!(write_log_line(dir.as_path(), "a/b.log", stamp, "x").is_err());
+        assert!(write_log_line(dir.as_path(), &name, "", "x").is_err());
+        assert!(write_log_line(dir.as_path(), &name, stamp, "a\nb").is_err());
+        match std::fs::remove_dir_all(&dir) {
+            Ok(()) => {}
+            Err(_) => {}
+        }
+    }
+
+    #[test]
+    fn stamped_report_golden() {
+        let checks = vec![
+            new_check("ADB", true, "ok"),
+            new_check("ROOT", false, "uid!=0"),
+        ];
+        assert_eq!(
+            stamped_report(&checks, "2024-01-01 12:00:00"),
+            "{\"tool\":\"gsi-diag\",\"timestamp\":\"2024-01-01 12:00:00\",\"results\":[{\"name\":\"ADB\",\"pass\":true,\"detail\":\"ok\"},{\"name\":\"ROOT\",\"pass\":false,\"detail\":\"uid!=0\"}]}"
+        );
+        assert_eq!(
+            stamped_report(&[], "2024-01-01 12:00:00"),
+            "{\"tool\":\"gsi-diag\",\"timestamp\":\"2024-01-01 12:00:00\",\"results\":[]}"
+        );
+        let tricky = vec![new_check("A\"B", true, "x\ny\\z")];
+        assert_eq!(
+            stamped_report(&tricky, "2024-01-02 03:04:05"),
+            "{\"tool\":\"gsi-diag\",\"timestamp\":\"2024-01-02 03:04:05\",\"results\":[{\"name\":\"A\\\"B\",\"pass\":true,\"detail\":\"x\\ny\\\\z\"}]}"
+        );
     }
 }

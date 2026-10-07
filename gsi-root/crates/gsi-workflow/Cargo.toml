@@ -10,6 +10,7 @@ name = "gsi_workflow"
 path = "src/lib.rs"
 
 [dependencies]
+gsi-archive = { path = "../gsi-archive" }
 gsi-root-core = { path = "../gsi-root-core" }
 gsi-image = { path = "../gsi-image" }
 gsi-device = { path = "../gsi-device" }

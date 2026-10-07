@@ -22,5 +22,6 @@ gsi-root-gui = { path = "../gsi-root-gui" }
 gsi-registry = { path = "../gsi-registry" }
 gsi-state = { path = "../gsi-state" }
 gsi-gates = { path = "../gsi-gates" }
+gsi-archive = { path = "../gsi-archive" }
 serde.workspace = true
 serde_json.workspace = true

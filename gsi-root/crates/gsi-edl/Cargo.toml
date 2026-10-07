@@ -1,0 +1,15 @@
+[package]
+name = "gsi-edl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Qualcomm MSM8953/Snapdragon 626 EDL plan builders (Sahara/Firehose packets, FRP and bootloader flows). Owner-repair only; no live device access."
+
+[lib]
+name = "gsi_edl"
+path = "src/lib.rs"
+
+[dependencies]
+gsi-registry = { path = "../gsi-registry" }
+serde.workspace = true
+serde_json.workspace = true

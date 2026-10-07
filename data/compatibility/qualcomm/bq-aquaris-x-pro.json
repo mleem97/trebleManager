@@ -1,0 +1,212 @@
+{
+  "device": {
+    "family": "BQ-Aquaris-X-Pro",
+    "codename": "bardock-pro",
+    "variant": "bq-aquaris-x-pro",
+    "region_note": "EU variant (reference unit for field tests; verify codename via fastboot product)"
+  },
+  "hardware": {
+    "soc": "Snapdragon 626 / MSM8953",
+    "arch": "arm64",
+    "treble": true,
+    "ab_scheme": "a-only",
+    "note": "Treble on Oreo vendor base; A-only partition scheme. Verify on the unit, never assume."
+  },
+  "storage": {
+    "expected": [
+      "eMMC"
+    ],
+    "note": "MSM8953 tier units are eMMC. Still verify, never assume."
+  },
+  "partitions": {
+    "frp": "required",
+    "config": "required",
+    "persist": "backup-first",
+    "modemst1": "backup-first",
+    "modemst2": "backup-first",
+    "method": "edl-firehose-erase",
+    "note": "FRP reset set is frp+config erase; persist/modemst1/modemst2 must be backed up and verified before any erase."
+  },
+  "edl": {
+    "soc": "MSM8953",
+    "mode": "9008 (QDLoader)",
+    "entry": "Guidance only: power off, hold Vol Up + Vol Down, plug USB (combo varies by unit); test point is last resort per service docs. No automation claims.",
+    "programmer": "Needs an MSM8953 Firehose programmer matching the unit; never bundled here; field sessions only.",
+    "frp_note": "Full frp+config erase needs EDL deep flash; without it only fastboot paths apply where the bootloader already permits erase, otherwise EDL is mandatory.",
+    "never": "No live EDL device in tooling context; stub/refusal transports only."
+  },
+  "firmware": {
+    "required_base": "BQ Oreo base (Android 8.1)",
+    "advisory": [
+      "BQ Aquaris X Pro EU Oreo stock (match exact regional build)"
+    ],
+    "note": "Advisory only, never auto-selected. Region build must match the device.",
+    "archives": [
+      {
+        "name": "BQ support page (historic)",
+        "url": "https://www.bq.com/en/support/aquaris-x-pro/support-sheet",
+        "kind": "vendor-historic",
+        "tier": 1,
+        "note": "links may be dead; verify manually"
+      },
+      {
+        "name": "Community mirrors",
+        "kind": "community-archive",
+        "tier": 3,
+        "note": "unverified mirrors only; prefer vendor base"
+      }
+    ],
+    "builds": [
+      {
+        "id": "BQ-XPRO-EU-OREO-BASE",
+        "build": "2.x",
+        "emui": null,
+        "android": 8,
+        "region": "EU",
+        "source": "gated",
+        "page": "https://www.bq.com/en/support/aquaris-x-pro/support-sheet",
+        "file": " BardockPro-EU stock (exact file per unit)",
+        "provides": [
+          "boot.img",
+          "persist backup",
+          "modemst backup"
+        ],
+        "note": "portal page, may be dead or gated - never faked as direct"
+      }
+    ]
+  },
+  "vendor_boot": {
+    "oreo": {
+      "Q": "unverified",
+      "R": "unverified",
+      "S": "unverified"
+    },
+    "note": "GSI boot on MSM8953 Oreo vendor is unverified for this variant; do not assume."
+  },
+  "vendor_advice": "Oreo vendor base: GSI boot unverified on BQ Aquaris X Pro EU; match exact regional stock before testing; persist/modemst backup first.",
+  "roms": [
+    {
+      "name": "LineageOS",
+      "version": 20,
+      "status": "broken",
+      "reason": "not field-verified on BQ Aquaris X Pro EU; physical unit reserved for later field sessions",
+      "markers": [
+        "unverified-bq"
+      ],
+      "gsi": "arm64_bgN",
+      "android": 13,
+      "root_artifact": {
+        "type": "boot-image",
+        "source": "stock_firmware"
+      }
+    },
+    {
+      "name": "LineageOS",
+      "version": 19.1,
+      "status": "broken",
+      "reason": "not field-verified on BQ Aquaris X Pro EU",
+      "markers": [
+        "unverified-bq"
+      ],
+      "gsi": "arm64_bgN",
+      "android": 12,
+      "root_artifact": {
+        "type": "boot-image",
+        "source": "stock_firmware"
+      }
+    },
+    {
+      "name": "AOSP",
+      "android": "13",
+      "status": "variant-dependent",
+      "reason": "MSM8953 Oreo vendor boot unverified; test only against matching EU stock base",
+      "markers": [
+        "unverified-bq"
+      ]
+    },
+    {
+      "name": "SuperiorOS",
+      "android": 13,
+      "build": 20240401,
+      "status": "broken",
+      "reason": "not field-verified on BQ Aquaris X Pro EU",
+      "markers": [
+        "unverified-bq",
+        "slim"
+      ],
+      "image": "SuperiorOS_A13-arm64-bgS-slim_20240401.img"
+    },
+    {
+      "name": "ResurrectionRemix",
+      "version": "8.5.8",
+      "status": "broken",
+      "reason": "no verified MSM8953/BQ port data in this profile",
+      "markers": [
+        "unverified-bq"
+      ],
+      "android": 10
+    }
+  ],
+  "magisk": {
+    "method": "boot-image",
+    "patch_on_device": true,
+    "supported": true,
+    "verified_method": false,
+    "forbidden": [
+      "shared patched image"
+    ],
+    "note": "Patch the concrete stock boot image on the device; unverified on this variant.",
+    "stable_json": "https://raw.githubusercontent.com/topjohnwu/magisk-files/master/stable.json",
+    "stable_note": "resolve live Magisk APK (version+link), never hardcode; patch locally, never download pre-patched images"
+  },
+  "twrp": [
+    {
+      "version": "bardock-pro community",
+      "base": "oreo",
+      "status": "variant-dependent",
+      "partition": "recovery",
+      "source": "community thread (match exact codename build)",
+      "note": "unverified on EU unit"
+    }
+  ],
+  "kernels": [
+    {
+      "name": "stock",
+      "base": "Oreo",
+      "status": "optional",
+      "note": "stock kernel only until field verification"
+    }
+  ],
+  "sources": {
+    "bq_support": "https://www.bq.com/en/support/aquaris-x-pro/support-sheet",
+    "magisk_install": "https://topjohnwu.github.io/Magisk/install.html",
+    "edl_client": "https://github.com/bkerler/edl",
+    "gsi_source": "https://sourceforge.net/projects/andyyan-gsi/files/"
+  },
+  "bootloader": {
+    "path": "BQ manufacturer unlock-code flow, then fastboot flashing unlock (code per exact device, owner only)",
+    "note": "Where the BQ vendor flow applies, only an issued code unlocks; unlock wipes user data."
+  },
+  "tools": {
+    "platform_tools": {
+      "source": "direct-official",
+      "url_pattern": "https://dl.google.com/android/repository/platform-tools-latest-{os}.zip",
+      "provides": [
+        "adb",
+        "fastboot"
+      ],
+      "note": "Google official CDN, per-OS zip"
+    },
+    "extractors": [
+      {
+        "name": "edl (bkerler)",
+        "file": "edl",
+        "url": "https://github.com/bkerler/edl",
+        "source": "direct",
+        "needs": "python3.10+",
+        "use": "edl --loader=<matching-MSM8953-programmer> (owner repair only; programmer never bundled)",
+        "note": "reference client docs; field sessions only"
+      }
+    ]
+  }
+}

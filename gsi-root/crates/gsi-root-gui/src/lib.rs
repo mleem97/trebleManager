@@ -1,9 +1,19 @@
 //! Slint GUI for gsi-root: same core API as the CLI, no own logic.
 //!
-//! Pages Dashboard/GSI/Detect/Tools/Updates/Logs/Settings plus the Phase-9
-//! screen cluster (flash/backup/media/flows render modules). Patch/verify
-//! surface the core's honest EXPERIMENTAL refusal instead of faking success.
+//! Pages Dashboard/GSI/Detect/Analyze-Device/Tools/Updates/Logs/Settings
+//! plus the Phase-9 screen cluster (flash/backup/media/flows render
+//! modules). Patch/verify surface the core's honest EXPERIMENTAL refusal
+//! instead of faking success.
+//!
+//! Refresh closures gather best-effort live values through [`live`]
+//! (installed ROM via `gsi-state`, registry profile via `gsi-registry`,
+//! dirs via `gsi-config`, log files via `gsi-diag`) and render them with
+//! the pure page modules. Closures never panic and never touch the
+//! network, a device, or a subprocess; anything unmeasurable locally
+//! renders as an honest text note.
 
+mod live;
+mod pages_analyze;
 mod pages_backup;
 mod pages_flash;
 mod pages_flows;
@@ -237,34 +247,38 @@ pub fn run() -> i32 {
     app.on_detect_devices(|| detect_text().into());
     app.on_list_tools(|| tools_text().into());
     app.on_check_update(|r| update_text(r.as_str()).into());
-    // Phase-9 screen cluster: static previews (empty inputs); live values
-    // arrive with the exec layer (Phase 8). Pages never execute.
-    app.on_flash_refresh(|| pages_flash::flash_text("recovery_ramdisk", "", "", "", "", false, false, false, false, false, false, false, false, false, false, false, false, "UNCLEAR", 0, "", &[]).into());
-    app.on_flash_system_refresh(|| pages_flash::flash_system_text("", "", "", false, false, false, false, false, false, "UNCLEAR", 0, "", &[]).into());
-    app.on_wipe_refresh(|| pages_flash::wipe_text(false, false, false).into());
-    app.on_unlock_refresh(|| pages_flash::unlock_text().into());
-    app.on_verify_refresh(|| pages_flash::verify_text("", "", "", &[]).into());
-    app.on_preflight_refresh(|| pages_flash::preflight_blocked_text("", "", true, &[], &[], &[], "", "").into());
-    app.on_backup_refresh(|| pages_backup::backup_text("recovery_ramdisk", "backups/VTR-L29/recovery_ramdisk", "VTR-L29", "").into());
-    app.on_restore_refresh(|| pages_backup::restore_text("", "recovery_ramdisk", false).into());
-    app.on_reinstall_refresh(|| pages_backup::reinstall_text("VTR-L29", "recovery_ramdisk").into());
-    app.on_resume_refresh(|| pages_backup::resume_text("", "").into());
-    app.on_bootkeys_refresh(|| pages_backup::bootkeys_text("").into());
-    app.on_extract_refresh(|| pages_media::extract_text("", &[], false, "").into());
-    app.on_download_refresh(|| pages_media::download_text(&[], &[], "", "data/firmware").into());
-    app.on_firmware_refresh(|| pages_media::firmware_text("VTR-L29", "", "", "FAIL", &[]).into());
-    app.on_export_refresh(|| pages_media::export_text("", "unknown", "open", &[]).into());
-    app.on_kernel_refresh(|| pages_media::kernel_text(&[], &[]).into());
-    app.on_twrp_refresh(|| pages_media::twrp_text("", "", false).into());
-    app.on_compat_refresh(|| pages_flows::compat_text("", "", "", "", &[], "", &[], &[], "").into());
-    app.on_goals_refresh(|| pages_flows::goals_text("", &[], &[]).into());
-    app.on_rootmethods_refresh(|| pages_flows::rootmethods_text(&[], "").into());
-    app.on_patch_refresh(|| pages_flows::patch_text("", "", "", "").into());
-    app.on_persist_refresh(|| pages_flows::persist_text("", &[], "", false).into());
-    app.on_romselect_refresh(|| pages_flows::romselect_text(&[], "", "", &[]).into());
+    // Phase-9 screen cluster: best-effort live values gathered inside each
+    // closure (installed ROM, registry profile, local dirs, log files).
+    // Anything needing a device, the network, or a subprocess renders as
+    // an honest note; closures never panic and never block on those.
+    app.on_flash_refresh(|| live::flash_refresh(&live::live_ctx()).into());
+    app.on_flash_system_refresh(|| live::flash_system_refresh(&live::live_ctx()).into());
+    app.on_wipe_refresh(|| live::wipe_refresh(&live::live_ctx()).into());
+    app.on_unlock_refresh(|| live::unlock_refresh(&live::live_ctx()).into());
+    app.on_verify_refresh(|| live::verify_refresh(&live::live_ctx()).into());
+    app.on_preflight_refresh(|| live::preflight_refresh(&live::live_ctx()).into());
+    app.on_backup_refresh(|| live::backup_refresh(&live::live_ctx()).into());
+    app.on_restore_refresh(|| live::restore_refresh(&live::live_ctx()).into());
+    app.on_reinstall_refresh(|| live::reinstall_refresh(&live::live_ctx()).into());
+    app.on_resume_refresh(|| live::resume_refresh(&live::live_ctx()).into());
+    app.on_bootkeys_refresh(|| live::bootkeys_refresh(&live::live_ctx()).into());
+    app.on_extract_refresh(|| live::extract_refresh(&live::live_ctx()).into());
+    app.on_download_refresh(|| live::download_refresh(&live::live_ctx()).into());
+    app.on_firmware_refresh(|| live::firmware_refresh(&live::live_ctx()).into());
+    app.on_export_refresh(|| live::export_refresh(&live::live_ctx()).into());
+    app.on_kernel_refresh(|| live::kernel_refresh(&live::live_ctx()).into());
+    app.on_twrp_refresh(|| live::twrp_refresh(&live::live_ctx()).into());
+    app.on_compat_refresh(|| live::compat_refresh(&live::live_ctx()).into());
+    app.on_goals_refresh(|| live::goals_refresh(&live::live_ctx()).into());
+    app.on_rootmethods_refresh(|| live::rootmethods_refresh(&live::live_ctx()).into());
+    app.on_patch_refresh(|| live::patch_refresh(&live::live_ctx()).into());
+    app.on_persist_refresh(|| live::persist_refresh(&live::live_ctx()).into());
+    app.on_romselect_refresh(|| live::romselect_refresh(&live::live_ctx()).into());
     app.on_help_refresh(|| pages_flows::help_text(env!("CARGO_PKG_VERSION")).into());
-    app.on_status_refresh(|| pages_flows::status_text("", "", "", "", "", "", "", "", "", "", "", "").into());
-    app.on_wizard_refresh(|| pages_flows::wizard_text("", "", &[], &[], "").into());
+    app.on_status_refresh(|| live::status_refresh(&live::live_ctx()).into());
+    app.on_wizard_refresh(|| live::wizard_refresh(&live::live_ctx()).into());
+    app.on_analyze_device_refresh(|| live::analyze_device_refresh(&live::live_ctx()).into());
+    app.on_logs_files_refresh(|| live::logs_files_refresh(&live::live_ctx()).into());
     if let Err(e) = app.run() {
         eprintln!("gui error: {e}");
         return 1;
