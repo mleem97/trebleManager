@@ -8,9 +8,12 @@ API="https://api.github.com/repos/$REPO/releases/latest"
 BASE="${XDG_DATA_HOME:-$HOME/.local/share}/trebleManager"
 mkdir -p "$BASE" || { echo "ERROR: cannot create $BASE"; read -r -p "Enter=close " _; exit 1; }
 
-echo "Resolving latest release ..."
-echo "$API"
-TAG="$(curl -fsSL "$API" 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4)"
+echo "Resolving latest release (raw VERSION first, API fallback) ..."
+TAG="$(curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/VERSION 2>/dev/null | tr -d ' \r\n')"
+[ -n "$TAG" ] && TAG="v$TAG"
+if [ -z "$TAG" ]; then
+  TAG="$(curl -fsSL "$API" 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4)"
+fi
 if [ -z "$TAG" ]; then
   echo "ERROR: GitHub API unreachable (network/proxy?)."
   echo "Fallback: download a release ZIP manually, extract, run ./scripts/treble-toolkit.sh"

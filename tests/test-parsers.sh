@@ -8,6 +8,31 @@ bad() { FAIL=$((FAIL+1)); printf '[FAIL] %s\n' "$1"; }
 
 # Online run (curl|bash): without repo layout fetch the FULL release ZIP
 # (same trust root) and run the suite from it. Guard prevents loops.
+# Tag order: raw VERSION first (no API needed), API last (rate-limited).
+bootstrap_fetch() { # tag relpath -> prints dest file path, rc 0/1 (quiet; errors to stderr)
+  local _tag="$1" _rel="$2" _base _dest _file _zip _exp _act
+  _base="${XDG_DATA_HOME:-$HOME/.local/share}/trebleManager"
+  mkdir -p "$_base" 2>/dev/null || return 1
+  _dest="$_base/$_tag"; _file="$_dest/$_rel"
+  if [ ! -f "$_file" ]; then
+    _zip="$_base/trebleManager-$_tag.zip"
+    curl -fsSL -o "$_zip" "https://github.com/mleem97/trebleManager/releases/download/$_tag/trebleManager-$_tag.zip" 2>/dev/null || return 1
+    if curl -fsSL -o "$_zip.sha256" "https://github.com/mleem97/trebleManager/releases/download/$_tag/trebleManager-$_tag.zip.sha256" 2>/dev/null; then
+      _exp="$(awk '{print $1}' "$_zip.sha256" 2>/dev/null | tr 'a-z' 'A-Z')"
+      _act="$(sha256sum "$_zip" 2>/dev/null | awk '{print $1}' | tr 'a-z' 'A-Z')"
+      if [ -z "$_act" ]; then _act="$(shasum -a 256 "$_zip" 2>/dev/null | awk '{print $1}' | tr 'a-z' 'A-Z')"; fi
+      if [ -n "$_exp" ] && [ "$_exp" != "$_act" ]; then
+        echo "ERROR: SHA256 MISMATCH - deleted, aborting." >&2; rm -f "$_zip"; return 1
+      fi
+      echo "SHA256 OK." >&2
+    else echo "WARN: no .sha256 asset, skipping verify." >&2; fi
+    mkdir -p "$_dest" 2>/dev/null || return 1
+    if command -v unzip >/dev/null 2>&1; then unzip -qo "$_zip" -d "$_dest" 2>/dev/null || return 1
+    else python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$_zip" "$_dest" 2>/dev/null || return 1; fi
+  fi
+  [ -f "$_file" ] || return 1
+  printf '%s' "$_file"
+}
 if [ -z "${TT_TEST_BOOTSTRAPPED:-}" ]; then
   _BSSRC0="${BASH_SOURCE[0]:-}"
   if [ -n "$_BSSRC0" ] && [ -f "$_BSSRC0" ]; then
@@ -19,36 +44,22 @@ if [ -z "${TT_TEST_BOOTSTRAPPED:-}" ]; then
     echo "Test suite without layout - fetching full release ZIP ..."
     _tbase="${XDG_DATA_HOME:-$HOME/.local/share}/trebleManager"
     mkdir -p "$_tbase" 2>/dev/null
-    _ttag="$(curl -fsSL https://api.github.com/repos/mleem97/trebleManager/releases/latest 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4)"
-    _tdone=""
-    if [ -n "$_ttag" ]; then
-      _tdest="$_tbase/$_ttag"
-      if [ ! -f "$_tdest/tests/test-parsers.sh" ]; then
-        _tzip="$_tbase/trebleManager-$_ttag.zip"
-        if curl -fsSL -o "$_tzip" "https://github.com/mleem97/trebleManager/releases/download/$_ttag/trebleManager-$_ttag.zip" 2>/dev/null; then
-          if curl -fsSL -o "$_tzip.sha256" "https://github.com/mleem97/trebleManager/releases/download/$_ttag/trebleManager-$_ttag.zip.sha256" 2>/dev/null; then
-            _texp="$(awk '{print $1}' "$_tzip.sha256" 2>/dev/null | tr 'a-z' 'A-Z')"
-            _tact="$(sha256sum "$_tzip" 2>/dev/null | awk '{print $1}' | tr 'a-z' 'A-Z')"
-            if [ -z "$_tact" ]; then _tact="$(shasum -a 256 "$_tzip" 2>/dev/null | awk '{print $1}' | tr 'a-z' 'A-Z')"; fi
-            if [ -n "$_texp" ] && [ "$_texp" != "$_tact" ]; then echo "ERROR: SHA256 MISMATCH - deleted, aborting."; rm -f "$_tzip"; _texp="MISMATCH"; fi
-          fi
-          if [ "${_texp:-}" != "MISMATCH" ]; then
-            mkdir -p "$_tdest" 2>/dev/null
-            if command -v unzip >/dev/null 2>&1; then unzip -qo "$_tzip" -d "$_tdest" 2>/dev/null
-            else python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$_tzip" "$_tdest" 2>/dev/null; fi
-          fi
-        fi
-      fi
-      if [ -f "$_tdest/tests/test-parsers.sh" ]; then
-        export TT_TEST_BOOTSTRAPPED=1
-        bash "$_tdest/tests/test-parsers.sh"
-        exit $?
-      fi
+    _tver="$(curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/VERSION 2>/dev/null | tr -d ' \r\n')"
+    _tbf=""
+    if [ -n "$_tver" ]; then _tbf="$(bootstrap_fetch "v$_tver" "tests/test-parsers.sh" 2>/dev/null)"; fi
+    if [ -z "$_tbf" ]; then
+      _ttag="$(curl -fsSL https://api.github.com/repos/mleem97/trebleManager/releases/latest 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4)"
+      [ -n "$_ttag" ] && _tbf="$(bootstrap_fetch "$_ttag" "tests/test-parsers.sh" 2>/dev/null)"
+    fi
+    if [ -n "$_tbf" ]; then
+      export TT_TEST_BOOTSTRAPPED=1
+      bash "$_tbf"
+      exit $?
     fi
     echo "ERROR: test bootstrap failed (offline?) - cannot run without layout."
     exit 1
   fi
-  unset _BSSRC0 _TROOT _tbase _ttag _tdest _tzip _texp _tact _tdone
+  unset _BSSRC0 _TROOT _tbase _tver _tbf _ttag
 fi
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)/treble-toolkit.sh"
@@ -196,6 +207,10 @@ grep -q "TT_TEST_BOOTSTRAPPED" "$ROOT_D/tests/Test-Parsers.ps1" && ok "ps1 tests
 grep -q 'User-Agent' "$ROOT_D/tests/Test-Parsers.ps1" && ok "ps1 tests send UA (no API 403)" || bad "ps1 tests send UA (no API 403)"
 grep -q 'User-Agent' "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 tool sends UA (no API 403)" || bad "ps1 tool sends UA (no API 403)"
 grep -q "Test-Parsers.ps1 | iex" "$ROOT_D/README.md" && ok "readme online tests" || bad "readme online tests"
+grep -q 'bootstrap_fetch "v$TTVERSION"' "$ROOT_D/scripts/treble-toolkit.sh" && ok "bash own-version first" || bad "bash own-version first"
+grep -q "main/VERSION" "$ROOT_D/tests/test-parsers.sh" && ok "bash tests raw VERSION (no API)" || bad "bash tests raw VERSION (no API)"
+grep -q "main/VERSION" "$ROOT_D/tests/Test-Parsers.ps1" && ok "ps1 tests raw VERSION (no API)" || bad "ps1 tests raw VERSION (no API)"
+grep -q "main/VERSION" "$ROOT_D/Run-FromGitHub.bat" "$ROOT_D/run-from-github.sh" && ok "launchers raw VERSION first" || bad "launchers raw VERSION first"
 grep -q "TT_BOOTSTRAPPED" "$ROOT_D/scripts/treble-toolkit.sh" && ok "bash self-bootstrap" || bad "bash self-bootstrap"
 grep -q "TT_BOOTSTRAPPED" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 self-bootstrap" || bad "ps1 self-bootstrap"
 grep -q "SHA256 MISMATCH" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 bootstrap aborts on mismatch" || bad "ps1 bootstrap aborts on mismatch"

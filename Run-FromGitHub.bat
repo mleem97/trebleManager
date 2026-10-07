@@ -27,8 +27,8 @@ if errorlevel 1 (
 )
 
 echo Ermittle neueste Release-Version / resolving latest release ...
-echo %API%
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; try { (Invoke-RestMethod -Uri '%API%' -UseBasicParsing).tag_name } catch { Write-Host ('ERROR: ' + $_.Exception.Message); exit 1 }" >"%BASE%\latest.txt" 2>>"%BOOTLOG%"
+echo raw VERSION first (no API rate limit), GitHub API as fallback.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $t=''; try { $t='v'+((Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/VERSION' -UseBasicParsing).Content.Trim()) } catch {}; if ($t -eq '' -or $t -eq 'v') { try { $t=(Invoke-RestMethod -Uri '%API%' -UseBasicParsing).tag_name } catch { Write-Host ('ERROR: ' + $_.Exception.Message); exit 1 } }; $t" >"%BASE%\latest.txt" 2>>"%BOOTLOG%"
 if errorlevel 1 (
   echo FEHLER: GitHub-API nicht erreichbar (Netzwerk/Proxy?). Siehe "%BOOTLOG%".
   echo Alternative: Release-ZIP manuell laden, entpacken, Start-TrebleToolkit.bat doppelklicken.

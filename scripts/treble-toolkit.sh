@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.13.1"
+TTVERSION="2.13.2"
 # Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
 # still enforced), developer (unlocks dump-* commands).
 RUNMODE_REQ=""
@@ -32,41 +32,47 @@ if [ "$(basename "$TOOL_ROOT")" = "scripts" ]; then TOOL_ROOT="$(dirname "$TOOL_
 if [ ! -d "$TOOL_ROOT/data" ]; then TOOL_ROOT="$(pwd)"; fi
 # Self-bootstrap: single-file/pipe run without layout -> fetch the FULL release
 # ZIP (same trust root: this repo) and re-exec from it. Full run, not degraded.
-# Guard TT_BOOTSTRAPPED=1 prevents loops. Offline -> degraded warning, no crash.
-if [ -z "${TT_BOOTSTRAPPED:-}" ] && [ ! -d "$TOOL_ROOT/data/compatibility" ]; then
-  _tt_bootstrap() {
-    echo "Single-file run detected - fetching full toolkit layout ..."
-    echo "Einzeldatei erkannt - lade volles Toolkit-Layout ..."
-    _base="${XDG_DATA_HOME:-$HOME/.local/share}/trebleManager"
-    mkdir -p "$_base" || return 1
-    _tag="$(curl -fsSL https://api.github.com/repos/mleem97/trebleManager/releases/latest 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4)"
-    [ -n "$_tag" ] || return 1
-    _dest="$_base/$_tag"
-    if [ ! -x "$_dest/scripts/treble-toolkit.sh" ]; then
-      _zip="$_base/trebleManager-$_tag.zip"
-      curl -fsSL -o "$_zip" "https://github.com/mleem97/trebleManager/releases/download/$_tag/trebleManager-$_tag.zip" || return 1
-      if curl -fsSL -o "$_zip.sha256" "https://github.com/mleem97/trebleManager/releases/download/$_tag/trebleManager-$_tag.zip.sha256" 2>/dev/null; then
-        _exp="$(awk '{print $1}' "$_zip.sha256" | tr 'a-z' 'A-Z')"
-        _act="$(sha256sum "$_zip" 2>/dev/null | awk '{print $1}' | tr 'a-z' 'A-Z')"
-        if [ -z "$_act" ]; then _act="$(shasum -a 256 "$_zip" 2>/dev/null | awk '{print $1}' | tr 'a-z' 'A-Z')"; fi
-        if [ -n "$_exp" ] && [ "$_exp" != "$_act" ]; then
-          echo "ERROR: SHA256 MISMATCH - deleted, aborting bootstrap."; rm -f "$_zip"; return 1
-        fi
-        echo "SHA256 OK."
-      else echo "WARN: no .sha256 asset, skipping verify."; fi
-      mkdir -p "$_dest" || return 1
-      if command -v unzip >/dev/null 2>&1; then unzip -qo "$_zip" -d "$_dest" || return 1
-      else python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$_zip" "$_dest" || return 1; fi
-      chmod +x "$_dest/scripts/treble-toolkit.sh"
-    fi
-    [ -x "$_dest/scripts/treble-toolkit.sh" ] || return 1
-    export TT_BOOTSTRAPPED=1
-    exec "$_dest/scripts/treble-toolkit.sh" "$@"
-  }
-  if ! _tt_bootstrap "$@"; then
-    echo "WARN: bootstrap failed (offline?) - continuing degraded without registry."
+# Tag order: own script version first (no network guesswork), API last
+# (rate-limited). Guard TT_BOOTSTRAPPED=1 prevents loops. Offline -> degraded.
+bootstrap_fetch() { # tag relpath -> prints dest file path, rc 0/1 (quiet; errors to stderr)
+  local _tag="$1" _rel="$2" _base _dest _file _zip _exp _act
+  _base="${XDG_DATA_HOME:-$HOME/.local/share}/trebleManager"
+  mkdir -p "$_base" 2>/dev/null || return 1
+  _dest="$_base/$_tag"; _file="$_dest/$_rel"
+  if [ ! -f "$_file" ]; then
+    _zip="$_base/trebleManager-$_tag.zip"
+    curl -fsSL -o "$_zip" "https://github.com/mleem97/trebleManager/releases/download/$_tag/trebleManager-$_tag.zip" 2>/dev/null || return 1
+    if curl -fsSL -o "$_zip.sha256" "https://github.com/mleem97/trebleManager/releases/download/$_tag/trebleManager-$_tag.zip.sha256" 2>/dev/null; then
+      _exp="$(awk '{print $1}' "$_zip.sha256" 2>/dev/null | tr 'a-z' 'A-Z')"
+      _act="$(sha256sum "$_zip" 2>/dev/null | awk '{print $1}' | tr 'a-z' 'A-Z')"
+      if [ -z "$_act" ]; then _act="$(shasum -a 256 "$_zip" 2>/dev/null | awk '{print $1}' | tr 'a-z' 'A-Z')"; fi
+      if [ -n "$_exp" ] && [ "$_exp" != "$_act" ]; then
+        echo "ERROR: SHA256 MISMATCH - deleted, aborting bootstrap." >&2; rm -f "$_zip"; return 1
+      fi
+      echo "SHA256 OK." >&2
+    else echo "WARN: no .sha256 asset, skipping verify." >&2; fi
+    mkdir -p "$_dest" 2>/dev/null || return 1
+    if command -v unzip >/dev/null 2>&1; then unzip -qo "$_zip" -d "$_dest" 2>/dev/null || return 1
+    else python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$_zip" "$_dest" 2>/dev/null || return 1; fi
   fi
-  unset -f _tt_bootstrap
+  [ -f "$_file" ] || return 1
+  printf '%s' "$_file"
+}
+if [ -z "${TT_BOOTSTRAPPED:-}" ] && [ ! -d "$TOOL_ROOT/data/compatibility" ]; then
+  echo "Single-file run detected - fetching full toolkit layout ..."
+  echo "Einzeldatei erkannt - lade volles Toolkit-Layout ..."
+  _bf="$(bootstrap_fetch "v$TTVERSION" "scripts/treble-toolkit.sh" 2>/dev/null)"
+  if [ -z "$_bf" ]; then
+    _atag="$(curl -fsSL https://api.github.com/repos/mleem97/trebleManager/releases/latest 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4)"
+    [ -n "$_atag" ] && _bf="$(bootstrap_fetch "$_atag" "scripts/treble-toolkit.sh" 2>/dev/null)"
+  fi
+  if [ -n "$_bf" ]; then
+    export TT_BOOTSTRAPPED=1
+    chmod +x "$_bf" 2>/dev/null
+    exec "$_bf" "$@"
+  fi
+  echo "WARN: bootstrap failed (offline?) - continuing degraded without registry."
+  unset _bf _atag
 fi
 # Config: repo data/config.json if it looks like a checkout, else user config.
 if [ -d "$TOOL_ROOT/scripts" ]; then CONFIG_FILE="$TOOL_ROOT/data/config.json"

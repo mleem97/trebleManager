@@ -9,44 +9,67 @@
 
 # Online run (irm|iex): without repo layout fetch the FULL release ZIP
 # (same trust root) and run the suite from it. Guard prevents loops.
+# Tag order: raw VERSION first (no API needed), API last (rate-limited).
+function Get-BootstrapReleaseFile {
+  # Downloads+verifies+extracts the FULL release ZIP for $Tag. Returns the full
+  # path of $RelPath inside it, or "" on any failure (caller narrates).
+  param([string]$Tag, [string]$RelPath)
+  try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $__w = New-Object Net.WebClient
+    $__w.Headers.Add("User-Agent", "trebleManager")
+    $__b = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "trebleManager"
+    if (-not (Test-Path $__b)) { New-Item -ItemType Directory -Path $__b -Force | Out-Null }
+    $__d = Join-Path $__b $Tag
+    $__t = Join-Path $__d $RelPath
+    if (-not (Test-Path $__t)) {
+      $__z = Join-Path $__b ("trebleManager-" + $Tag + ".zip")
+      $__w.DownloadFile("https://github.com/mleem97/trebleManager/releases/download/" + $Tag + "/trebleManager-" + $Tag + ".zip", $__z)
+      $__e = ""
+      try { $__e = (([string]$__w.DownloadString("https://github.com/mleem97/trebleManager/releases/download/" + $Tag + "/trebleManager-" + $Tag + ".zip.sha256") -split '\s+')[0]).Trim().ToUpper() } catch {}
+      if ($__e -ne "") {
+        $__a = (Get-FileHash $__z -Algorithm SHA256).Hash.ToUpper()
+        if ($__e -ne $__a) { Remove-Item $__z -Force; throw "SHA256 MISMATCH, deleted, aborting" }
+        Write-Host "SHA256 OK." -ForegroundColor Green
+      }
+      if (-not (Test-Path $__d)) { New-Item -ItemType Directory -Path $__d -Force | Out-Null }
+      Expand-Archive -Path $__z -DestinationPath $__d -Force
+    }
+    if (Test-Path $__t) { return $__t }
+  } catch { Write-Host ("WARN: fetch " + $Tag + " failed (" + $_.Exception.Message + ")") -ForegroundColor Yellow }
+  return ""
+}
 if (-not $env:TT_TEST_BOOTSTRAPPED) {
   $__r = $MyInvocation.MyCommand.Path
   if ([string]::IsNullOrEmpty($__r)) { $__r = (Get-Location).Path } else { $__r = Split-Path -Parent (Split-Path -Parent $__r) }
   if (-not ((Test-Path (Join-Path $__r "VERSION")) -and (Test-Path (Join-Path $__r "scripts/Treble-Toolkit.ps1")))) {
     Write-Host "Test suite without layout - fetching full release ZIP ..." -ForegroundColor Cyan
+    $__target = ""
     try {
-      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
       $__wc = New-Object Net.WebClient
-      $__wc.Headers.Add("User-Agent", "trebleManager")  # api.github.com rejects UA-less calls with 403
-      $__tag = ([string](($__wc.DownloadString("https://api.github.com/repos/mleem97/trebleManager/releases/latest") | ConvertFrom-Json).tag_name)).Trim()
-      if ([string]::IsNullOrEmpty($__tag)) { throw "empty release tag" }
-      $__base = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "trebleManager"
-      if (-not (Test-Path $__base)) { New-Item -ItemType Directory -Path $__base -Force | Out-Null }
-      $__dest = Join-Path $__base $__tag
-      $__target = Join-Path $__dest "tests/Test-Parsers.ps1"
-      if (-not (Test-Path $__target)) {
-        $__zip = Join-Path $__base ("trebleManager-" + $__tag + ".zip")
-        $__wc.DownloadFile("https://github.com/mleem97/trebleManager/releases/download/" + $__tag + "/trebleManager-" + $__tag + ".zip", $__zip)
-        $__sha = ""
-        try { $__sha = (([string]$__wc.DownloadString("https://github.com/mleem97/trebleManager/releases/download/" + $__tag + "/trebleManager-" + $__tag + ".zip.sha256") -split '\s+')[0]).Trim().ToUpper() } catch {}
-        if ($__sha -ne "") {
-          $__act = (Get-FileHash $__zip -Algorithm SHA256).Hash.ToUpper()
-          if ($__sha -ne $__act) { Remove-Item $__zip -Force; throw "SHA256 MISMATCH, deleted, aborting" }
-          Write-Host "SHA256 OK." -ForegroundColor Green
-        }
-        if (-not (Test-Path $__dest)) { New-Item -ItemType Directory -Path $__dest -Force | Out-Null }
-        Expand-Archive -Path $__zip -DestinationPath $__dest -Force
-      }
-      if (Test-Path $__target) {
-        $env:TT_TEST_BOOTSTRAPPED = "1"
-        $__exe = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
-        & $__exe -NoProfile -ExecutionPolicy Bypass -File $__target
-        exit $LASTEXITCODE
-      }
-      throw "extracted test suite not found"
-    } catch { Write-Host ("ERROR: test bootstrap failed (" + $_.Exception.Message + ") - tests need the repo layout (release ZIP or git checkout).") -ForegroundColor Red; exit 1 }
+      $__wc.Headers.Add("User-Agent", "trebleManager")
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      $__ver = ([string]$__wc.DownloadString("https://raw.githubusercontent.com/mleem97/trebleManager/main/VERSION")).Trim()
+      if (-not [string]::IsNullOrEmpty($__ver)) { $__target = Get-BootstrapReleaseFile ("v" + $__ver) "tests/Test-Parsers.ps1" }
+    } catch { Write-Host ("WARN: raw VERSION failed (" + $_.Exception.Message + ")") -ForegroundColor Yellow }
+    if ([string]::IsNullOrEmpty($__target)) {
+      try {
+        $__wc2 = New-Object Net.WebClient
+        $__wc2.Headers.Add("User-Agent", "trebleManager")
+        $__tag2 = ([string](($__wc2.DownloadString("https://api.github.com/repos/mleem97/trebleManager/releases/latest") | ConvertFrom-Json).tag_name)).Trim()
+        if (-not [string]::IsNullOrEmpty($__tag2)) { $__target = Get-BootstrapReleaseFile $__tag2 "tests/Test-Parsers.ps1" }
+      } catch { Write-Host ("WARN: API fallback failed (" + $_.Exception.Message + ")") -ForegroundColor Yellow }
+    }
+    if (-not [string]::IsNullOrEmpty($__target)) {
+      $env:TT_TEST_BOOTSTRAPPED = "1"
+      $__exe = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+      & $__exe -NoProfile -ExecutionPolicy Bypass -File $__target
+      exit $LASTEXITCODE
+    }
+    Write-Host "ERROR: test bootstrap failed - tests need the repo layout (release ZIP or git checkout)." -ForegroundColor Red
+    exit 1
   }
-  Remove-Variable __r,__wc,__tag,__base,__dest,__target,__zip,__sha,__act,__exe -ErrorAction SilentlyContinue
+  Remove-Variable __r,__wc,__ver,__wc2,__tag2,__target,__exe -ErrorAction SilentlyContinue
 }
 
 $ErrorActionPreference = "Stop"

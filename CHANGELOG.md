@@ -1,5 +1,9 @@
 # Changelog — trebleManager
 
+## v2.13.2
+
+- Bootstrap no longer needs the GitHub API in the normal path (fixes persistent 403s from missing UA or rate limits): tools fetch their own version's ZIP directly, tests/launchers read raw `VERSION`, API stays only as fallback; shared `bootstrap_fetch`/`Get-BootstrapReleaseFile` helpers
+
 ## v2.13.1
 
 - Fixed API 403 in PowerShell bootstraps: `Net.WebClient` sent no User-Agent, which `api.github.com` rejects — both PS1 bootstraps (tool + tests) now send `User-Agent: trebleManager` (curl/BAT already did)
