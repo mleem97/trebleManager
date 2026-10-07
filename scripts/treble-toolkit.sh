@@ -803,11 +803,11 @@ file_hash() { # path -> prints "sha256 size" or fails
     shasum -a 256 "$1" | awk '{print $1}'; stat -f%z "$1" 2>/dev/null || stat -c%s "$1"
   fi
 }
-boot_magic_ver() { # path -> version int or -1 (ANDROID! magic)
+boot_magic_ver() { # path -> version int or -1 (ANDROID! magic, NUL-safe)
   [ -f "$1" ] || { printf -- '-1'; return; }
   local magic
-  magic="$(head -c 8 "$1" 2>/dev/null)"
-  if [ "$magic" = "ANDROID!" ]; then
+  magic="$(od -An -tx1 -N8 "$1" 2>/dev/null | tr -d ' \n' | tr '[:lower:]' '[:upper:]')"
+  if [ "$magic" = "414E44524F494421" ]; then
     od -An -tu1 -j8 -N1 "$1" 2>/dev/null | tr -d ' \n'
   else printf -- '-1'; fi
 }
