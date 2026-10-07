@@ -16,3 +16,4 @@ Huawei-P10-Magisk-Check.txt
 $TEMP/
 trebleManager-*.zip
 trebleManager-*.zip.sha256
+core/*/target/

@@ -50,7 +50,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.17.0"
+$TTVersion = "2.18.0"
 
 function Get-TTScriptRoot {
   # Script directory under -File AND irm|iex. Never Split-Path $null:

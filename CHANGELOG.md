@@ -1,5 +1,9 @@
 # Changelog — trebleManager
 
+## v2.18.0
+
+- Rust core started (ROADMAP §6): `core/treble_core` with pure `images`, `fastboot`, `firmware`, `roms` modules + `ttcore` CLI (`image-kind`, `flash-verdict`, `check-url`), 19 `cargo test` tests green, zero dependencies; PS1/bash integration comes later, reference behavior unchanged
+
 ## v2.17.0
 
 - Target-Image-Resolver (both shells): device → install type → Android version (only versions with real images, with counts) → system → variant → full config (firmware base, vendor, recovery source, root artifact, system file/URL); "Nur Root" resolves an explicit target too (current / stock EMUI version / other system), install path downloads or uses local image via preset

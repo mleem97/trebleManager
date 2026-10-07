@@ -1,0 +1,14 @@
+[package]
+name = "treble_core"
+version = "2.18.0"
+edition = "2021"
+description = "Pure core logic for trebleManager (Huawei P10 Treble/root toolkit). PowerShell stays the reference implementation; PS1/bash become thin wrappers later (see ROADMAP §6)."
+license = "Apache-2.0"
+
+[[bin]]
+name = "ttcore"
+path = "src/main.rs"
+
+[lib]
+name = "treble_core"
+path = "src/lib.rs"

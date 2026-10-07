@@ -47,13 +47,16 @@ Per-package metadata (model, CUST, region, EMUI, Android, build, source, URL,
 SHA-256/512, extraction status, known compatibility) under `data/firmware/`,
 so inputs are reproducible artifacts, not loose downloads.
 
-## 6. Core extraction (planned, stepwise)
+## 6. Core extraction (started v2.18.0, stepwise)
 
 PowerShell stays the reference implementation (direct-from-GitHub run must
-keep working). Extract pure logic toward `core/` (device, adb, fastboot,
-firmware, partitions, images, magisk, flashing, backup, verification) first;
-only then consider a native Rust core with PS1/bash as thin wrappers.
-CLI command names stay stable across the migration.
+keep working). `core/treble_core` holds the first pure modules with
+`cargo test` suites: `images` (boot/system detection), `fastboot` (flash
+verdicts), `firmware` (URL checks), `roms` (labels/suggestions) + `ttcore`
+CLI (`image-kind`, `flash-verdict`, `check-url`) for later wrapper use.
+PS1/bash integration (calling `ttcore` with fallback to native code) comes
+only after the module set covers a full flow. CLI command names stay stable
+across the migration.
 
 ## 7. Standing rules (never change)
 
