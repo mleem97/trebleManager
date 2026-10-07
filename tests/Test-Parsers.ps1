@@ -17,6 +17,7 @@ if (-not $env:TT_TEST_BOOTSTRAPPED) {
     try {
       [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
       $__wc = New-Object Net.WebClient
+      $__wc.Headers.Add("User-Agent", "trebleManager")  # api.github.com rejects UA-less calls with 403
       $__tag = ([string](($__wc.DownloadString("https://api.github.com/repos/mleem97/trebleManager/releases/latest") | ConvertFrom-Json).tag_name)).Trim()
       if ([string]::IsNullOrEmpty($__tag)) { throw "empty release tag" }
       $__base = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "trebleManager"
@@ -42,8 +43,8 @@ if (-not $env:TT_TEST_BOOTSTRAPPED) {
         & $__exe -NoProfile -ExecutionPolicy Bypass -File $__target
         exit $LASTEXITCODE
       }
-      Write-Host "WARN: test bootstrap failed." -ForegroundColor Yellow
-    } catch { Write-Host ("WARN: test bootstrap failed (" + $_.Exception.Message + ")") -ForegroundColor Yellow }
+      throw "extracted test suite not found"
+    } catch { Write-Host ("ERROR: test bootstrap failed (" + $_.Exception.Message + ") - tests need the repo layout (release ZIP or git checkout).") -ForegroundColor Red; exit 1 }
   }
   Remove-Variable __r,__wc,__tag,__base,__dest,__target,__zip,__sha,__act,__exe -ErrorAction SilentlyContinue
 }

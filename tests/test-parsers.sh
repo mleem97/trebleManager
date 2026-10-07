@@ -193,6 +193,8 @@ grep -q "Run-FromGitHub.bat" "$ROOT_D/README.md" && ok "readme cmd one-liner" ||
 grep -q "sha256sum -c" "$ROOT_D/README.md" && ok "readme linux verify" || bad "readme linux verify"
 grep -q "TT_TEST_BOOTSTRAPPED" "$ROOT_D/tests/test-parsers.sh" && ok "bash tests self-bootstrap" || bad "bash tests self-bootstrap"
 grep -q "TT_TEST_BOOTSTRAPPED" "$ROOT_D/tests/Test-Parsers.ps1" && ok "ps1 tests self-bootstrap" || bad "ps1 tests self-bootstrap"
+grep -q 'User-Agent' "$ROOT_D/tests/Test-Parsers.ps1" && ok "ps1 tests send UA (no API 403)" || bad "ps1 tests send UA (no API 403)"
+grep -q 'User-Agent' "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 tool sends UA (no API 403)" || bad "ps1 tool sends UA (no API 403)"
 grep -q "Test-Parsers.ps1 | iex" "$ROOT_D/README.md" && ok "readme online tests" || bad "readme online tests"
 grep -q "TT_BOOTSTRAPPED" "$ROOT_D/scripts/treble-toolkit.sh" && ok "bash self-bootstrap" || bad "bash self-bootstrap"
 grep -q "TT_BOOTSTRAPPED" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 self-bootstrap" || bad "ps1 self-bootstrap"

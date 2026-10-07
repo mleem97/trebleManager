@@ -1,5 +1,10 @@
 # Changelog — trebleManager
 
+## v2.13.1
+
+- Fixed API 403 in PowerShell bootstraps: `Net.WebClient` sent no User-Agent, which `api.github.com` rejects — both PS1 bootstraps (tool + tests) now send `User-Agent: trebleManager` (curl/BAT already did)
+- Failed test bootstrap now exits 1 with a clear message instead of running degraded into cryptic follow-on errors; README gains robust download-then-run test variants
+
 ## v2.13.0
 
 - Test suites run online: `Test-Parsers.ps1` (`irm ... | iex`) and `test-parsers.sh` (`curl ... | bash`) self-bootstrap the full SHA256-verified release ZIP and run from it (loop-guarded, mismatch aborts); README documents both one-liners

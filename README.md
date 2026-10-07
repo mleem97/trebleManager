@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.13.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.13.1-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -203,6 +203,20 @@ curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/tests/te
 
 Both suites self-bootstrap (full ZIP, SHA256-verified) and run from it —
 parsers, firmware/OS checks, flash-verdict, launcher and version checks.
+Robust variants that fail loudly instead of piping (recommended on flaky
+networks — if the download is empty, `iex` errors cryptically):
+
+```powershell
+$t="$env:TEMP\Test-Parsers.ps1"; iwr -UseBasicParsing -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/tests/Test-Parsers.ps1' -OutFile $t; powershell -NoProfile -ExecutionPolicy Bypass -File $t
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/tests/test-parsers.sh -o /tmp/test-parsers.sh && bash /tmp/test-parsers.sh
+```
+
+Note: `api.github.com` requires a User-Agent (all launchers/scripts send
+one) and allows 60 unauthenticated requests/hour per IP — the ZIP cache means
+one API call per version, and re-runs use the cache without any network.
 
 ## Download (offline ZIP — step by step)
 
@@ -235,6 +249,7 @@ next to `adb.exe` and double-click it.
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
+- [`release/v2.13.1`](https://github.com/mleem97/trebleManager/tree/release/v2.13.1) ([tag `v2.13.1`](https://github.com/mleem97/trebleManager/releases/tag/v2.13.1))
 - [`release/v2.13.0`](https://github.com/mleem97/trebleManager/tree/release/v2.13.0) ([tag `v2.13.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.13.0))
 - [`release/v2.12.2`](https://github.com/mleem97/trebleManager/tree/release/v2.12.2) ([tag `v2.12.2`](https://github.com/mleem97/trebleManager/releases/tag/v2.12.2))
 - [`release/v2.12.1`](https://github.com/mleem97/trebleManager/tree/release/v2.12.1) ([tag `v2.12.1`](https://github.com/mleem97/trebleManager/releases/tag/v2.12.1))

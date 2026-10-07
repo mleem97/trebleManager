@@ -50,7 +50,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.13.0"
+$TTVersion = "2.13.1"
 
 # Self-bootstrap for remote single-file runs (irm|iex, temp download):
 # without repo layout (no data/compatibility) fetch the FULL release ZIP
@@ -66,6 +66,7 @@ if (-not $env:TT_BOOTSTRAPPED) {
     try {
       [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
       $__wc = New-Object Net.WebClient
+      $__wc.Headers.Add("User-Agent", "trebleManager")  # api.github.com rejects UA-less calls with 403
       $__tag = ([string](($__wc.DownloadString("https://api.github.com/repos/mleem97/trebleManager/releases/latest") | ConvertFrom-Json).tag_name)).Trim()
       if ([string]::IsNullOrEmpty($__tag)) { throw "empty release tag" }
       $__base = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "trebleManager"
