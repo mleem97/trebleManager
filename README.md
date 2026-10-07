@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.10.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.11.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -139,48 +139,58 @@ on Debian/Ubuntu). Optional: `unzip`, `curl`, `zip` (or `python3` as fallback ea
 
 ## Run Directly from the Internet
 
-No files needed — one command, straight from the prompt. TUI stays interactive.
-First run on a fresh machine: use `Setup-TrebleToolkit.bat` once (auto-UAC,
-execution policy, installs ADB/fastboot + optional scrcpy into user PATH,
-saves `data/config.json`).
+No files needed — one command, straight from the prompt. The online starters
+download the **full release ZIP** (same layout as the offline ZIP: `scripts\`,
+`data\` registry, setup, TUI), verify SHA256, and then launch the **central
+starter `Start-TrebleToolkit.bat`** — an online run is 100% identical to a ZIP
+run. Nothing ever exits silently; every failure pauses with plain text.
 
-### CMD (Windows, zero files)
+### CMD (Windows, zero files) — recommended online start
 
-```cmd
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $f=$env:TEMP + '\Treble-Toolkit.ps1'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1' -OutFile $f -UseBasicParsing; & $f"
+Download [`Run-FromGitHub.bat`](https://raw.githubusercontent.com/mleem97/trebleManager/main/Run-FromGitHub.bat)
+and double-click it (or run it from CMD). It resolves the latest release,
+caches it under `%LOCALAPPDATA%\trebleManager\<tag>`, and calls the central
+starter. Re-running it later reuses the cache (delete the folder to force
+a fresh download).
+
+### Bash (Linux/macOS, zero files) — recommended online start
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/run-from-github.sh -o /tmp/run-from-github.sh \
+&& chmod +x /tmp/run-from-github.sh && /tmp/run-from-github.sh
 ```
 
-(No nested double quotes — `$env:TEMP + '\...'` avoids the classic
-`TerminatorExpectedAtEndOfString` parser error.)
+Caches under `~/.local/share/trebleManager/<tag>`, verifies SHA256, then
+`exec`s `scripts/treble-toolkit.sh`. Stays interactive (reads `/dev/tty`).
 
-### PowerShell (Windows, zero files)
+### Fallback: single file, no layout (degraded)
 
 ```powershell
 irm https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1 | iex
 ```
 
-(If your session blocks scripts, start PowerShell once via `Setup-TrebleToolkit.bat`
-or `powershell -ExecutionPolicy Bypass`.)
+Works, but **without** the compatibility registry, setup and tools folders —
+use the starters above whenever possible.
 
-### Bash (Linux, zero files)
+First run on a fresh machine: use `Setup-TrebleToolkit.bat` once (auto-UAC,
+execution policy, installs ADB/fastboot + optional scrcpy into user PATH,
+saves `data/config.json`). The central starter offers this automatically.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/treble-toolkit.sh | bash
-```
+## Download (offline ZIP)
 
-Stays interactive (reads `/dev/tty`); with args: `curl -fsSL <url> | bash -s -- detect --json`.
-Fallback without process substitution issues:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/treble-toolkit.sh -o /tmp/treble-toolkit.sh \
-&& chmod +x /tmp/treble-toolkit.sh && /tmp/treble-toolkit.sh
-```
+Latest release page (all ZIPs + `.sha256` attached):
+<https://github.com/mleem97/trebleManager/releases/latest>
+Pick `trebleManager-vX.Y.Z.zip` + its `.sha256`, verify, extract anywhere,
+**double-click `Start-TrebleToolkit.bat`** — the one central entry point
+(admin, setup, TUI). Read-only quick check without the toolkit:
+`p10-magisk-check-FIXED.bat` next to `adb.exe`.
 
 ## Releases (immutable)
 
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
+- [`release/v2.11.0`](https://github.com/mleem97/trebleManager/tree/release/v2.11.0) ([tag `v2.11.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.11.0))
 - [`release/v2.10.0`](https://github.com/mleem97/trebleManager/tree/release/v2.10.0) ([tag `v2.10.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.10.0))
 - [`release/v2.9.0`](https://github.com/mleem97/trebleManager/tree/release/v2.9.0) ([tag `v2.9.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.9.0))
 - [`release/v2.8.0`](https://github.com/mleem97/trebleManager/tree/release/v2.8.0) ([tag `v2.8.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.8.0))

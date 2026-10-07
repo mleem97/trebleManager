@@ -121,5 +121,18 @@ SH_VER="$(grep -m1 '^TTVERSION=' "$ROOT_D/scripts/treble-toolkit.sh" | cut -d'"'
 grep -q "Version-$VER_FILE" "$ROOT_D/README.md" && ok "readme badge" || bad "readme badge"
 grep -q "## v$VER_FILE" "$ROOT_D/CHANGELOG.md" && ok "changelog entry" || bad "changelog entry"
 
+# ---- 13. Launchers: one central entry, online starters bootstrap full ZIP ----
+[ -f "$ROOT_D/Start-TrebleToolkit.bat" ] && ok "central starter present" || bad "central starter present"
+grep -q 'scripts\\Treble-Toolkit.ps1' "$ROOT_D/Start-TrebleToolkit.bat" && ok "starter calls TUI" || bad "starter calls TUI"
+grep -q "pause" "$ROOT_D/Start-TrebleToolkit.bat" && ok "starter never silent" || bad "starter never silent"
+[ -f "$ROOT_D/Run-FromGitHub.bat" ] && ok "online starter bat present" || bad "online starter bat present"
+grep -q "releases/latest" "$ROOT_D/Run-FromGitHub.bat" && ok "online bat resolves latest" || bad "online bat resolves latest"
+grep -q "Start-TrebleToolkit.bat" "$ROOT_D/Run-FromGitHub.bat" && ok "online bat chains central starter" || bad "online bat chains central starter"
+grep -q "SHA256" "$ROOT_D/Run-FromGitHub.bat" && ok "online bat verifies hash" || bad "online bat verifies hash"
+[ -f "$ROOT_D/run-from-github.sh" ] && ok "online starter sh present" || bad "online starter sh present"
+bash -n "$ROOT_D/run-from-github.sh" && ok "online sh syntax" || bad "online sh syntax"
+grep -q "treble-toolkit.sh" "$ROOT_D/run-from-github.sh" && ok "online sh launches toolkit" || bad "online sh launches toolkit"
+grep -q "run-from-github" "$ROOT_D/README.md" && ok "readme documents online start" || bad "readme documents online start"
+
 printf '\nResult: %s PASS, %s FAIL\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

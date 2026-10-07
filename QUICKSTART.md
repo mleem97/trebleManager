@@ -8,7 +8,13 @@ CMD: put `p10-magisk-check-FIXED.bat` next to `adb.exe`, double-click.
 It writes `%USERPROFILE%\Desktop\Huawei-P10-Magisk-Check.txt` — check that
 `recovery_ramdisk` shows up in by-name/getvar. Nothing is flashed.
 
-## 2. Full TUI
+## 2. Full TUI — ONE central entry point
+
+**Double-click `Start-TrebleToolkit.bat`** (from the release ZIP). It handles
+admin rights, first-run setup and then the TUI — nothing else needs opening.
+No files yet? Online start: download + double-click `Run-FromGitHub.bat`
+(Windows) or run `run-from-github.sh` (Linux, see README) — same result.
+Manual alternative (experts only):
 
 ```powershell
 cd "C:\path\to\trebleManager"

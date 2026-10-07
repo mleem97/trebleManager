@@ -1,5 +1,11 @@
 # Changelog — trebleManager
 
+## v2.11.0
+
+- Online run = ZIP run: `Run-FromGitHub.bat` now bootstraps the FULL release ZIP (latest via API, SHA256-verified, cached in `%LOCALAPPDATA%\trebleManager`) and always chains into the central starter `Start-TrebleToolkit.bat` — no more single-PS1 degradeds; new `run-from-github.sh` does the same on Linux/macOS
+- One central entry point documented everywhere: double-click `Start-TrebleToolkit.bat` (admin, setup, TUI); README download section + rewritten online-run docs, QUICKSTART points at the starter
+- Launcher tests: 11 new checks (central starter, online chain, hash verify, sh syntax, docs)
+
 ## v2.10.0
 
 - Full reinstall flow: `full_reinstall` goal + TUI `Full reinstall` menu (custom GSI/system.img via Install-ROM, honest stock path via HiSuite/service flow), optional guided wipe before flash
