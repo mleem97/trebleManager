@@ -50,7 +50,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.13.2"
+$TTVersion = "2.14.0"
 
 # Self-bootstrap for remote single-file runs (irm|iex, temp download):
 # without repo layout (no data/compatibility) fetch the FULL release ZIP
@@ -196,6 +196,7 @@ $TT = @{
   FbRaw     = ""
   OS        = $null
   ProfileId = ""
+  InstalledRom = ""
   FirmwareBaseline = ""
   FirmwareCompat   = $null
   StockImage  = ""
@@ -809,6 +810,135 @@ function Get-VendorAdvice {
     return "Pie vendor: Q/R/S boot. Target Android $TargetAndroid expected to boot."
   }
   return "Vendor base '$Emui' unclassified - verify manually."
+}
+
+# ============================================================ Installed ROM (what is ON the phone)
+function Get-RomSuggested {
+  # Pure: OS class -> suggested ROM id ("stock" for EMUI, "" = user must pick).
+  # Never guesses a custom ROM - the user states it.
+  param([string]$OsKind)
+  if ([string]::IsNullOrWhiteSpace($OsKind)) { return "" }
+  if ($OsKind -like "*Stock*" -or $OsKind -like "*EMUI*") { return "stock" }
+  return ""
+}
+
+function Get-RomLabel {
+  # Pure: ROM id -> short display name.
+  param([string]$Id)
+  if ([string]::IsNullOrWhiteSpace($Id)) { return "?" }
+  if ($Id -eq "stock") { return "Stock EMUI" }
+  if ($Id -eq "other") { return "Other custom ROM" }
+  if ($Id.StartsWith("rom:")) { return $Id.Substring(4) }
+  return $Id
+}
+
+function Get-RomOptions {
+  # Selectable systems: stock first, supported registry ROMs, then other.
+  $opts = @(@{ Id = "stock"; Label = "Stock EMUI (Huawei original)"; Status = "supported" })
+  $reg = Get-CompatRegistry
+  if ($reg -ne $null) {
+    foreach ($r in $reg.roms) {
+      $nm = [string]$r.name
+      if ([string]::IsNullOrWhiteSpace($nm)) { continue }
+      $ver = [string]$r.version; if ($ver -eq "") { $ver = [string]$r.android }
+      if ($ver -eq "") { $ver = [string]$r.build }
+      $label = $nm; if ($ver -ne "") { $label += " " + $ver }
+      $st = [string]$r.status
+      if ($st -eq "working" -or $st -eq "working-slim" -or $st -eq "working-with-fixes" -or $st -eq "variant-dependent") {
+        $id = "rom:" + $label
+        if (-not ($opts | Where-Object { $_.Id -eq $id })) { $opts += @(@{ Id = $id; Label = $label; Status = $st }) }
+      }
+    }
+  }
+  $opts += @(@{ Id = "other"; Label = "Other custom ROM (not in list)"; Status = "custom" })
+  return $opts
+}
+
+function Get-InstalledRomFile { return (Join-Path $TTRoot "data/installed-rom.txt") }
+
+function Save-InstalledRom {
+  param([string]$Id)
+  try {
+    $f = Get-InstalledRomFile
+    $d = Split-Path -Parent $f
+    if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
+    ([string]$Id).Trim() | Out-File -FilePath $f -Encoding ascii -NoNewline
+    $TT.InstalledRom = ([string]$Id).Trim()
+  } catch {}
+}
+
+function Load-InstalledRom {
+  try {
+    $f = Get-InstalledRomFile
+    if (Test-Path $f) {
+      $v = ([string](Get-Content $f -Raw -ErrorAction Stop)).Trim()
+      if ($v -ne "") { $TT.InstalledRom = $v }
+    }
+  } catch {}
+  return $TT.InstalledRom
+}
+
+function Select-InstalledRom {
+  # THE question: which system is on the phone. Plain words, persisted answer.
+  $reg = Get-CompatRegistry
+  $opts = Get-RomOptions
+  Show-TTHeader (L "Which system is on your phone right now?" "Welches System ist gerade auf deinem Handy?")
+  Write-Host ""
+  Write-Host (L "This decides everything: patch source, skipped steps, blocked ROMs." "Das entscheidet alles: Patch-Quelle, uebersprungene Steps, blockierte ROMs.") -ForegroundColor Cyan
+  Write-Host ""
+  $suggest = Get-RomSuggested ([string]$TT.OS.Kind)
+  for ($i = 0; $i -lt $opts.Count; $i++) {
+    $mark = ""
+    if ($opts[$i].Id -eq $TT.InstalledRom) { $mark = (L "  <-- current, Enter keeps it" "  <-- aktuell, Enter behaelt es") }
+    elseif ($TT.InstalledRom -eq "" -and $opts[$i].Id -eq $suggest) { $mark = (L "  <-- detected, Enter selects it" "  <-- erkannt, Enter waehlt es") }
+    Write-Host (" [" + ($i+1) + "] " + $opts[$i].Label + $mark) -ForegroundColor White
+  }
+  if ($reg -ne $null) {
+    $broken = @($reg.roms | Where-Object { $_.status -eq "broken" })
+    if ($broken.Count -gt 0) {
+      Write-Host ""
+      Write-Host (L "NOT supported (researched broken - cannot be selected):" "NICHT supported (nachweislich kaputt - nicht waehlbar):") -ForegroundColor Red
+      foreach ($b in $broken) { Write-Host ("  X " + $b.name + " - " + $b.reason) -ForegroundColor Red }
+    }
+  }
+  Write-Host ""
+  Write-Host (L "Number + Enter (Enter = keep): " "Nummer + Enter (Enter = behalten): ") -NoNewline -ForegroundColor Yellow
+  $s = Read-Host
+  if ($s -match "^\d+$") {
+    $idx = [int]$s - 1
+    if ($idx -ge 0 -and $idx -lt $opts.Count) { Save-InstalledRom $opts[$idx].Id }
+  } elseif ($TT.InstalledRom -eq "" -and $suggest -ne "") { Save-InstalledRom $suggest }
+  $label = Get-RomLabel $TT.InstalledRom
+  Write-Host ""
+  Write-Host ((L "Phone runs: " "Handy laeuft mit: ") + $label) -ForegroundColor Green
+  if ($TT.InstalledRom -eq "" -or $TT.InstalledRom -eq "stock") {
+    Write-Host (L "Rule: patch base = stock UPDATE.APP recovery image. Nothing else." "Regel: Patch-Basis = Stock-UPDATE.APP-Recovery. Nichts anderes.") -ForegroundColor White
+  } else {
+    Write-Host (L "RULE: your Magisk patch file MUST come from this ROM package." "REGEL: Deine Magisk-Patch-Datei MUSS aus diesem ROM-Paket kommen.") -ForegroundColor Red
+    Write-Host (L "NOT from stock firmware. A stock-based patched image will NOT boot on this ROM." "NICHT aus der Stock-Firmware. Ein Stock-basiertes Image bootet auf diesem ROM NICHT.") -ForegroundColor Red
+  }
+  return $TT.InstalledRom
+}
+
+function Find-TTRomBaseImage {
+  # Exported base image from the installed custom ROM's package (data/recovery/*).
+  $dir = Join-Path $TTRoot "data/recovery"
+  if (-not (Test-Path $dir)) { return "" }
+  $hits = Get-ChildItem -Path $dir -Recurse -File -Include "*.img" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+  if ($hits -and $hits.Count -gt 0) { return $hits[0].FullName }
+  return ""
+}
+
+function Get-PatchBase {
+  # Single source of truth: which image gets Magisk-patched.
+  $rom = $TT.InstalledRom
+  if ([string]::IsNullOrWhiteSpace($rom) -or $rom -eq "stock") {
+    return @{ Image = $TT.StockImage; Hash = $TT.StockHash; Source = "stock"; RomLabel = "Stock EMUI" }
+  }
+  $img = Find-TTRomBaseImage
+  $h = $null
+  if ($img -ne "" -and (Test-Path $img)) { $h = Get-FileHashInfo $img }
+  return @{ Image = $img; Hash = $h; Source = "rom"; RomLabel = (Get-RomLabel $rom) }
 }
 
 function Resolve-RunMode {
@@ -1872,7 +2002,13 @@ function Test-StepGate {
   if ($Step -in @("flash","twrp") -and $DeviceProfiles[$TT.ProfileId].Verified -ne $true) { $reasons += "profile unverified" }
   if ($Step -in @("flash-system") -and $DeviceProfiles[$TT.ProfileId].Verified -ne $true) { $reasons += "profile unverified" }
   if ($Step -eq "flash" -and [string]::IsNullOrEmpty($TT.PatchedImage)) { $reasons += "no patched image registered" }
-  if ($Step -eq "backup" -and [string]::IsNullOrEmpty($TT.StockImage)) { $reasons += "no stock image (extract first)" }
+  if ($Step -eq "backup") {
+    $pb = Get-PatchBase
+    if ([string]::IsNullOrWhiteSpace($pb.Image) -or -not (Test-Path $pb.Image)) {
+      if ($pb.Source -eq "rom") { $reasons += "no ROM base image (recovery export first)" }
+      else { $reasons += "no stock image (extract first)" }
+    }
+  }
   return @{ Pass = ($reasons.Count -eq 0); Reasons = $reasons; States = $st }
 }
 
@@ -1885,7 +2021,7 @@ function Show-TTHeader {
   if ($TTLang -eq "de" -and $admin -eq "YES") { $admin = "JA" }
   Write-Host "================================================================" -ForegroundColor DarkCyan
   Write-Host " Huawei P10 Root Manager  v$TTVersion  |  TUI (PS $($PSVersionTable.PSVersion))" -ForegroundColor Cyan
-  Write-Host (" " + (L "Mode" "Modus") + ": $($TT.Mode.ToUpper())  Admin: $admin  " + (L "Profile" "Profil") + ": $($TT.ProfileId)  OS: $(if ($TT.OS) { $TT.OS.Kind } else { '?' })") -ForegroundColor DarkGray
+  Write-Host (" " + (L "Mode" "Modus") + ": $($TT.Mode.ToUpper())  Admin: $admin  " + (L "Profile" "Profil") + ": $($TT.ProfileId)  OS: $(if ($TT.OS) { $TT.OS.Kind } else { '?' })  ROM: $(Get-RomLabel $TT.InstalledRom)") -ForegroundColor DarkGray
   $chip = "READY"
   if ($TT.Mode -eq "none") { $chip = "WARNING: kein Geraet" }
   Write-Host (" State: $chip  |  Log: logs\") -ForegroundColor DarkGray
@@ -1940,6 +2076,7 @@ function Show-TTStatus {
   if ($rr) { Write-Host "RecoveryRamdisk: DETECTED ($($rr.Target))" -ForegroundColor Green }
   else { Write-Host (L "RecoveryRamdisk: UNKNOWN/NOT DETECTED (run analysis)" "RecoveryRamdisk: UNKNOWN/NOT DETECTED (Analyse laufen lassen)") -ForegroundColor Yellow }
   Write-Host ("Firmware      : " + $(if ($TT.FirmwareBaseline -ne "") { $TT.FirmwareBaseline } else { "UNKNOWN" })) -ForegroundColor White
+  Write-Host ((L "Phone runs   : " "Handy laeuft: ") + (Get-RomLabel $TT.InstalledRom)) -ForegroundColor Cyan
   Write-Host ((L "Stock image    : " "Stock-Image   : ") + $(if ($TT.StockImage -ne "") { $TT.StockImage } else { (L "missing" "fehlt") })) -ForegroundColor White
   Write-Host ((L "Patched image  : " "Patched-Image : ") + $(if ($TT.PatchedImage -ne "") { $TT.PatchedImage } else { (L "missing" "fehlt") })) -ForegroundColor White
   Write-Host ("Backup        : " + $(if ($TT.BackupDir -ne "") { $TT.BackupDir } else { (L "missing" "fehlt") })) -ForegroundColor White
@@ -1975,7 +2112,8 @@ function Screen-Analyze {
     $linVer = [string]$TT.Props["ro.lineage.version"]
     if ([string]::IsNullOrEmpty($linVer)) { $linVer = [string]$TT.Props["ro.lineageos.version"] }
     if (-not [string]::IsNullOrEmpty($linVer)) {
-      Write-Host ("LineageOS: " + $linVer + (L " (valid starting point - stock source still needed for Magisk)" " (gueltiger Startpunkt - Stock-Quelle weiter noetig fuer Magisk)")) -ForegroundColor Green
+      Write-Host ("LineageOS: " + $linVer) -ForegroundColor Green
+      Write-Host (L "Custom ROM detected: your patch base must come from THIS ROM (step: recovery export), never from stock." "Custom-ROM erkannt: Deine Patch-Basis muss aus DIESEM ROM kommen (Step: Recovery-Export), niemals aus Stock.") -ForegroundColor Red
     }
     $rel = [string]$TT.Props["ro.build.version.release"]
     if (($TT.OS.Kind -like "*GSI*") -and ($rel -match "^13") -and ($TT.ProfileId -match "VTR|VKY")) {
@@ -2016,6 +2154,18 @@ function Screen-Analyze {
     Write-Host ($TT.FbRaw) -ForegroundColor White
   } else {
     Write-Host (L "No device connected." "Kein Geraet verbunden.") -ForegroundColor Red
+  }
+  # Installed ROM: ask once, remember answer, allow change here.
+  Load-InstalledRom | Out-Null
+  Write-Host ""
+  if ($TT.InstalledRom -eq "") {
+    Write-Host (L "I don't know your system yet - one question:" "Ich kenne dein System noch nicht - eine Frage:") -ForegroundColor Yellow
+    Select-InstalledRom | Out-Null
+  } else {
+    Write-Host ((L "Phone runs (saved): " "Handy laeuft mit (gespeichert): ") + (Get-RomLabel $TT.InstalledRom)) -ForegroundColor Cyan
+    Write-Host (L "[C] change system  [Enter] keep: " "[C] System aendern  [Enter] behalten: ") -NoNewline -ForegroundColor Yellow
+    $rc = Read-Host
+    if ($rc -eq "C" -or $rc -eq "c") { Select-InstalledRom | Out-Null }
   }
   # Report
   $rep = Join-Path $TTLogDir ("analyze-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".txt")
@@ -2168,6 +2318,11 @@ function Screen-Extract {
 
 function Screen-ExportRecovery {
   Show-TTHeader (L "Recovery export from compatible custom ROMs" "Recovery-Export aus kompatiblen Custom-ROMs")
+  if ($TT.InstalledRom -ne "" -and $TT.InstalledRom -ne "stock") {
+    Write-Host ""
+    Write-Host ((L "Exporting base from YOUR rom: " "Exportiere Basis aus DEINEM ROM: ") + (Get-RomLabel $TT.InstalledRom)) -ForegroundColor Cyan
+    Write-Host (L "This file becomes your Magisk patch base. Stock firmware is NOT used." "Diese Datei wird deine Magisk-Patch-Basis. Stock-Firmware wird NICHT benutzt.") -ForegroundColor White
+  }
   Write-Host ""
   Write-Host (L "Drop ROM packages into data/roms/ (.zip with boot/recovery.img or payload.bin, or .img directly)." "ROM-Pakete nach data/roms/ legen (.zip mit boot/recovery.img oder payload.bin, oder .img direkt).") -ForegroundColor Gray
   Write-Host (L "GSI system images contain no recovery and are refused honestly." "GSI-System-Images enthalten kein Recovery und werden ehrlich abgelehnt.") -ForegroundColor Gray
@@ -2231,23 +2386,45 @@ function Screen-Patch {
     Write-Host ("APK: " + $TT.MagiskInfo.Path) -ForegroundColor White
     Write-Host ("Version: " + $TT.MagiskInfo.Version + " | SHA256: " + $TT.MagiskInfo.SHA256) -ForegroundColor White
   }
-  if ($TT.StockImage -eq "" -or -not (Test-Path $TT.StockImage)) {
-    Write-Host (L "No stock image registered -> step 4 first." "Kein Stock-Image registriert -> erst Step 4.") -ForegroundColor Red
+  $base = Get-PatchBase
+  if ($base.Source -eq "rom") {
+    Write-Host ""
+    Write-Host ((L "Phone runs: " "Handy laeuft mit: ") + $base.RomLabel) -ForegroundColor Cyan
+    Write-Host (L "RULE: patch base MUST come from this ROM package. NOT from stock firmware." "REGEL: Patch-Basis MUSS aus diesem ROM-Paket kommen. NICHT aus Stock-Firmware.") -ForegroundColor Red
+  }
+  if ($base.Image -eq "" -or -not (Test-Path $base.Image)) {
+    if ($base.Source -eq "rom") {
+      Write-Host (L "No ROM base image yet. Open recovery export now? [Y/n]: " "Noch kein ROM-Basis-Image. Jetzt Recovery-Export oeffnen? [J/n]: ") -NoNewline -ForegroundColor Yellow
+      $oe = Read-Host
+      if ($oe -eq "" -or $oe -eq "Y" -or $oe -eq "y" -or $oe -eq "J" -or $oe -eq "j") { Screen-ExportRecovery }
+      $base = Get-PatchBase
+    }
+  }
+  if ($base.Image -eq "" -or -not (Test-Path $base.Image)) {
+    if ($base.Source -eq "rom") {
+      Write-Host (L "Still no ROM base image: put the ROM package into data/roms/ and export first." "Immer noch kein ROM-Basis-Image: ROM-Paket nach data/roms/ legen und erst exportieren.") -ForegroundColor Red
+    } else {
+      Write-Host (L "No stock image registered -> step 4 first." "Kein Stock-Image registriert -> erst Step 4.") -ForegroundColor Red
+    }
     Pause-TT; return
   }
+  $TT.PatchBaseImage = $base.Image; $TT.PatchBaseHash = $base.Hash; $TT.PatchBaseSource = $base.Source
   Write-Host ""
-  Write-Host ("Input: " + $TT.StockImage) -ForegroundColor White
+  Write-Host ("Input: " + $base.Image) -ForegroundColor White
+  Write-Host (L "Source: " "Quelle: ") -NoNewline -ForegroundColor White
+  Write-Host ($base.RomLabel + $(if ($base.Source -eq "rom") { (L " (this ROM - correct)" " (dieses ROM - korrekt)") } else { " (stock)" })) -ForegroundColor $(if ($base.Source -eq "rom") { "Green" } else { "White" })
   Write-Host ("Target partition: " + $DeviceProfiles[$TT.ProfileId].TargetPartition) -ForegroundColor White
   Write-Host ("Device: Huawei " + $TT.ProfileId) -ForegroundColor White
   Write-Host ("Firmware: " + $TT.FirmwareBaseline) -ForegroundColor White
   Write-Host ("Magisk: " + $(if ($TT.MagiskInfo) { $TT.MagiskInfo.Version } else { (L "(APK missing)" "(APK fehlt)") })) -ForegroundColor White
-  Write-Host ("SHA-256: " + $TT.StockHash.SHA256) -ForegroundColor White
+  Write-Host ("SHA-256: " + $base.Hash.SHA256) -ForegroundColor White
   Write-Host (L "Explicit confirmation required before patch prep (never patch boot.img/recovery.img)." "Explizite Bestaetigung vor Patch-Vorbereitung noetig (kein boot.img/recovery.img patchen).") -ForegroundColor Yellow
   Write-Host (L "[1] Prepare patch (to-patch + instructions)  [2] Register patched file  [Esc]" "[1] Patch vorbereiten (to-patch + Anleitung)  [2] Gepatchte Datei registrieren  [Esc]") -ForegroundColor DarkGray
   $k = [Console]::ReadKey($true)
   if ($k.KeyChar -eq "1") {
-    Prepare-TTMagiskPatch $TT.StockImage | Out-Null
+    Prepare-TTMagiskPatch $base.Image | Out-Null
     Write-Host (L "Prepared. Now patch on device (instructions in data/magisk/to-patch/)." "Vorbereitet. Jetzt am Geraet patchen (Anleitung in data/magisk/to-patch/).") -ForegroundColor Green
+    Write-Host ((L "In the Magisk app select EXACTLY this file: " "In der Magisk-App EXAKT diese Datei auswaehlen: ") + [System.IO.Path]::GetFileName($base.Image)) -ForegroundColor Cyan
   } elseif ($k.KeyChar -eq "2") {
     Write-Host ""
     # real adb pull attempt, no mock
@@ -2260,8 +2437,10 @@ function Screen-Patch {
     $pp = Unquote-Path (Read-Host)
     if ($pp -ne "" -and (Test-Path $pp)) {
       $chk = Test-RecoveryImageFile $pp
-      if ($chk.Hash.SHA256 -eq $TT.StockHash.SHA256) {
-        Write-Host (L "ERROR: patched == stock (identical hash). NO fake patch accepted." "FEHLER: Gepatcht == Stock (Hash identisch). KEIN Fake-Patch akzeptiert.") -ForegroundColor Red
+      $baseSha = ""
+      if ($base.Hash -ne $null) { $baseSha = $base.Hash.SHA256 }
+      if ($baseSha -ne "" -and $chk.Hash.SHA256 -eq $baseSha) {
+        Write-Host (L "ERROR: patched == base (identical hash). NO fake patch accepted." "FEHLER: Gepatcht == Basis (Hash identisch). KEIN Fake-Patch akzeptiert.") -ForegroundColor Red
         Write-TTLog (L "Fake patch rejected (identical hash)." "Fake-Patch abgelehnt (Hash identisch).") "ERROR"
       } elseif ($chk.Verdict -eq "PASS") {
         $TT.PatchedImage = $pp; $TT.PatchedHash = $chk.Hash
@@ -2276,8 +2455,14 @@ function Screen-Patch {
 
 function Screen-Backup {
   Show-TTHeader (L "Step 6 - Backup (mandatory before flash)" "Step 6 - Backup (Pflicht vor Flash)")
-  if ($TT.StockImage -eq "") { Write-Host (L "No stock image -> step 4 first." "Kein Stock-Image -> erst Step 4.") -ForegroundColor Red; Pause-TT; return }
-  $r = New-TTBackup $TT.StockImage
+  $base = Get-PatchBase
+  if ($base.Image -eq "" -or -not (Test-Path $base.Image)) {
+    if ($base.Source -eq "rom") { Write-Host (L "No ROM base image -> recovery export first." "Kein ROM-Basis-Image -> erst Recovery-Export.") -ForegroundColor Red }
+    else { Write-Host (L "No stock image -> step 4 first." "Kein Stock-Image -> erst Step 4.") -ForegroundColor Red }
+    Pause-TT; return
+  }
+  Write-Host ((L "Backing up base from: " "Sichere Basis aus: ") + $base.RomLabel) -ForegroundColor Cyan
+  $r = New-TTBackup $base.Image
   Write-Host ""
   Write-Host ("Backup: " + $r.Dir + " OK=" + $r.Ok) -ForegroundColor White
   Write-Host (L "Contains: original.img + metadata.json + sha256.txt (+partition-probe)." "Enthaelt: original.img + metadata.json + sha256.txt (+partition-probe).") -ForegroundColor Gray
@@ -2808,25 +2993,77 @@ function Screen-Logs {
 }
 
 function Start-TTWizard {
-  $steps = @("Detect","Analyze","Firmware","Extract","Patch","Backup","Flash","Reboot+Verify")
-  $i = 0
-  while ($i -lt $steps.Count) {
-    if ($i -eq 0) { Screen-Detect }
-    elseif ($i -eq 1) { Screen-Analyze }
-    elseif ($i -eq 2) { Screen-Firmware }
-    elseif ($i -eq 3) { Screen-Extract }
-    elseif ($i -eq 4) { Screen-Patch }
-    elseif ($i -eq 5) { Screen-Backup }
-    elseif ($i -eq 6) { Screen-Flash }
-    elseif ($i -eq 7) { Screen-RebootVerify }
-    Show-TTHeader ("Wizard Step " + ($i+1) + "/" + $steps.Count + (L " done: " " fertig: ") + $steps[$i])
-    Write-Host ""
-    Write-Host (L "[Enter]=next  [Z]=back  [Esc]=leave wizard" "[Enter]=weiter  [Z]=zurueck  [Esc]=Wizard verlassen") -ForegroundColor DarkGray
-    $k = [Console]::ReadKey($true)
-    if ($k.Key -eq "Escape") { break }
-    elseif ($k.KeyChar -eq "z" -or $k.KeyChar -eq "Z") { if ($i -gt 0) { $i-- } }
-    else { $i++ }
+  # ROM-aware guided path: Detect -> Analyze (+ROM question) -> plain goal words
+  # -> plan with visible SKIPs -> run. No fluff, no inapplicable steps.
+  Load-InstalledRom | Out-Null
+  Screen-Detect
+  Screen-Analyze
+  if ([string]::IsNullOrWhiteSpace($TT.InstalledRom)) { Select-InstalledRom | Out-Null }
+  $romLabel = Get-RomLabel $TT.InstalledRom
+  $isCustom = ($TT.InstalledRom -ne "" -and $TT.InstalledRom -ne "stock")
+  Show-TTHeader (L "What do you want to do?" "Was willst du tun?")
+  Write-Host ""
+  Write-Host ((L "Your system: " "Dein System: ") + $romLabel) -ForegroundColor Cyan
+  Write-Host ""
+  Write-Host (L "[1] Root only (keep my system exactly as it is)" "[1] Nur Root (mein System bleibt exakt wie es ist)") -ForegroundColor White
+  Write-Host (L "[2] Install a custom ROM / GSI" "[2] Custom-ROM / GSI installieren") -ForegroundColor White
+  Write-Host (L "[3] Back to stock" "[3] Zurueck zu Stock") -ForegroundColor White
+  Write-Host (L "[Esc] back" "[Esc] zurueck") -ForegroundColor DarkGray
+  $k = [Console]::ReadKey($true)
+  $goal = ""; $steps = @(); $skipped = @()
+  if ($k.KeyChar -eq "1") {
+    $goal = (L "Root only" "Nur Root")
+    if ($isCustom) {
+      $steps = @(
+        @{ Screen = "Screen-ExportRecovery"; Label = (L "Get patch base from YOUR rom package" "Patch-Basis aus DEINEM ROM-Paket holen") },
+        @{ Screen = "Screen-Patch"; Label = (L "Magisk patch (on your phone)" "Magisk-Patch (an deinem Handy)") },
+        @{ Screen = "Screen-Backup"; Label = (L "Backup" "Backup") },
+        @{ Screen = "Screen-Flash"; Label = (L "Flash + safety gate" "Flash + Safety-Gate") },
+        @{ Screen = "Screen-RebootVerify"; Label = (L "Reboot + verify root" "Reboot + Root verify") }
+      )
+      $skipped = @(
+        (L "stock firmware search/download - not needed, your base comes from " "Stock-Firmware-Suche/Download - nicht noetig, deine Basis kommt aus ") + $romLabel,
+        (L "stock UPDATE.APP extract - not needed" "Stock-UPDATE.APP-Extrakt - nicht noetig")
+      )
+    } else {
+      $steps = @(
+        @{ Screen = "Screen-Firmware"; Label = (L "Stock firmware (find + download)" "Stock-Firmware (finden + laden)") },
+        @{ Screen = "Screen-Extract"; Label = (L "Extract stock recovery image" "Stock-Recovery-Image extrahieren") },
+        @{ Screen = "Screen-Patch"; Label = (L "Magisk patch (on your phone)" "Magisk-Patch (an deinem Handy)") },
+        @{ Screen = "Screen-Backup"; Label = (L "Backup" "Backup") },
+        @{ Screen = "Screen-Flash"; Label = (L "Flash + safety gate" "Flash + Safety-Gate") },
+        @{ Screen = "Screen-RebootVerify"; Label = (L "Reboot + verify root" "Reboot + Root verify") }
+      )
+    }
+  } elseif ($k.KeyChar -eq "2") {
+    $goal = (L "Install custom ROM" "Custom-ROM installieren")
+    $steps = @(
+      @{ Screen = "Screen-Compatibility"; Label = (L "Check ROM compatibility" "ROM-Kompatibilitaet pruefen") },
+      @{ Screen = "Screen-FlashSystem"; Label = (L "Install ROM image" "ROM-Image installieren") },
+      @{ Screen = "Screen-RebootVerify"; Label = (L "Reboot + verify" "Reboot + Verify") }
+    )
+    $skipped = @((L "root/patch/flash - run this wizard again with [1] afterwards if you want root" "Root/Patch/Flash - danach Wizard erneut mit [1] starten falls Root gewuenscht"))
+  } elseif ($k.KeyChar -eq "3") {
+    $goal = (L "Back to stock" "Zurueck zu Stock")
+    $steps = @(
+      @{ Screen = "Screen-Firmware"; Label = (L "Stock firmware (find + download)" "Stock-Firmware (finden + laden)") },
+      @{ Screen = "Screen-Reinstall"; Label = (L "Stock return guide" "Stock-Rueckweg-Anleitung") }
+    )
+    $skipped = @((L "Magisk patch/flash - stock return needs no root steps" "Magisk-Patch/Flash - Stock-Rueckweg braucht keine Root-Steps"))
+  } else { return }
+  Show-TTHeader ((L "Your path: " "Dein Weg: ") + $romLabel + " -> " + $goal)
+  Write-Host ""
+  $n = 1
+  foreach ($s in $steps) { Write-Host (" [" + $n + "] " + $s.Label) -ForegroundColor White; $n++ }
+  foreach ($s in $skipped) { Write-Host (" [SKIP] " + $s) -ForegroundColor DarkGray }
+  Write-Host ""
+  Write-Host (L "Run now? [Y/n]: " "Jetzt starten? [J/n]: ") -NoNewline -ForegroundColor Cyan
+  $a = Read-Host
+  if ($a -ne "" -and $a -ne "Y" -and $a -ne "y" -and $a -ne "J" -and $a -ne "j") { return }
+  foreach ($s in $steps) {
+    try { & $s.Screen | Out-Null } catch { Write-TTLog (("Wizard step failed: " + $s.Label + " - " + $_.Exception.Message)) "ERROR"; return }
   }
+  Write-TTLog ((L "Wizard path completed: " "Wizard-Weg fertig: ") + $goal) "SUCCESS"
 }
 
 # ============================================================ Orchestrator (P1): goals, planner, state, resume
@@ -2979,7 +3216,7 @@ function Start-GoalWorkflow {
     "recovery_compatibility" = "Screen-RootMethods"; "recovery_validation" = "Screen-Twrp";
     "stock_firmware_validation" = "Screen-Firmware"; "firmware_validation" = "Screen-Firmware";
     "flash_plan" = "Screen-Flash"; "safety_gate" = "Screen-Flash"; "rollback_plan" = "Screen-Restore";
-    "wipe" = "Screen-Wipe"; "flash_system" = "Screen-FlashSystem"
+    "wipe" = "Screen-Wipe"; "flash_system" = "Screen-FlashSystem"; "rom_export" = "Screen-ExportRecovery"
   }
   foreach ($entry in $state.steps) {
     $fn = $map[$entry.id]
@@ -3088,6 +3325,7 @@ function Start-TTTui {
   Update-TTMode | Out-Null
   # Defaults for target device (example values from order, overridable by analysis)
   if ($TT.ProfileId -eq "") { $TT.ProfileId = "VTR-L29" }
+  Load-InstalledRom | Out-Null
   if (-not $NoElevateCheck -and -not (Test-TTAdmin)) {
     Write-TTLog (L "No admin. Fastboot/USB drivers may need admin (BAT asks for elevation, menu=admin restart)." "Kein Admin. Fastboot/USB-Treiber brauchen ggf. Admin (BAT fragt Elevation, Menue=Admin-Neustart).") "WARNING"
   }
@@ -3162,7 +3400,7 @@ function Start-TTTui {
 # ============================================================ CLI
 function Show-TTHelp {
   Write-Host "Huawei P10 Root Manager v$TTVersion" -ForegroundColor Cyan
-  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
+  Write-Host "Usage: Treble-Toolkit.ps1 [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|rom|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]" -ForegroundColor White
   Write-Host (L "No args: TUI. Download/flash/restore need explicit confirmation (--yes = documented consent)." "Ohne Args: TUI. Download/Flash/Restore brauchen explizite Bestaetigung (--yes = dokumentierte Zustimmung).") -ForegroundColor Gray
 }
 
@@ -3218,10 +3456,35 @@ elseif ($cmd -eq "recon") {
   else { Write-Host ("mode=" + $TT.Mode + " os=" + $TT.OS.Kind + " profile=" + $TT.ProfileId + " storage=" + $TT.Storage) }
 }
 elseif ($cmd -eq "status") {
+  Load-InstalledRom | Out-Null
   $pre = Invoke-Preflight
   $saved = Read-WorkflowState
-  $full = @{ preflight_go = $pre.Go; blocks = $pre.Blocks; adb = $pre.States.AdbState; fastboot = $pre.States.FastbootState; device_mode = $TT.Mode; run_mode = $TTMode; goal = $(if ($saved) { $saved.goal } else { "" }); saved_steps = $(if ($saved) { $saved.steps } else { @() }); log = $TT.Log }
+  $full = @{ preflight_go = $pre.Go; blocks = $pre.Blocks; adb = $pre.States.AdbState; fastboot = $pre.States.FastbootState; device_mode = $TT.Mode; installed_rom = $TT.InstalledRom; run_mode = $TTMode; goal = $(if ($saved) { $saved.goal } else { "" }); saved_steps = $(if ($saved) { $saved.steps } else { @() }); log = $TT.Log }
   ($full | ConvertTo-Json -Depth 6) | Write-Host
+}
+elseif ($cmd -eq "rom") {
+  Load-InstalledRom | Out-Null
+  $sub = ""
+  if ($args.Count -gt 0) { $sub = $args[0].ToLower().Trim() }
+  if ($sub -eq "list") {
+    $opts = Get-RomOptions
+    for ($i = 0; $i -lt $opts.Count; $i++) { Write-Host (($i+1).ToString() + ". " + $opts[$i].Label + " [" + $opts[$i].Id + "]") }
+  } elseif ($sub -eq "set" -and $args.Count -gt 1) {
+    $v = $args[1].Trim()
+    if ($v -match "^\d+$") {
+      $opts = Get-RomOptions
+      $idx = [int]$v - 1
+      if ($idx -ge 0 -and $idx -lt $opts.Count) { $v = $opts[$idx].Id } else { Write-Host "Unknown number."; exit 3 }
+    }
+    Save-InstalledRom $v
+    Write-Host ("Phone runs: " + (Get-RomLabel $TT.InstalledRom))
+  } elseif ($sub -eq "clear") {
+    Save-InstalledRom ""
+    Write-Host "Installed ROM cleared."
+  } else {
+    if ($Json) { (@{ installed_rom = $TT.InstalledRom; label = (Get-RomLabel $TT.InstalledRom) } | ConvertTo-Json) | Write-Host }
+    else { Write-Host ("Phone runs: " + (Get-RomLabel $TT.InstalledRom) + " [" + $TT.InstalledRom + "]") }
+  }
 }
 elseif ($cmd -eq "workflow") {
   $g = $Goal

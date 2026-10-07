@@ -107,7 +107,7 @@ function Import-TTFunction {
   $block = $Src.Substring($start, ($i - $start) + 1)
   try { Invoke-Expression $block } catch { Write-Host ("Ladefehler " + $Name + ": " + $_.Exception.Message) -ForegroundColor Red; $script:Fail++ }
 }
-foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode","Unquote-Path","Get-GoalSteps","Get-FlashVerdict")) {
+foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode","Unquote-Path","Get-GoalSteps","Get-FlashVerdict","Get-RomSuggested","Get-RomLabel")) {
   Import-TTFunction $fn
 }
 
@@ -258,6 +258,14 @@ $v = Get-FlashVerdict @("Erasing 'userdata' ...")
 Assert-Equal "verdict UNCLEAR on progress only" "UNCLEAR" $v.Verdict
 $v = Get-FlashVerdict @("Erasing 'userdata'                                 OKAY [  2.1s]","Finished. Total time: 2.150s")
 Assert-Equal "verdict OK on erase success" "OK" $v.Verdict
+
+# ---- 20. Installed ROM: suggestion never guesses custom, labels exact ----
+Assert-Equal "suggest stock for EMUI" "stock" (Get-RomSuggested "Stock EMUI 9.1")
+Assert-Equal "suggest empty for GSI (user picks)" "" (Get-RomSuggested "TrebleDroid GSI")
+Assert-Equal "label stock" "Stock EMUI" (Get-RomLabel "stock")
+Assert-Equal "label rom id" "LineageOS 20" (Get-RomLabel "rom:LineageOS 20")
+Assert-Equal "label other" "Other custom ROM" (Get-RomLabel "other")
+Assert-Equal "label empty" "?" (Get-RomLabel "")
 
 # ---- 15. Immutable release: single version everywhere ----
 $TTRoot = Split-Path -Parent $PSScriptRoot

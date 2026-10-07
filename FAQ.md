@@ -155,6 +155,16 @@ Still: back up your data before touching the boot chain, and only
 factory-reset from stock eRecovery if **you** choose to (never from TWRP on this
 device — it breaks userdata per the wiki).
 
+## I have a custom ROM installed. Which image do I patch with Magisk?
+
+The one **from that exact ROM** — never from stock firmware. The wizard asks
+which system is on your phone (Stock EMUI, a supported ROM from the list, or
+other) and remembers it. On a custom ROM it skips the stock firmware/download
+steps visibly (`[SKIP]`) and takes the patch base from your ROM package via
+recovery export (`data/roms/` → `data/recovery/`). A stock-based patched image
+will NOT boot on a custom ROM. Change the answer anytime: Analyze → `[C]`, or
+CLI `rom list` / `rom set <number>`.
+
 ## What if Android no longer boots after flashing?
 
 Stay calm, stay in fastboot: TUI **Restore / Unroot** (or CLI `restore`) writes

@@ -2,6 +2,7 @@
 logs/
 backups/
 data/config.json
+data/installed-rom.txt
 data/firmware/*.zip
 data/firmware/*.7z
 data/firmware/*.tar*

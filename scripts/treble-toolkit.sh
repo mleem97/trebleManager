@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.13.2"
+TTVERSION="2.14.0"
 # Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
 # still enforced), developer (unlocks dump-* commands).
 RUNMODE_REQ=""
@@ -226,6 +226,120 @@ save_config() { # persist resolved tool paths (repo config or user config)
   printf '{"adb":"%s","fastboot":"%s","scrcpy":"%s","updated":"%s"}\n' \
     "${ADB_BIN:-}" "${FB_BIN:-}" "${SCRCPY_BIN:-}" "$(date '+%Y-%m-%d %H:%M:%S')" > "$f" 2>/dev/null || true
   log SUCCESS "$(L 'Config saved: ' 'Config gespeichert: ')$f"
+}
+
+# ------------------------------------------------- installed ROM (what is ON the phone)
+INSTALLED_ROM=""
+rom_file() { printf '%s/data/installed-rom.txt' "$TOOL_ROOT"; }
+save_rom() { # id -> persist (shared file with the PowerShell side)
+  mkdir -p "$(dirname "$(rom_file)")" 2>/dev/null
+  printf '%s' "$1" > "$(rom_file)" 2>/dev/null
+  INSTALLED_ROM="$1"
+}
+load_rom() {
+  local f; f="$(rom_file)"
+  if [ -f "$f" ]; then INSTALLED_ROM="$(tr -d ' \r\n' < "$f")"; fi
+}
+rom_suggest() { # pure: os-kind -> stock|empty (never guesses a custom ROM)
+  case "$1" in *Stock*|*EMUI*) printf 'stock' ;; *) printf '' ;; esac
+}
+rom_label() { # pure: id -> display name
+  case "$1" in
+    stock) printf 'Stock EMUI' ;;
+    other) printf 'Other custom ROM' ;;
+    rom:*) printf '%s' "${1#rom:}" ;;
+    "") printf '?' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+rom_options() { # prints id|label lines: stock, supported registry ROMs, other
+  printf 'stock|Stock EMUI (Huawei original)\n'
+  local f; f="$(compat_file)"
+  if [ -f "$f" ] && command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json,sys
+seen=set()
+for r in json.load(open(sys.argv[1])).get('roms',[]):
+    st=r.get('status','')
+    if st not in ('working','working-slim','working-with-fixes','variant-dependent'): continue
+    nm=str(r.get('name','')).strip()
+    if not nm: continue
+    ver=str(r.get('version',r.get('android',r.get('build',''))))
+    label=nm+(' '+ver if ver else '')
+    if label not in seen:
+        seen.add(label); print('rom:'+label+'|'+label)
+" "$f" 2>/dev/null
+  fi
+  printf 'other|Other custom ROM (not in list)\n'
+}
+rom_broken() { # prints name - reason for researched-broken ROMs (info only)
+  local f; f="$(compat_file)"
+  [ -f "$f" ] || return 0
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json,sys
+for r in json.load(open(sys.argv[1])).get('roms',[]):
+    if r.get('status')=='broken':
+        print(str(r.get('name','?'))+' - '+str(r.get('reason','')))
+" "$f" 2>/dev/null
+  fi
+  return 0
+}
+select_rom() { # THE question: which system is on the phone. Plain words, persisted.
+  header "$(L 'Which system is on your phone right now?' 'Welches System ist gerade auf deinem Handy?')"; printf '\n'
+  printf '%s\n' "$(L 'This decides everything: patch source, skipped steps, blocked ROMs.' 'Das entscheidet alles: Patch-Quelle, uebersprungene Steps, blockierte ROMs.')"
+  local i=1 line id label mark sug
+  ROM_OPTS="$(rom_options)"
+  sug="$(rom_suggest "$OS_KIND")"
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    id="${line%%|*}"; label="${line##*|}"
+    mark=""
+    if [ "$id" = "$INSTALLED_ROM" ]; then mark="  <-- $(L 'current, Enter keeps it' 'aktuell, Enter behaelt es')"
+    elif [ -z "$INSTALLED_ROM" ] && [ -n "$sug" ] && [ "$id" = "$sug" ]; then mark="  <-- $(L 'detected, Enter selects it' 'erkannt, Enter waehlt es')"; fi
+    printf ' [%d] %s%s\n' "$i" "$label" "$mark"
+    i=$((i+1))
+  done <<EOF
+$ROM_OPTS
+EOF
+  local bl; bl="$(rom_broken)"
+  if [ -n "$bl" ]; then
+    printf '\n%s\n' "$(L 'NOT supported (researched broken - cannot be selected):' 'NICHT supported (nachweislich kaputt - nicht waehlbar):')"
+    printf '%s\n' "$bl" | while IFS= read -r line; do printf '  X %s\n' "$line"; done
+  fi
+  printf '\n%s' "$(L 'Number + Enter (Enter = keep): ' 'Nummer + Enter (Enter = behalten): ')"; iread -r s
+  case "$s" in
+    "") [ -z "$INSTALLED_ROM" ] && INSTALLED_ROM="$sug" ;;
+    *[!0-9]*) ;;
+    *) id="$(printf '%s' "$ROM_OPTS" | sed -n "${s}p" | cut -d'|' -f1)"
+       [ -n "$id" ] && INSTALLED_ROM="$id" ;;
+  esac
+  save_rom "$INSTALLED_ROM"
+  printf '\n%s %s\n' "$(L 'Phone runs:' 'Handy laeuft mit:')" "$(rom_label "$INSTALLED_ROM")"
+  if [ -z "$INSTALLED_ROM" ] || [ "$INSTALLED_ROM" = "stock" ]; then
+    printf '%s\n' "$(L 'Rule: patch base = stock UPDATE.APP recovery image. Nothing else.' 'Regel: Patch-Basis = Stock-UPDATE.APP-Recovery. Nichts anderes.')"
+  else
+    printf '%s\n' "$(L 'RULE: your Magisk patch file MUST come from this ROM package.' 'REGEL: Deine Magisk-Patch-Datei MUSS aus diesem ROM-Paket kommen.')"
+    printf '%s\n' "$(L 'NOT from stock firmware. A stock-based patched image will NOT boot on this ROM.' 'NICHT aus der Stock-Firmware. Ein Stock-basiertes Image bootet auf diesem ROM NICHT.')"
+  fi
+}
+rom_base_image() { # newest .img under data/recovery (export output), or empty
+  local d="$DATA_DIR/recovery" best="" bt=0 f t
+  [ -d "$d" ] || return 0
+  while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    t="$(stat -c%Y "$f" 2>/dev/null || stat -f%m "$f" 2>/dev/null || printf 0)"
+    if [ "$t" -ge "$bt" ]; then bt="$t"; best="$f"; fi
+  done < <(find "$d" -type f -name '*.img' 2>/dev/null)
+  [ -n "$best" ] && printf '%s' "$best"
+  return 0
+}
+patch_base() { # single source of truth: prints source|image|label
+  if [ -z "$INSTALLED_ROM" ] || [ "$INSTALLED_ROM" = "stock" ]; then
+    printf 'stock|%s|Stock EMUI\n' "$STOCK_IMAGE"
+  else
+    printf 'rom|%s|%s\n' "$(rom_base_image)" "$(rom_label "$INSTALLED_ROM")"
+  fi
 }
 
 platform_tools_url() { # [uname_s] -> official portable zip URL (pure, testable)
@@ -983,6 +1097,7 @@ goal_screen() { # dispatch one plan step to its screen (reuse!)
     validate) screen_verify ;;
     restore|identify_original_artifact|validate_backup|rollback_plan) do_restore "" "" || true; pause_tt ;;
     custom_rom_compatibility|rom_compatibility) screen_compat ;;
+    rom_export|artifact_export) screen_export ;;
     wipe) screen_wipe ;;
     flash_system) screen_flashsystem ;;
   esac
@@ -1043,6 +1158,7 @@ menu() { # title opt1 opt2... -> prints index via REPLY_MENU (0-based), -1 on q
 status_screen() {
   header "$(L 'Status (any OS detected, nothing assumed)' 'Status (jedes OS erkannt, nichts vorausgesetzt)')"; printf '\n'
   printf 'Device profile : %s (%s)\nOS class         : %s\nOS detail        : %s\nAndroid          : %s\nMode             : %s\n' "$PROFILE_ID" "$(marketing_name)" "$OS_KIND" "$OS_DETAIL" "$OS_RELEASE" "$MODE"
+  printf 'Phone runs       : %s\n' "$(rom_label "$INSTALLED_ROM")"
   if printf '%s' "$BYNAME_RAW" | grep -q recovery_ramdisk; then printf 'RecoveryRamdisk: DETECTED\n'; else printf 'RecoveryRamdisk: UNKNOWN/NOT DETECTED\n'; fi
   printf 'Firmware         : %s\nStock image      : %s\nPatched image    : %s\nBackup           : %s\n' "${FW_BASELINE:-UNKNOWN}" "${STOCK_IMAGE:-missing}" "${PATCHED_IMAGE:-missing}" "${BACKUP_DIR:-missing}"
   pause_tt
@@ -1064,7 +1180,8 @@ screen_analyze() {
     printf '\nOS class: %s\nDetail: %s\n' "$OS_KIND" "$OS_DETAIL"
     linver="$(grep '^ro.lineage.version=' "$PROPS_FILE" | cut -d= -f2-)"
     [ -z "$linver" ] && linver="$(grep '^ro.lineageos.version=' "$PROPS_FILE" | cut -d= -f2-)"
-    [ -n "$linver" ] && printf 'LineageOS: %s (%s)\n' "$linver" "$(L 'valid starting point - stock source still needed for Magisk' 'gueltiger Startpunkt - Stock-Quelle weiter noetig fuer Magisk')"
+    [ -n "$linver" ] && printf 'LineageOS: %s\n' "$linver"
+    [ -n "$linver" ] && printf '%s\n' "$(L 'Custom ROM detected: your patch base must come from THIS ROM (recovery export), never from stock.' 'Custom-ROM erkannt: Patch-Basis muss aus DIESEM ROM kommen (Recovery-Export), niemals aus Stock.')"
     case "$OS_KIND:$OS_RELEASE" in *GSI*:13*|*GSI*:14*)
       case "$PROFILE_ID" in VTR-*|VKY-*) printf 'WARN: %s\n' "$WIKI_ANDROID13_WARN" ;; esac ;;
     esac
@@ -1080,6 +1197,16 @@ screen_analyze() {
     fastboot_analysis
     cat "$FBRAW_FILE"
   else printf '%s\n' "$(L 'No device connected.' 'Kein Geraet verbunden.')"; fi
+  load_rom
+  printf '\n'
+  if [ -z "$INSTALLED_ROM" ]; then
+    printf '%s\n' "$(L "I don't know your system yet - one question:" 'Ich kenne dein System noch nicht - eine Frage:')"
+    select_rom
+  else
+    printf '%s %s\n' "$(L 'Phone runs (saved):' 'Handy laeuft mit (gespeichert):')" "$(rom_label "$INSTALLED_ROM")"
+    printf '%s' "$(L '[C] change system  [Enter] keep: ' '[C] System aendern  [Enter] behalten: ')"; iread -r rc
+    case "$rc" in [Cc]) select_rom ;; esac
+  fi
   pause_tt
 }
 screen_firmware() {
@@ -1152,16 +1279,40 @@ screen_patch() {
     if [ -n "$p" ] && [ -f "$p" ]; then cp -f "$p" "$MAG_DIR/"; apk="$MAG_DIR/$(basename "$p")"; fi
   fi
   [ -n "$apk" ] && printf 'APK: %s\n' "$apk"
-  if [ -z "$STOCK_IMAGE" ] || [ ! -f "$STOCK_IMAGE" ]; then printf '%s\n' "$(L 'No stock image -> step 4 first.' 'Kein Stock-Image -> erst Step 4.')"; pause_tt; return; fi
-  printf 'Input: %s\nTarget: %s\nDevice: Huawei %s\nFirmware: %s\nSHA-256: %s\n' "$STOCK_IMAGE" "$(target_partition)" "$PROFILE_ID" "$FW_BASELINE" "$STOCK_SHA"
+  local base; base="$(patch_base)"
+  local bsrc="${base%%|*}"; base="${base#*|}"
+  local bimg="${base%%|*}"; local blabel="${base##*|}"
+  if [ "$bsrc" = "rom" ]; then
+    printf '\n%s %s\n' "$(L 'Phone runs:' 'Handy laeuft mit:')" "$blabel"
+    printf '%s\n' "$(L 'RULE: patch base MUST come from this ROM package. NOT from stock firmware.' 'REGEL: Patch-Basis MUSS aus diesem ROM-Paket kommen. NICHT aus Stock-Firmware.')"
+  fi
+  if [ -z "$bimg" ] || [ ! -f "$bimg" ]; then
+    if [ "$bsrc" = "rom" ]; then
+      printf '%s' "$(L 'No ROM base image yet. Open recovery export now? [Y/n]: ' 'Noch kein ROM-Basis-Image. Jetzt Recovery-Export oeffnen? [J/n]: ')"; iread -r oe
+      case "$oe" in ""|y|Y|j|J) screen_export ;;
+      esac
+      base="$(patch_base)"; bsrc="${base%%|*}"; base="${base#*|}"; bimg="${base%%|*}"; blabel="${base##*|}"
+    fi
+  fi
+  if [ -z "$bimg" ] || [ ! -f "$bimg" ]; then
+    if [ "$bsrc" = "rom" ]; then printf '%s\n' "$(L 'Still no ROM base image: put the ROM package into data/roms/ and export first.' 'Immer noch kein ROM-Basis-Image: ROM-Paket nach data/roms/ legen und erst exportieren.')"
+    else printf '%s\n' "$(L 'No stock image -> step 4 first.' 'Kein Stock-Image -> erst Step 4.')"; fi
+    pause_tt; return
+  fi
+  local bsha=""; bsha="$(printf '%s' "$(test_image "$bimg")" | cut -d'|' -f2)"
+  printf 'Input: %s\n' "$bimg"
+  printf '%s %s\n' "$(L 'Source:' 'Quelle:')" "$blabel"
+  printf 'Target: %s\nDevice: Huawei %s\nFirmware: %s\nSHA-256: %s\n' "$(target_partition)" "$PROFILE_ID" "$FW_BASELINE" "$bsha"
   printf '%s\n' "$(L '[1] Prepare patch (to-patch + instructions)  [2] Register patched file' '[1] Patch vorbereiten  [2] Gepatchte Datei registrieren')"; iread -r k
   case "$k" in
-    1) prepare_patch "$STOCK_IMAGE" >/dev/null; printf '%s\n' "$(L 'Prepared. Patch on device per data/magisk/to-patch/PATCH-INSTRUCTIONS.txt.' 'Vorbereitet. Am Geraet patchen (Anleitung in to-patch/).')" ;;
+    1) prepare_patch "$bimg" >/dev/null
+       printf '%s\n' "$(L 'Prepared. Patch on device per data/magisk/to-patch/PATCH-INSTRUCTIONS.txt.' 'Vorbereitet. Am Geraet patchen (Anleitung in to-patch/).')"
+       printf '%s %s\n' "$(L 'In the Magisk app select EXACTLY this file:' 'In der Magisk-App EXAKT diese Datei auswaehlen:')" "$(basename "$bimg")" ;;
     2) adb_run shell 'ls /sdcard/Download/magisk_patched*.img 2>&1' 2>/dev/null || true
        printf '%s' "$(L 'Path to patched file: ' 'Pfad gepatchte Datei: ')"; iread -r pp
        if [ -n "$pp" ] && [ -f "$pp" ]; then
          local t ph; t="$(test_image "$pp")"; ph="$(printf '%s' "$t" | cut -d'|' -f2)"
-         if [ "$ph" = "$STOCK_SHA" ]; then log ERROR "$(L 'ERROR: patched == stock. NO fake patch accepted.' 'FEHLER: gepatcht == Stock. KEIN Fake-Patch.')"
+         if [ -n "$bsha" ] && [ "$ph" = "$bsha" ]; then log ERROR "$(L 'ERROR: patched == base. NO fake patch accepted.' 'FEHLER: gepatcht == Basis. KEIN Fake-Patch.')"
          elif [ "${t%%|*}" = "PASS" ]; then PATCHED_IMAGE="$pp"; PATCHED_SHA="$ph"; log SUCCESS "Patched registered: $pp"
          else printf '%s\n' "$(L 'Image check FAIL.' 'Image-Pruefung FAIL.')"; fi
        fi ;;
@@ -1170,8 +1321,16 @@ screen_patch() {
 }
 screen_backup() {
   header "$(L 'Step 6 - Backup (mandatory before flash)' 'Step 6 - Backup (Pflicht vor Flash)')"; printf '\n'
-  if [ -z "$STOCK_IMAGE" ] || [ ! -f "$STOCK_IMAGE" ]; then printf '%s\n' "$(L 'No stock image -> step 4 first.' 'Kein Stock -> erst Step 4.')"; pause_tt; return; fi
-  do_backup "$STOCK_IMAGE" && printf 'Backup: %s\n' "$BACKUP_DIR"
+  local base; base="$(patch_base)"
+  local bsrc="${base%%|*}"; base="${base#*|}"
+  local bimg="${base%%|*}"; local blabel="${base##*|}"
+  if [ -z "$bimg" ] || [ ! -f "$bimg" ]; then
+    if [ "$bsrc" = "rom" ]; then printf '%s\n' "$(L 'No ROM base image -> recovery export first.' 'Kein ROM-Basis-Image -> erst Recovery-Export.')"
+    else printf '%s\n' "$(L 'No stock image -> step 4 first.' 'Kein Stock -> erst Step 4.')"; fi
+    pause_tt; return
+  fi
+  printf '%s %s\n' "$(L 'Backing up base from:' 'Sichere Basis aus:')" "$blabel"
+  do_backup "$bimg" && printf 'Backup: %s\n' "$BACKUP_DIR"
   pause_tt
 }
 screen_flash() {
@@ -1549,6 +1708,7 @@ main_menu() {
   ensure_scrcpy
   save_config
   select_target || return 1
+  load_rom
   find_tools; detect_mode
   while true; do
     menu "$(L 'Main menu - Huawei P10 Root Manager (OS-independent)' 'Hauptmenue - Huawei P10 Root Manager')" \
@@ -1576,14 +1736,66 @@ main_menu() {
     esac
   done
 }
-wizard() {
-  for s in detect analyze firmware extract patch backup flash verify; do "screen_$s"; done
+wizard() { # ROM-aware guided path: detect -> analyze (+ROM question) -> goal words -> plan with SKIPs -> run
+  load_rom
+  screen_detect
+  screen_analyze
+  if [ -z "$INSTALLED_ROM" ]; then select_rom; fi
+  local rlabel; rlabel="$(rom_label "$INSTALLED_ROM")"
+  local custom=0; [ -n "$INSTALLED_ROM" ] && [ "$INSTALLED_ROM" != "stock" ] && custom=1
+  header "$(L 'What do you want to do?' 'Was willst du tun?')"; printf '\n'
+  printf '%s %s\n\n' "$(L 'Your system:' 'Dein System:')" "$rlabel"
+  printf '%s\n' "$(L '[1] Root only (keep my system exactly as it is)' '[1] Nur Root (mein System bleibt exakt wie es ist)')"
+  printf '%s\n' "$(L '[2] Install a custom ROM / GSI' '[2] Custom-ROM / GSI installieren')"
+  printf '%s\n' "$(L '[3] Back to stock' '[3] Zurueck zu Stock')"
+  printf '%s' "$(L '[Enter] back: ' '[Enter] zurueck: ')"; iread -r gk
+  local steps="" skipped="" goal=""
+  case "$gk" in
+    1) goal="$(L 'Root only' 'Nur Root')"
+       if [ "$custom" = 1 ]; then
+         steps="screen_export screen_patch screen_backup screen_flash screen_verify"
+         skipped="$(L 'stock firmware search/download - not needed, base comes from ' 'Stock-Firmware-Suche/Download - nicht noetig, Basis kommt aus ')$rlabel|$(L 'stock UPDATE.APP extract - not needed' 'Stock-UPDATE.APP-Extrakt - nicht noetig')"
+       else
+         steps="screen_firmware screen_extract screen_patch screen_backup screen_flash screen_verify"
+       fi ;;
+    2) goal="$(L 'Install custom ROM' 'Custom-ROM installieren')"
+       steps="screen_compat screen_flashsystem screen_verify"
+       skipped="$(L 'root/patch/flash - run wizard again with [1] afterwards for root' 'Root/Patch/Flash - danach Wizard erneut mit [1] starten falls Root gewuenscht')" ;;
+    3) goal="$(L 'Back to stock' 'Zurueck zu Stock')"
+       steps="screen_firmware screen_reinstall"
+       skipped="$(L 'Magisk patch/flash - stock return needs no root steps' 'Magisk-Patch/Flash - Stock-Rueckweg braucht keine Root-Steps')" ;;
+    *) return ;;
+  esac
+  header "$(L 'Your path:' 'Dein Weg:') $rlabel -> $goal"; printf '\n'
+  local n=1 s
+  for s in $steps; do
+    case "$s" in
+      screen_firmware) printf ' [%d] %s\n' "$n" "$(L 'Stock firmware (find + download)' 'Stock-Firmware (finden + laden)')" ;;
+      screen_extract) printf ' [%d] %s\n' "$n" "$(L 'Extract stock recovery image' 'Stock-Recovery-Image extrahieren')" ;;
+      screen_export) printf ' [%d] %s\n' "$n" "$(L 'Get patch base from YOUR rom package' 'Patch-Basis aus DEINEM ROM-Paket holen')" ;;
+      screen_patch) printf ' [%d] %s\n' "$n" "$(L 'Magisk patch (on your phone)' 'Magisk-Patch (an deinem Handy)')" ;;
+      screen_backup) printf ' [%d] %s\n' "$n" "$(L 'Backup' 'Backup')" ;;
+      screen_flash) printf ' [%d] %s\n' "$n" "$(L 'Flash + safety gate' 'Flash + Safety-Gate')" ;;
+      screen_verify) printf ' [%d] %s\n' "$n" "$(L 'Reboot + verify root' 'Reboot + Root verify')" ;;
+      screen_compat) printf ' [%d] %s\n' "$n" "$(L 'Check ROM compatibility' 'ROM-Kompatibilitaet pruefen')" ;;
+      screen_flashsystem) printf ' [%d] %s\n' "$n" "$(L 'Install ROM image' 'ROM-Image installieren')" ;;
+      screen_reinstall) printf ' [%d] %s\n' "$n" "$(L 'Stock return guide' 'Stock-Rueckweg-Anleitung')" ;;
+    esac
+    n=$((n+1))
+  done
+  local old_ifs="$IFS"; IFS='|'
+  for s in $skipped; do [ -n "$s" ] && printf ' [SKIP] %s\n' "$s"; done
+  IFS="$old_ifs"
+  printf '\n%s' "$(L 'Run now? [Y/n]: ' 'Jetzt starten? [J/n]: ')"; iread -r yn
+  case "$yn" in ""|y|Y|j|J) ;; *) return ;; esac
+  for s in $steps; do "$s" || true; done
+  log SUCCESS "$(L 'Wizard path completed: ' 'Wizard-Weg fertig: ')$goal"
 }
 
 # ---------------------------------------------------------------- CLI
 show_help() {
   printf 'Huawei P10 Root Manager v%s\n' "$TTVERSION"
-  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
+  printf 'Usage: treble-toolkit.sh [detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|rom|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help] [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]\n'
   printf '%s\n' "$(L 'No args: TUI. Download/flash/restore need --yes.' 'Ohne Args: TUI. Download/Flash/Restore brauchen --yes.')"
 }
 CMD=""; JSON=""; YES=""; IMAGE=""; FWFILE=""; ANON=""; NOREBOOT=""; RUNMODE="safe"; GOAL=""
@@ -1597,9 +1809,12 @@ for a in "$@"; do
     continue
   fi
   case "$a" in
-    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
+    detect|devices|analyze|firmware|download|extract|export|patch|backup|flash|flash-system|twrp|root-methods|compat|persist|validate|verify|restore|wipe|reinstall|rom|diagnostic|dump-partitions|dump-properties|dump-vendor|dump-logs|preflight|recon|status|workflow|resume|root|setup|wizard|help) [ -z "$CMD" ] && CMD="$a" ;;
     --json) JSON=1 ;; --yes) YES=1 ;; --anonymize) ANON=1 ;; --no-reboot) NOREBOOT=1 ;;
     --mode|--goal|--image|--firmware-file) WANTVAL="$a" ;;
+    *) if [ "$CMD" = "rom" ]; then
+         if [ -z "${ROMARG:-}" ]; then ROMARG="$a"; else ROMVAL="$a"; fi
+       fi ;;
   esac
 done
 RUNMODE="$(resolve_mode "$RUNMODE_REQ")"
@@ -1732,7 +1947,24 @@ case "$CMD" in
   status)
     if preflight >/dev/null 2>&1; then pf=true; else pf=false; fi
     g=""; [ -f "$(state_file)" ] && g="$(read_state_goal 2>/dev/null || true)"
-    printf '{"preflight_go":%s,"adb":"%s","fastboot":"%s","mode":"%s","run_mode":"%s","goal":"%s"}\n' "$pf" "$ADB_STATE" "$FB_STATE" "$MODE" "$RUNMODE" "$g" ;;
+    load_rom
+    printf '{"preflight_go":%s,"adb":"%s","fastboot":"%s","mode":"%s","installed_rom":"%s","run_mode":"%s","goal":"%s"}\n' "$pf" "$ADB_STATE" "$FB_STATE" "$MODE" "$INSTALLED_ROM" "$RUNMODE" "$g" ;;
+  rom)
+    load_rom
+    case "${ROMARG:-}" in
+      list) rom_options | awk -F'|' '{printf "%d. %s [%s]\n", NR, $2, $1}' ;;
+      set) if [ -n "${ROMVAL:-}" ]; then
+             case "$ROMVAL" in
+               *[!0-9]*) save_rom "$ROMVAL" ;;
+               *) _rid="$(rom_options | sed -n "${ROMVAL}p" | cut -d'|' -f1)"
+                  if [ -n "$_rid" ]; then save_rom "$_rid"; else printf 'Unknown number.\n'; exit 3; fi ;;
+             esac
+             printf 'Phone runs: %s\n' "$(rom_label "$INSTALLED_ROM")"
+           else printf 'rom set needs a value (number from rom list, or id).\n'; exit 3; fi ;;
+      clear) save_rom ""; printf 'Installed ROM cleared.\n' ;;
+      *) if [ -n "$JSON" ]; then printf '{"installed_rom":"%s","label":"%s"}\n' "$INSTALLED_ROM" "$(rom_label "$INSTALLED_ROM")"
+         else printf 'Phone runs: %s [%s]\n' "$(rom_label "$INSTALLED_ROM")" "$INSTALLED_ROM"; fi ;;
+    esac ;;
   workflow)
     g="${GOAL:-}"
     if [ -z "$g" ] || [ -z "$(goal_steps "$g")" ]; then printf 'Unknown goal. Known: root custom_rom stock_rom root_custom_rom root_stock_rom root_custom_rom_recovery root_stock_rom_recovery restore_original full_reinstall\n'; exit 1; fi

@@ -28,8 +28,12 @@ cd /path/to/trebleManager
 ./scripts/treble-toolkit.sh
 ```
 
-Follow the wizard: **Detect → Analyze → Firmware → Extract → Patch → Backup →
-Flash → Reboot+Verify**.
+Follow the wizard: **Detect → Analyze (says which system is on your phone) →
+your goal in plain words → plan with visible `[SKIP]`s → run.**
+Stock path: Firmware → Extract → Patch → Backup → Flash → Reboot+Verify.
+Custom-ROM path: ROM package → Recovery export → Patch → Backup → Flash →
+Reboot+Verify (stock firmware steps are skipped — your patch base MUST come
+from your ROM, never from stock).
 
 ## 3. What you need in hand
 

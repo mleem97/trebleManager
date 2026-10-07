@@ -1,5 +1,11 @@
 # Changelog — trebleManager
 
+## v2.14.0
+
+- Installed-ROM question: wizard/analyze ask which system is on the phone (Stock EMUI, supported registry ROM, other; researched-broken shown but not selectable), persisted in `data/installed-rom.txt`, shown in header/status/CLI (`rom`, `rom list/set/clear`)
+- Patch-base rule enforced: custom ROMs patch ONLY from their own ROM package (recovery export), with unmistakable red rule boxes; backup/restore/fake-patch check use the same base; fixed wrong "stock source still needed" hint
+- ROM-aware wizard: goal in plain words (root only / install ROM / back to stock), inapplicable steps shown as `[SKIP]` with reasons instead of running
+
 ## v2.13.2
 
 - Bootstrap no longer needs the GitHub API in the normal path (fixes persistent 403s from missing UA or rate limits): tools fetch their own version's ZIP directly, tests/launchers read raw `VERSION`, API stays only as fallback; shared `bootstrap_fetch`/`Get-BootstrapReleaseFile` helpers
