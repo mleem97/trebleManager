@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.12.2-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.13.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -191,6 +191,19 @@ First run on a fresh machine: use `Setup-TrebleToolkit.bat` once (auto-UAC,
 execution policy, installs ADB/fastboot + optional scrcpy into user PATH,
 saves `data/config.json`). The central starter offers this automatically.
 
+### Test suites online (same mechanism, zero files)
+
+```powershell
+irm https://raw.githubusercontent.com/mleem97/trebleManager/main/tests/Test-Parsers.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/tests/test-parsers.sh | bash
+```
+
+Both suites self-bootstrap (full ZIP, SHA256-verified) and run from it —
+parsers, firmware/OS checks, flash-verdict, launcher and version checks.
+
 ## Download (offline ZIP — step by step)
 
 For machines without GitHub access (USB-stick transfer).
@@ -222,6 +235,7 @@ next to `adb.exe` and double-click it.
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
+- [`release/v2.13.0`](https://github.com/mleem97/trebleManager/tree/release/v2.13.0) ([tag `v2.13.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.13.0))
 - [`release/v2.12.2`](https://github.com/mleem97/trebleManager/tree/release/v2.12.2) ([tag `v2.12.2`](https://github.com/mleem97/trebleManager/releases/tag/v2.12.2))
 - [`release/v2.12.1`](https://github.com/mleem97/trebleManager/tree/release/v2.12.1) ([tag `v2.12.1`](https://github.com/mleem97/trebleManager/releases/tag/v2.12.1))
 - [`release/v2.12.0`](https://github.com/mleem97/trebleManager/tree/release/v2.12.0) ([tag `v2.12.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.12.0))

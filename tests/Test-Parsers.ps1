@@ -4,7 +4,50 @@
   Unit + Integration Tests (simulierte Command-Ausgaben).
   Gilt NICHT fuer Produktionsworkflow (dort keine Mocks, nur echte Geraete).
   Start: powershell -ExecutionPolicy Bypass -File tests/Test-Parsers.ps1
+  Online: irm https://raw.githubusercontent.com/mleem97/trebleManager/main/tests/Test-Parsers.ps1 | iex
 #>
+
+# Online run (irm|iex): without repo layout fetch the FULL release ZIP
+# (same trust root) and run the suite from it. Guard prevents loops.
+if (-not $env:TT_TEST_BOOTSTRAPPED) {
+  $__r = $MyInvocation.MyCommand.Path
+  if ([string]::IsNullOrEmpty($__r)) { $__r = (Get-Location).Path } else { $__r = Split-Path -Parent (Split-Path -Parent $__r) }
+  if (-not ((Test-Path (Join-Path $__r "VERSION")) -and (Test-Path (Join-Path $__r "scripts/Treble-Toolkit.ps1")))) {
+    Write-Host "Test suite without layout - fetching full release ZIP ..." -ForegroundColor Cyan
+    try {
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      $__wc = New-Object Net.WebClient
+      $__tag = ([string](($__wc.DownloadString("https://api.github.com/repos/mleem97/trebleManager/releases/latest") | ConvertFrom-Json).tag_name)).Trim()
+      if ([string]::IsNullOrEmpty($__tag)) { throw "empty release tag" }
+      $__base = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "trebleManager"
+      if (-not (Test-Path $__base)) { New-Item -ItemType Directory -Path $__base -Force | Out-Null }
+      $__dest = Join-Path $__base $__tag
+      $__target = Join-Path $__dest "tests/Test-Parsers.ps1"
+      if (-not (Test-Path $__target)) {
+        $__zip = Join-Path $__base ("trebleManager-" + $__tag + ".zip")
+        $__wc.DownloadFile("https://github.com/mleem97/trebleManager/releases/download/" + $__tag + "/trebleManager-" + $__tag + ".zip", $__zip)
+        $__sha = ""
+        try { $__sha = (([string]$__wc.DownloadString("https://github.com/mleem97/trebleManager/releases/download/" + $__tag + "/trebleManager-" + $__tag + ".zip.sha256") -split '\s+')[0]).Trim().ToUpper() } catch {}
+        if ($__sha -ne "") {
+          $__act = (Get-FileHash $__zip -Algorithm SHA256).Hash.ToUpper()
+          if ($__sha -ne $__act) { Remove-Item $__zip -Force; throw "SHA256 MISMATCH, deleted, aborting" }
+          Write-Host "SHA256 OK." -ForegroundColor Green
+        }
+        if (-not (Test-Path $__dest)) { New-Item -ItemType Directory -Path $__dest -Force | Out-Null }
+        Expand-Archive -Path $__zip -DestinationPath $__dest -Force
+      }
+      if (Test-Path $__target) {
+        $env:TT_TEST_BOOTSTRAPPED = "1"
+        $__exe = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        & $__exe -NoProfile -ExecutionPolicy Bypass -File $__target
+        exit $LASTEXITCODE
+      }
+      Write-Host "WARN: test bootstrap failed." -ForegroundColor Yellow
+    } catch { Write-Host ("WARN: test bootstrap failed (" + $_.Exception.Message + ")") -ForegroundColor Yellow }
+  }
+  Remove-Variable __r,__wc,__tag,__base,__dest,__target,__zip,__sha,__act,__exe -ErrorAction SilentlyContinue
+}
+
 $ErrorActionPreference = "Stop"
 $Fail = 0
 $Pass = 0

@@ -1,5 +1,9 @@
 # Changelog — trebleManager
 
+## v2.13.0
+
+- Test suites run online: `Test-Parsers.ps1` (`irm ... | iex`) and `test-parsers.sh` (`curl ... | bash`) self-bootstrap the full SHA256-verified release ZIP and run from it (loop-guarded, mismatch aborts); README documents both one-liners
+
 ## v2.12.2
 
 - Fixed faulty flash verdicts (all 8 flash/erase sites, PS1+bash): new `Get-FlashVerdict`/`flash_verdict` evaluator — FAILED lines veto everything, progress words (Writing/Erasing) alone are NOT success, OK requires OKAY + Finished line; screen now shows `FLASH RESULT: OK/FAILED/UNCLEAR` with OKAY count, total time, failing lines + cause hints (full raw output stays in the log)

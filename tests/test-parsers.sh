@@ -6,6 +6,51 @@ PASS=0; FAIL=0
 ok() { PASS=$((PASS+1)); printf '[PASS] %s\n' "$1"; }
 bad() { FAIL=$((FAIL+1)); printf '[FAIL] %s\n' "$1"; }
 
+# Online run (curl|bash): without repo layout fetch the FULL release ZIP
+# (same trust root) and run the suite from it. Guard prevents loops.
+if [ -z "${TT_TEST_BOOTSTRAPPED:-}" ]; then
+  _BSSRC0="${BASH_SOURCE[0]:-}"
+  if [ -n "$_BSSRC0" ] && [ -f "$_BSSRC0" ]; then
+    _TROOT="$(cd "$(dirname "$_BSSRC0")/.." && pwd)"
+  else
+    _TROOT="$(pwd)"
+  fi
+  if [ ! -f "$_TROOT/VERSION" ] || [ ! -f "$_TROOT/scripts/treble-toolkit.sh" ]; then
+    echo "Test suite without layout - fetching full release ZIP ..."
+    _tbase="${XDG_DATA_HOME:-$HOME/.local/share}/trebleManager"
+    mkdir -p "$_tbase" 2>/dev/null
+    _ttag="$(curl -fsSL https://api.github.com/repos/mleem97/trebleManager/releases/latest 2>/dev/null | grep -m1 '"tag_name"' | cut -d'"' -f4)"
+    _tdone=""
+    if [ -n "$_ttag" ]; then
+      _tdest="$_tbase/$_ttag"
+      if [ ! -f "$_tdest/tests/test-parsers.sh" ]; then
+        _tzip="$_tbase/trebleManager-$_ttag.zip"
+        if curl -fsSL -o "$_tzip" "https://github.com/mleem97/trebleManager/releases/download/$_ttag/trebleManager-$_ttag.zip" 2>/dev/null; then
+          if curl -fsSL -o "$_tzip.sha256" "https://github.com/mleem97/trebleManager/releases/download/$_ttag/trebleManager-$_ttag.zip.sha256" 2>/dev/null; then
+            _texp="$(awk '{print $1}' "$_tzip.sha256" 2>/dev/null | tr 'a-z' 'A-Z')"
+            _tact="$(sha256sum "$_tzip" 2>/dev/null | awk '{print $1}' | tr 'a-z' 'A-Z')"
+            if [ -z "$_tact" ]; then _tact="$(shasum -a 256 "$_tzip" 2>/dev/null | awk '{print $1}' | tr 'a-z' 'A-Z')"; fi
+            if [ -n "$_texp" ] && [ "$_texp" != "$_tact" ]; then echo "ERROR: SHA256 MISMATCH - deleted, aborting."; rm -f "$_tzip"; _texp="MISMATCH"; fi
+          fi
+          if [ "${_texp:-}" != "MISMATCH" ]; then
+            mkdir -p "$_tdest" 2>/dev/null
+            if command -v unzip >/dev/null 2>&1; then unzip -qo "$_tzip" -d "$_tdest" 2>/dev/null
+            else python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$_tzip" "$_tdest" 2>/dev/null; fi
+          fi
+        fi
+      fi
+      if [ -f "$_tdest/tests/test-parsers.sh" ]; then
+        export TT_TEST_BOOTSTRAPPED=1
+        bash "$_tdest/tests/test-parsers.sh"
+        exit $?
+      fi
+    fi
+    echo "ERROR: test bootstrap failed (offline?) - cannot run without layout."
+    exit 1
+  fi
+  unset _BSSRC0 _TROOT _tbase _ttag _tdest _tzip _texp _tact _tdone
+fi
+
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)/treble-toolkit.sh"
 
 # Extract function bodies by brace balancing and source them (pure funcs only).
@@ -146,6 +191,9 @@ grep -q "Instant Execute" "$ROOT_D/README.md" && ok "readme instant execute" || 
 grep -q "certutil -hashfile" "$ROOT_D/README.md" && ok "readme cmd verify" || bad "readme cmd verify"
 grep -q "Run-FromGitHub.bat" "$ROOT_D/README.md" && ok "readme cmd one-liner" || bad "readme cmd one-liner"
 grep -q "sha256sum -c" "$ROOT_D/README.md" && ok "readme linux verify" || bad "readme linux verify"
+grep -q "TT_TEST_BOOTSTRAPPED" "$ROOT_D/tests/test-parsers.sh" && ok "bash tests self-bootstrap" || bad "bash tests self-bootstrap"
+grep -q "TT_TEST_BOOTSTRAPPED" "$ROOT_D/tests/Test-Parsers.ps1" && ok "ps1 tests self-bootstrap" || bad "ps1 tests self-bootstrap"
+grep -q "Test-Parsers.ps1 | iex" "$ROOT_D/README.md" && ok "readme online tests" || bad "readme online tests"
 grep -q "TT_BOOTSTRAPPED" "$ROOT_D/scripts/treble-toolkit.sh" && ok "bash self-bootstrap" || bad "bash self-bootstrap"
 grep -q "TT_BOOTSTRAPPED" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 self-bootstrap" || bad "ps1 self-bootstrap"
 grep -q "SHA256 MISMATCH" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 bootstrap aborts on mismatch" || bad "ps1 bootstrap aborts on mismatch"
