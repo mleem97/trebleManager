@@ -63,3 +63,23 @@ across the migration.
 Unknown is never compatible. No automatic unlock/wipe/format, no force or
 verity-disable flags, no foreign patched images, no fake success paths.
 New version = new immutable release (see [RELEASE.md](RELEASE.md)).
+
+## 8. Pre-Rust era (v2.1.0 – v2.17.x)
+
+Releases up to and including v2.17.x are script-only (PowerShell 5.1+,
+bash, BAT launchers) with no Rust dependency and no cargo requirement.
+Their documented behavior (wizard steps, safety gates, registries, CLI,
+diagnostics) is frozen and stays valid; PORTING.md scores them as the
+migration baseline (0 % = script reference, not a defect). Rust code
+(`core/`, `gsi-root/`) ships from v2.18.0 on, strictly additive — no
+script behavior was removed or altered to accommodate it.
+
+### Deutsch
+
+Releases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+,
+bash, BAT-Launcher) ohne Rust-Abhängigkeit und ohne Cargo-Pflicht. Ihr
+dokumentiertes Verhalten (Wizard-Steps, Safety-Gates, Registries, CLI,
+Diagnostik) ist eingefroren und bleibt gültig; PORTING.md wertet sie als
+Migrations-Basis (0 % = Script-Referenz, kein Mangel). Rust-Code (`core/`,
+`gsi-root/`) liegt ab v2.18.0 bei, strikt additiv — kein Script-Verhalten
+wurde dafür entfernt oder verändert.

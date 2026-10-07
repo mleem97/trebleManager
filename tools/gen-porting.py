@@ -359,6 +359,16 @@ def main():
         "kein Funktionsinventar) bleiben per Spec §4 dauerhaft Script. "
         "Stand: v" + (ROOT / "VERSION").read_text(encoding="utf-8").strip() + ".\n"
     )
+    out.append(
+        "\n## Pre-Rust-Ära (v2.1.0 – v2.17.x) / pre-Rust era\n"
+        "\nReleases bis einschließlich v2.17.x sind script-only (PowerShell 5.1+, "
+        "bash, BAT-Launcher) ohne Rust und ohne Cargo-Pflicht. Ihr dokumentiertes "
+        "Verhalten (Wizard, Safety-Gates, Registries, CLI, Diagnostik) ist "
+        "eingefroren und bleibt gültig — 0 % in den Tabellen unten ist dort die "
+        "Script-Referenz, kein Mangel. Releases up to and including v2.17.x are "
+        "script-only with no Rust dependency; their documented behavior stays "
+        "valid as-is.\n"
+    )
     navg = (tsum / total) if total else 0
     out.append(f"## Gesamt: {total} Script-Funktionen, {len(rust_fns)} Rust-`pub fn`, Schnitt {navg:.0f} %\n")
     out.append("\n> Interaktive TUI-Anteile (0 %) wandern in die Slint-GUI (Phase 9), nicht 1:1.\n")
@@ -377,6 +387,38 @@ def main():
     out.append("\n`pub fn` insgesamt: %d (treble_core + gsi-root-Crates + gsi-device/parse, gsi-fs, gsi-tool, gsi-update, gsi-workflow, gsi-config).\n" % len(rust_fns))
     (ROOT / "PORTING.md").write_text("".join(out), encoding="utf-8")
     print(f"wrote PORTING.md: {total} functions, avg {navg:.0f} %, {len(rust_fns)} rust fns")
+
+    # ---- TASKS.md: open tasks derived from the same statuses ----
+    order = ["Archiv/Export", "Logik/State/Planung", "Device-Ausfuehrung",
+             "Download", "Pure Tests/Pruefer", "Bootstrap-Logik",
+             "TUI/interaktiv", "Sonstiges"]
+    t = []
+    t.append("# Offene Portierungs-Tasks (aus PORTING.md generiert)\n")
+    t.append(GENERATED_NOTE.replace("PORTING.md", "TASKS.md"))
+    t.append(
+        "Jeder offene Task = eine Script-Funktion mit Status < 100 %.\n"
+        "Reihenfolge = Abhängigkeiten zuerst (Archive/Registry, dann Flows,\n"
+        "dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.\n"
+    )
+    n_open = 0
+    areas_ordered = [a for a in order if a in by_area] + sorted(
+        [a for a in by_area if a not in order])
+    for area in areas_ordered:
+        items = [(s, n, r, st, no) for (s, n, r, st, no) in by_area[area]
+                 if isinstance(st, int) and st < 100]
+        if not items:
+            continue
+        # nearly-done first within each area
+        items.sort(key=lambda r: -r[3])
+        t.append(f"\n## {area} — {len(items)} offen\n")
+        for shell, name, rust, st, note in items:
+            extra = f" — {note}" if note else ""
+            t.append(f"\n- [ ] `{name}` ({shell}, {st} %){extra}")
+        t.append("\n")
+        n_open += len(items)
+    t.append(f"\nOffen gesamt: {n_open} von {total} Funktionen.\n")
+    (ROOT / "TASKS.md").write_text("".join(t), encoding="utf-8")
+    print(f"wrote TASKS.md: {n_open} open tasks")
 
 
 if __name__ == "__main__":

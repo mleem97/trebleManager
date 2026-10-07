@@ -267,6 +267,20 @@ next to `adb.exe` and double-click it.
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
+### Pre-Rust era (script-only, still valid)
+
+Versions **v2.1.0 – v2.17.x** contain no Rust: pure PowerShell 5.1+/bash,
+no cargo needed, runs anywhere the scripts run. Everything documented for
+those versions (wizard, patch/flash/restore flows, registries, CLI) stays
+valid as-is. Pick a pre-Rust release if you want zero toolchain beyond
+adb/fastboot.
+
+Versionen **v2.1.0 – v2.17.x** enthalten kein Rust: reines PowerShell
+5.1+/bash, kein Cargo nötig, läuft überall wo die Scripts laufen. Alles für
+diese Versionen Dokumentierte (Wizard, Patch-/Flash-/Restore-Flows,
+Registries, CLI) bleibt unverändert gültig. Pre-Rust-Release wählen, wenn
+außer adb/fastboot keine Toolchain gewünscht ist.
+
 - [`release/v2.22.0`](https://github.com/mleem97/trebleManager/tree/release/v2.22.0) ([tag `v2.22.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.22.0))
 - [`release/v2.21.0`](https://github.com/mleem97/trebleManager/tree/release/v2.21.0) ([tag `v2.21.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.21.0))
 - [`release/v2.20.0`](https://github.com/mleem97/trebleManager/tree/release/v2.20.0) ([tag `v2.20.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.20.0))
