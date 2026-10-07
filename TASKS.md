@@ -4,51 +4,52 @@ Jeder offene Task = eine Script-Funktion mit Status < 100 %.
 Reihenfolge = Abhängigkeiten zuerst (Archive/Registry, dann Flows,
 dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 
-## Archiv/Export — 7 offen
+## Archiv/Export — 5 offen
 
+- [ ] `Expand-TTRomArchive` (PowerShell, 70 %) — zip extract open
+- [ ] `Export-RecoveryFromRom` (PowerShell, 40 %) — write/repack + device glue open
+- [ ] `export_recovery` (Bash, 40 %)
 - [ ] `Invoke-TTUpdateAppAnalysis` (PowerShell, 20 %) — Refusal-Logik portierbar, Dekomprimierung braucht Archive-Crate
-- [ ] `Export-RecoveryFromRom` (PowerShell, 5 %) — refusal logic portable anytime
-- [ ] `export_recovery` (Bash, 5 %)
-- [ ] `Expand-TTGzipImage` (PowerShell, 0 %)
-- [ ] `Expand-TTRomArchive` (PowerShell, 0 %) — tar.exe/python today
-- [ ] `Expand-TTXzImage` (PowerShell, 0 %)
-- [ ] `zip_entries` (Bash, 0 %)
+- [ ] `zip_entries` (Bash, 20 %)
 
-## Logik/State/Planung — 62 offen
+## Logik/State/Planung — 55 offen
 
+- [ ] `Get-RomOptions` (PowerShell, 90 %)
+- [ ] `rom_options` (Bash, 90 %) — listing UI stays script/GUI
 - [ ] `install_base_dir` (Bash, 80 %) — logic ported, tool-linking not
+- [ ] `profile_gsi_advice` (Bash, 80 %) — advice text stays script
 - [ ] `rom_broken` (Bash, 80 %)
 - [ ] `Get-TTScriptRoot` (PowerShell, 70 %) — same rule, different API
 - [ ] `Load-InstalledRom` (PowerShell, 70 %) — no dedicated fn
 - [ ] `Save-InstalledRom` (PowerShell, 70 %) — no dedicated fn
 - [ ] `Test-TTAdmin` (PowerShell, 70 %) — not ported yet
 - [ ] `load_rom` (Bash, 70 %)
+- [ ] `resolver_entries` (Bash, 70 %) — chain glue stays script
 - [ ] `save_rom` (Bash, 70 %)
 - [ ] `Find-LocalSystemImage` (PowerShell, 60 %)
 - [ ] `Find-TTRecoveryImage` (PowerShell, 60 %)
 - [ ] `Find-TTRomBaseImage` (PowerShell, 60 %)
-- [ ] `Get-RomOptions` (PowerShell, 60 %)
 - [ ] `Test-RecoveryImageFile` (PowerShell, 60 %) — size policy open
 - [ ] `Test-SystemImageFile` (PowerShell, 60 %)
 - [ ] `goal_screen` (Bash, 60 %)
 - [ ] `rom_base_image` (Bash, 60 %)
-- [ ] `rom_options` (Bash, 60 %) — listing UI stays script/GUI
 - [ ] `Get-InstalledRomFile` (PowerShell, 50 %)
 - [ ] `Get-TTToolRoot` (PowerShell, 50 %)
 - [ ] `Get-WorkflowStateFile` (PowerShell, 50 %)
+- [ ] `profile_verified` (Bash, 50 %)
 - [ ] `rom_file` (Bash, 50 %)
 - [ ] `state_file` (Bash, 50 %)
-- [ ] `Get-RomEntry` (PowerShell, 40 %)
 - [ ] `New-WorkflowPlan` (PowerShell, 40 %) — planner logic open
 - [ ] `Read-WorkflowState` (PowerShell, 40 %) — full state open
 - [ ] `Write-WorkflowState` (PowerShell, 40 %)
-- [ ] `rom_entry_gsi` (Bash, 40 %) — no gsi-registry crate yet
+- [ ] `profile_variant` (Bash, 40 %)
 - [ ] `save_config` (Bash, 40 %) — tool-path JSON open
 - [ ] `Write-ValidationReport` (PowerShell, 30 %)
 - [ ] `goal_steps` (Bash, 30 %)
 - [ ] `run_goal` (Bash, 30 %)
 - [ ] `target_partition` (Bash, 30 %) — Einzelfall pruefen
 - [ ] `Get-OSClassification` (PowerShell, 20 %)
+- [ ] `Get-RomImageEntries` (PowerShell, 20 %) — zip list open
 - [ ] `Invoke-FailureFlow` (PowerShell, 20 %) — no flow runner
 - [ ] `Save-RootState` (PowerShell, 20 %) — slot pattern exists in gsi-device
 - [ ] `Write-TTLog` (PowerShell, 20 %)
@@ -60,23 +61,13 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `Get-PreferredRootMethod` (PowerShell, 10 %)
 - [ ] `Invoke-TTSelfElevate` (PowerShell, 10 %) — UAC stays OS-side
 - [ ] `Test-StepGate` (PowerShell, 10 %)
-- [ ] `profile_gsi_advice` (Bash, 10 %)
-- [ ] `profile_variant` (Bash, 10 %)
-- [ ] `profile_verified` (Bash, 10 %)
 - [ ] `root_method_ids` (Bash, 10 %)
 - [ ] `root_method_name` (Bash, 10 %)
 - [ ] `step_gate` (Bash, 10 %)
-- [ ] `Get-ResolverSystems` (PowerShell, 0 %)
-- [ ] `Get-ResolverVariants` (PowerShell, 0 %)
-- [ ] `Get-RomImageEntries` (PowerShell, 0 %)
-- [ ] `Get-TargetAndroidVersions` (PowerShell, 0 %)
-- [ ] `Get-TargetConfig` (PowerShell, 0 %)
 - [ ] `Get-VendorAdvice` (PowerShell, 0 %)
 - [ ] `Invoke-TTFirstRun` (PowerShell, 0 %)
 - [ ] `Invoke-TTRootVerification` (PowerShell, 0 %)
-- [ ] `resolver_entries` (Bash, 0 %)
 - [ ] `select_target` (Bash, 0 %)
-- [ ] `target_androids` (Bash, 0 %)
 - [ ] `vendor_advice` (Bash, 0 %)
 
 ## Device-Ausfuehrung — 58 offen
@@ -99,10 +90,11 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `fb_flash` (Bash, 50 %)
 - [ ] `fb_run` (Bash, 50 %)
 - [ ] `link_into_tools` (Bash, 50 %)
+- [ ] `Get-PatchBase` (PowerShell, 40 %) — rule fn open
+- [ ] `patch_base` (Bash, 40 %)
 - [ ] `Get-DeviceStates` (PowerShell, 30 %) — parsers done, state machine open
 - [ ] `add_to_path` (Bash, 30 %) — generic PATH mgmt open
 - [ ] `device_states` (Bash, 30 %)
-- [ ] `Get-PatchBase` (PowerShell, 20 %)
 - [ ] `Get-TTFirmwareBaseline` (PowerShell, 20 %)
 - [ ] `Install-PersistFixes` (PowerShell, 20 %)
 - [ ] `Invoke-GuidedWipe` (PowerShell, 20 %)
@@ -113,7 +105,6 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `do_restore` (Bash, 20 %)
 - [ ] `guided_wipe` (Bash, 20 %)
 - [ ] `install_persist_fixes` (Bash, 20 %)
-- [ ] `patch_base` (Bash, 20 %)
 - [ ] `platform_tools_url` (Bash, 20 %) — URLs only in scripts
 - [ ] `safe_flash` (Bash, 20 %)
 - [ ] `system_flash` (Bash, 20 %)
@@ -140,28 +131,26 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `validate_device` (Bash, 0 %)
 - [ ] `verify_root` (Bash, 0 %)
 
-## Download — 12 offen
+## Download — 10 offen
 
 - [ ] `download_file` (Bash, 70 %)
 - [ ] `Find-TTMagiskApk` (PowerShell, 50 %)
 - [ ] `magisk_apk` (Bash, 50 %)
+- [ ] `Invoke-RomDownload` (PowerShell, 40 %)
+- [ ] `download_rom` (Bash, 40 %)
 - [ ] `Invoke-MagiskDownload` (PowerShell, 30 %)
-- [ ] `Invoke-RomDownload` (PowerShell, 30 %)
 - [ ] `download_magisk` (Bash, 30 %)
-- [ ] `download_rom` (Bash, 30 %)
 - [ ] `Get-TTMagiskInfo` (PowerShell, 20 %)
-- [ ] `rom_downloads` (Bash, 10 %)
 - [ ] `Get-MagiskStable` (PowerShell, 0 %)
-- [ ] `Get-RomDownloads` (PowerShell, 0 %)
 - [ ] `magisk_stable` (Bash, 0 %)
 
 ## Pure Tests/Pruefer — 5 offen
 
 - [ ] `Get-FileHashInfo` (PowerShell, 90 %) — sha512 missing
 - [ ] `file_hash` (Bash, 90 %)
+- [ ] `Test-RomAgainstRegistry` (PowerShell, 80 %) — gate wiring stays script
 - [ ] `test_image` (Bash, 60 %)
 - [ ] `test_system_image` (Bash, 60 %)
-- [ ] `Test-RomAgainstRegistry` (PowerShell, 10 %)
 
 ## Bootstrap-Logik — 2 offen
 
@@ -170,16 +159,16 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 
 ## TUI/interaktiv — 92 offen
 
+- [ ] `Get-CompatRegistry` (PowerShell, 90 %) — watch/policy UI stays script
+- [ ] `compat_broken_markers` (Bash, 90 %)
+- [ ] `compat_firmware_base` (Bash, 90 %)
+- [ ] `compat_roms` (Bash, 90 %) — policy UI stays script
 - [ ] `Show-FlashVerdict` (PowerShell, 80 %) — ttcore prints verdicts
-- [ ] `compat_file` (Bash, 50 %) — path only, no query layer
+- [ ] `compat_file` (Bash, 60 %) — profile discovery stays script
 - [ ] `Get-GoalSteps` (PowerShell, 30 %) — generic goals open
 - [ ] `Start-GoalWorkflow` (PowerShell, 30 %) — executes safe steps, refuses rest
 - [ ] `Test-FirmwareCompatibility` (PowerShell, 20 %)
 - [ ] `firmware_compat` (Bash, 20 %)
-- [ ] `Get-CompatRegistry` (PowerShell, 10 %) — no gsi-registry crate yet
-- [ ] `compat_broken_markers` (Bash, 10 %)
-- [ ] `compat_firmware_base` (Bash, 10 %)
-- [ ] `compat_roms` (Bash, 10 %)
 - [ ] `L` (PowerShell, 0 %)
 - [ ] `Pause-TT` (PowerShell, 0 %)
 - [ ] `Screen-Analyze` (PowerShell, 0 %) — GUI Phase 9 (Slint)
@@ -263,4 +252,4 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `status_screen` (Bash, 0 %) — GUI Phase 9 (Slint)
 - [ ] `wizard` (Bash, 0 %) — GUI Phase 9 (Slint)
 
-Offen gesamt: 238 von 264 Funktionen.
+Offen gesamt: 227 von 264 Funktionen.

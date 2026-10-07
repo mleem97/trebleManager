@@ -1,0 +1,15 @@
+[package]
+name = "gsi-archive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Native archive handling: gzip/xz decompress, tar list/extract. No external tools."
+
+[lib]
+name = "gsi_archive"
+path = "src/lib.rs"
+
+[dependencies]
+flate2.workspace = true
+tar.workspace = true
+lzma-rs.workspace = true

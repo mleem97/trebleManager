@@ -1,0 +1,14 @@
+[package]
+name = "gsi-registry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Compatibility registry access: ROM options, resolver queries, firmware compat, target configs."
+
+[lib]
+name = "gsi_registry"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
