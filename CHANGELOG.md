@@ -1,5 +1,10 @@
 # Changelog — trebleManager
 
+## v2.21.0
+
+- Slint GUI live: Dashboard/GSI/Updates/Logs/Settings with Lucide icons, wired to the same core (analyze real, patch honestly refused, update check real); `gsi-root` without args starts the GUI
+- Prebuilt GUI binaries in the release (linux-x86_64, windows-x86_64) + one-command online GUI install: `Run-FromGitHub.bat gui` / `run-from-github.sh gui` (platform matrix, SHA-256 verified, user-PATH install, other platforms get an honest message + TUI fallback)
+
 ## v2.20.0
 
 - gsi-root grows up: `gsi-config` (platform dirs, no hardcoded homes), `gsi-workflow` (typed steps, progress events, honest refusals), `gsi-update` (GitHub check/download/SHA-verify/atomic install/rollback; signatures reported unchecked until key infra exists), CLI (`workflow`, `update`, `config`, self-`install` to PATH), `docs/STATUS.md` spec mapping; 19 new cargo tests green

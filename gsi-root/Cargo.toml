@@ -17,3 +17,5 @@ license = "Apache-2.0"
 # also recorded in /mnt/win/Repositories/.vendors/cargo.txt).
 sha2 = "0.10"
 ureq = { version = "2", default-features = false, features = ["tls"] }
+slint = "1"
+slint-build = "1"

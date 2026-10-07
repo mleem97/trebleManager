@@ -30,4 +30,8 @@ Levels: `DONE` (implemented + tested) · `PARTIAL` (works, gaps noted) ·
 
 ## GUI (Slint + Lucide)
 
-PLANNED (Phase 9). No stub GUI exists — an honest refusal beats a fake window.
+PARTIAL (was: PLANNED). Dashboard/GSI/Updates/Logs/Settings pages live,
+Lucide icons vendored (ISC, currentColor→light transform documented in
+`assets/` note below), wired to core (analyze real, patch refusal real,
+update check real). Remaining: file picker dialogs, progress bars on long
+ops, ADB/Fastboot pages (blocked on device layer), Settings persistence.

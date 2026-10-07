@@ -1,0 +1,187 @@
+import { Button, LineEdit, TextEdit, ListView, ComboBox } from "std-widgets.slint";
+
+struct NavItem {
+    id: string,
+    label: string,
+    icon: image,
+}
+
+export component App inherits Window {
+    title: "GSI Root";
+    preferred-width: 1024px;
+    preferred-height: 640px;
+    background: #14161c;
+
+    in-out property <string> page: "dashboard";
+    in-out property <string> gsi-path: "";
+    in-out property <string> gsi-result: "";
+    in-out property <string> update-repo: "mleem97/trebleManager";
+    in-out property <string> update-result: "";
+    in-out property <string> log-text: "";
+    in-out property <string> version-text: "gsi-root";
+    in-out property <string> channel: "Stable";
+
+    callback analyze-image(string) -> string;
+    callback patch-image(string) -> string;
+    callback check-update(string) -> string;
+    callback append-log(string);
+
+    HorizontalLayout {
+        // Sidebar
+        VerticalLayout {
+            width: 210px;
+            spacing: 4px;
+            padding: 12px;
+            alignment: start;
+
+            Text {
+                text: "GSI Root";
+                font-size: 20px;
+                font-weight: 700;
+                color: #e8eaf0;
+            }
+            Text {
+                text: version-text;
+                font-size: 11px;
+                color: #8a90a3;
+            }
+            Rectangle { height: 12px; }
+
+            for nav in [
+                { id: "dashboard", label: "Dashboard", icon: @image-url("../../../assets/icons/home.svg") },
+                { id: "gsi", label: "GSI", icon: @image-url("../../../assets/icons/file-text.svg") },
+                { id: "updates", label: "Updates", icon: @image-url("../../../assets/icons/refresh-cw.svg") },
+                { id: "logs", label: "Logs", icon: @image-url("../../../assets/icons/terminal.svg") },
+                { id: "settings", label: "Settings", icon: @image-url("../../../assets/icons/settings.svg") },
+            ] : Rectangle {
+                height: 36px;
+                border-radius: 8px;
+                background: page == nav.id ? #2a3040 : transparent;
+                TouchArea {
+                    clicked => { page = nav.id; }
+                }
+                HorizontalLayout {
+                    padding-left: 10px;
+                    spacing: 8px;
+                    alignment: start;
+                    Image {
+                        source: nav.icon;
+                        width: 18px;
+                        height: 18px;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: nav.label;
+                        font-size: 14px;
+                        color: page == nav.id ? #ffffff : #b9bfd2;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+            Rectangle { vertical-stretch: 1; }
+            Text {
+                text: "CLI + GUI share one core";
+                font-size: 10px;
+                color: #5c6274;
+                wrap: word-wrap;
+            }
+        }
+
+        Rectangle { width: 1px; background: #232838; }
+
+        // Pages
+        VerticalLayout {
+            padding: 20px;
+            spacing: 10px;
+
+            if page == "dashboard": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Dashboard"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Huawei P10 (VTR-L09 / VTR-L29) — first hardware target. Root engine: EXPERIMENTAL until hardware POC."; font-size: 13px; color: #b9bfd2; wrap: word-wrap; }
+                Text { text: "Reference GSI: lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed"; font-size: 12px; color: #8a90a3; }
+                Text { text: "Analyze works locally (no writes). Patch/verify refuse honestly until proven on hardware."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+            }
+
+            if page == "gsi": VerticalLayout {
+                spacing: 8px;
+                Text { text: "GSI Analyze & Patch"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    gsi-input := LineEdit {
+                        placeholder-text: "/path/to/lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed.img (.gz supported by core later)";
+                        text <=> gsi-path;
+                        horizontal-stretch: 1;
+                    }
+                    Button {
+                        text: "Analyze";
+                        clicked => {
+                            gsi-result = analyze-image(gsi-path);
+                            append-log("analyze " + gsi-path);
+                        }
+                    }
+                    Button {
+                        text: "Patch";
+                        clicked => {
+                            gsi-result = patch-image(gsi-path);
+                            append-log("patch " + gsi-path + " (experimental)");
+                        }
+                    }
+                }
+                result-view := TextEdit {
+                    text <=> gsi-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "updates": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Updates"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "GitHub Releases (SHA-256 verified, atomic install, rollback). Signatures: reported unchecked until key infrastructure exists."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    LineEdit {
+                        placeholder-text: "owner/repo";
+                        text <=> update-repo;
+                        horizontal-stretch: 1;
+                    }
+                    Button {
+                        text: "Check now";
+                        clicked => {
+                            update-result = check-update(update-repo);
+                            append-log("update check " + update-repo);
+                        }
+                    }
+                }
+                Text { text: update-result; font-size: 13px; color: #e8eaf0; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text { text: "Channel:"; font-size: 13px; color: #b9bfd2; vertical-alignment: center; }
+                    ComboBox {
+                        model: ["Stable", "Beta", "Nightly"];
+                        current-value <=> channel;
+                    }
+                }
+            }
+
+            if page == "logs": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Logs"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                TextEdit {
+                    text <=> log-text;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "settings": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Settings"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Config, cache, downloads, artifacts, logs and backups resolve to platform-correct user directories (override via environment). No hardcoded home paths."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                Text { text: "Offline capable: analyze/inspect/extract/patch-prep/verify run without network. Only downloads and update checks need it."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+            }
+        }
+    }
+}

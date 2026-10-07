@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.20.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.21.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -149,6 +149,9 @@ run. Nothing ever exits silently; every failure pauses with plain text.
 curl -fsSL -o "%TEMP%\Run-FromGitHub.bat" https://raw.githubusercontent.com/mleem97/trebleManager/main/Run-FromGitHub.bat && "%TEMP%\Run-FromGitHub.bat"
 ```
 
+GUI statt TUI: `"...Run-FromGitHub.bat" gui` (lädt `gsi-root-windows-x86_64.zip`,
+SHA-geprüft, installiert nach `%LOCALAPPDATA%\gsi-root\bin`, PATH, startet GUI).
+
 (`curl.exe` is built into Windows 10/11. Without it, use the PowerShell
 one-liner below — it does the same via `iwr`.) Caches under
 `%LOCALAPPDATA%\trebleManager\<tag>`; delete that folder to force a fresh
@@ -159,6 +162,9 @@ download.
 ```powershell
 $b="$env:TEMP\Run-FromGitHub.bat"; iwr -UseBasicParsing -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/Run-FromGitHub.bat' -OutFile $b; & $b
 ```
+
+GUI: `& $b gui`. Linux mit GUI: `/tmp/run-from-github.sh gui` (lädt
+`gsi-root-linux-x86_64.tar.gz` nach `~/.local/bin`, PATH, startet GUI).
 
 Same result as the CMD variant (runs inline in your console).
 
@@ -251,6 +257,7 @@ next to `adb.exe` and double-click it.
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
+- [`release/v2.21.0`](https://github.com/mleem97/trebleManager/tree/release/v2.21.0) ([tag `v2.21.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.21.0))
 - [`release/v2.20.0`](https://github.com/mleem97/trebleManager/tree/release/v2.20.0) ([tag `v2.20.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.20.0))
 - [`release/v2.19.0`](https://github.com/mleem97/trebleManager/tree/release/v2.19.0) ([tag `v2.19.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.19.0))
 - [`release/v2.18.0`](https://github.com/mleem97/trebleManager/tree/release/v2.18.0) ([tag `v2.18.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.18.0))

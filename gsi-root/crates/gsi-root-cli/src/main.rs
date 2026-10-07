@@ -311,10 +311,7 @@ fn main() {
         raw[1..].to_vec()
     };
     let code = match cmd.as_str() {
-        "" => {
-            eprintln!("gsi-root: no command runs the GUI (Phase 9, Slint) — CLI only for now.");
-            usage();
-        }
+        "" | "gui" => gsi_root_gui::run(),
         "analyze" | "inspect" => match args.first() {
             Some(p) => analyze(p),
             None => usage(),

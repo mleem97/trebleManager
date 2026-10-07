@@ -1,0 +1,20 @@
+[package]
+name = "gsi-root-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Slint GUI for gsi-root: same core API as the CLI, no own logic."
+
+[lib]
+name = "gsi_root_gui"
+path = "src/lib.rs"
+
+[dependencies]
+gsi-image = { path = "../gsi-image" }
+gsi-root-core = { path = "../gsi-root-core" }
+gsi-config = { path = "../gsi-config" }
+gsi-update = { path = "../gsi-update" }
+slint.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true

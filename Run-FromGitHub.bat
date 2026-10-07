@@ -45,6 +45,7 @@ if "%TAG%"=="" (
 
 set "DEST=%BASE%\%TAG%"
 set "STARTER=%DEST%\Start-TrebleToolkit.bat"
+if /i "%~1"=="gui" goto :GUI
 if exist "%STARTER%" (
   echo Vorhanden / already present: %DEST%
   goto :LAUNCH
@@ -103,3 +104,59 @@ echo.
 echo Exit code: %EC%
 if not "%EC%"=="0" pause
 exit /b %EC%
+
+:GUI
+REM GUI installieren + starten (gsi-root Slint-App, Prebuilt-Binary aus Release).
+echo.
+echo GUI-Modus / GUI mode: install + run gsi-root
+if /i not "%PROCESSOR_ARCHITECTURE%"=="AMD64" (
+  if /i not "%PROCESSOR_ARCHITECTURE%"=="x86" (
+    echo FEHLER: kein Prebuilt-Binary fuer diese CPU (%PROCESSOR_ARCHITECTURE%).
+    echo No prebuilt binary for this CPU. Fallback: TUI via Run-FromGitHub.bat (ohne gui).
+    pause
+    exit /b 1
+  )
+)
+set "GBIN=%LOCALAPPDATA%\gsi-root\bin\gsi-root.exe"
+if exist "%GBIN%" (
+  echo Vorhanden / already installed: %GBIN%
+  goto :GUIRUN
+)
+set "GZIPNAME=gsi-root-windows-x86_64.zip"
+set "GZIPURL=https://github.com/%REPO%/releases/download/%TAG%/%GZIPNAME%"
+set "GZIP=%BASE%\%GZIPNAME%"
+echo Lade GUI / downloading GUI: %GZIPURL%
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; try { Invoke-WebRequest -Uri '%GZIPURL%' -OutFile '%GZIP%' -UseBasicParsing; Write-Host 'Download OK.' } catch { Write-Host ('ERROR: ' + $_.Exception.Message); exit 1 }" 2>>"%BOOTLOG%"
+if errorlevel 1 (
+  echo FEHLER: GUI-Download fehlgeschlagen. Siehe "%BOOTLOG%".
+  pause
+  exit /b 1
+)
+echo Pruefe SHA256 / verifying ...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; try { Invoke-WebRequest -Uri '%GZIPURL%.sha256' -OutFile '%GZIP%.sha256' -UseBasicParsing } catch { Write-Host 'WARN: no .sha256 asset, skipping verify.'; exit 0 }; $exp = ((Get-Content '%GZIP%.sha256' -TotalCount 1) -split '\s+')[0]; $act = (Get-FileHash '%GZIP%' -Algorithm SHA256).Hash; if ($act -eq $exp) { Write-Host 'SHA256 OK.' } else { Write-Host ('SHA256 MISMATCH!'); exit 2 }" 2>>"%BOOTLOG%"
+if errorlevel 2 (
+  echo FEHLER: SHA256 stimmt NICHT - Datei geloescht, Abbruch.
+  del "%GZIP%" >nul 2>&1
+  pause
+  exit /b 1
+)
+if not exist "%LOCALAPPDATA%\gsi-root\bin" mkdir "%LOCALAPPDATA%\gsi-root\bin" >nul 2>&1
+echo Entpacke nach / installing to %LOCALAPPDATA%\gsi-root\bin ...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Expand-Archive -Path '%GZIP%' -DestinationPath '%LOCALAPPDATA%\gsi-root\bin' -Force; Write-Host 'Install OK.' } catch { Write-Host ('ERROR: ' + $_.Exception.Message); exit 1 }" 2>>"%BOOTLOG%"
+if errorlevel 1 (
+  echo FEHLER: Entpacken fehlgeschlagen.
+  pause
+  exit /b 1
+)
+if not exist "%GBIN%" (
+  echo FEHLER: gsi-root.exe fehlt nach Install / missing after install.
+  pause
+  exit /b 1
+)
+echo Trage in User-PATH ein / adding to user PATH ...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$d='%LOCALAPPDATA%\gsi-root\bin'; $p=[Environment]::GetEnvironmentVariable('Path','User'); if ($p -split ';' -notcontains $d) { [Environment]::SetEnvironmentVariable('Path',($p+';'+$d),'User'); Write-Host 'PATH updated (neue Terminals).' } else { Write-Host 'PATH already set.' }" 2>>"%BOOTLOG%"
+:GUIRUN
+echo.
+echo Starte GUI / launching GUI: %GBIN%
+start "" "%GBIN%"
+exit /b 0
