@@ -43,6 +43,17 @@ Levels: `DONE` (implemented + tested) · `PARTIAL` (works, gaps noted) ·
 | 47 | VERIFIED/DOCUMENTED/EXPERIMENTAL | DONE | Maturity enum enforced in resolve/plan |
 | 48 | P10 + Lineage 20 target | EXPERIMENTAL | profile static facts VERIFIED; root path refused until POC |
 
+## Device layer
+
+- Slot state (`magisk`/`twrp`/`stock`, same `workflow-state.json` shape as
+  the scripts): DONE in `gsi-device` (read/write round-trip tested,
+  script-written files parse).
+- Switch planning (one-tap matrix + shared-slot warnings): DONE
+  (`device switch` prints the plan).
+- Switch *execution* (native fastboot flash): PLANNED (Phase 8).
+  Scripts remain the executor until then — single source of planning truth
+  is already Rust.
+
 ## GUI (Slint + Lucide)
 
 PARTIAL (was: PLANNED). Dashboard/GSI/Updates/Logs/Settings pages live,

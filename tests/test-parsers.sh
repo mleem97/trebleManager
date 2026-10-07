@@ -273,6 +273,8 @@ grep -q "rom_entry_label" "$ROOT_D/core/treble_core/src/roms.rs" && ok "rust rom
 [ -f "$ROOT_D/gsi-root/Cargo.toml" ] && ok "gsi-root workspace" || bad "gsi-root workspace"
 grep -q "EXPERIMENTAL" "$ROOT_D/gsi-root/crates/gsi-root-cli/src/main.rs" && ok "gsi-root honest refusal" || bad "gsi-root honest refusal"
 [ -f "$ROOT_D/gsi-root/devices/huawei-p10/profile.toml" ] && ok "gsi-root P10 profile" || bad "gsi-root P10 profile"
+[ -f "$ROOT_D/gsi-root/crates/gsi-device/src/lib.rs" ] && ok "gsi-device crate" || bad "gsi-device crate"
+grep -q "workflow-state.json.* shape" "$ROOT_D/gsi-root/crates/gsi-device/src/lib.rs" && ok "slot format compatible" || bad "slot format compatible"
 [ -f "$ROOT_D/gsi-root/docs/STATUS.md" ] && ok "gsi-root status doc" || bad "gsi-root status doc"
 grep -q '"gui"' "$ROOT_D/run-from-github.sh" && ok "online sh installs GUI" || bad "online sh installs GUI"
 grep -q ":GUI" "$ROOT_D/Run-FromGitHub.bat" && ok "online bat installs GUI" || bad "online bat installs GUI"

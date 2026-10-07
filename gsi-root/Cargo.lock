@@ -1651,6 +1651,14 @@ name = "gsi-config"
 version = "0.1.0"
 
 [[package]]
+name = "gsi-device"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "gsi-fs"
 version = "0.1.0"
 
@@ -1664,6 +1672,7 @@ version = "0.1.0"
 dependencies = [
  "gsi-android",
  "gsi-config",
+ "gsi-device",
  "gsi-image",
  "gsi-root-core",
  "gsi-root-gui",

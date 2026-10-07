@@ -21,7 +21,10 @@ fn usage() -> ! {
     eprintln!("  update download --repo <o/r> --asset <name> --out <file> [--sha256 <h>]");
     eprintln!("  update install --staged <file> --target <path>");
     eprintln!("  update rollback --target <path>");
+    eprintln!("  device slot [--state-file <path>]");
+    eprintln!("  device switch --to magisk|twrp [--magisk <img>] [--twrp <img>] [--state-file <path>]");
     eprintln!("  config show                  resolved app directories");
+    eprintln!("  device slot|switch            slot state + switch plan (no flashing yet)");
     eprintln!("  install [--yes]              self-copy to user bin dir (--yes: persist PATH on Unix)");
     eprintln!("  version");
     std::process::exit(2);
@@ -373,6 +376,52 @@ fn main() {
             _ => usage(),
         },
         "install" => self_install(flag(&args, "--yes")),
+        "device" => match args.first().map(String::as_str) {
+            Some("slot") => {
+                let f = opt(&args, "--state-file")
+                    .unwrap_or_else(|| "workflow-state.json".to_string());
+                let r = gsi_device::read_slot(std::path::Path::new(&f));
+                println!("slot: {} ({})", r.occupant, r.detail);
+                0
+            }
+            Some("switch") => {
+                let to = gsi_device::SlotOccupant::parse(
+                    &opt(&args, "--to").unwrap_or_default(),
+                );
+                let f = opt(&args, "--state-file").unwrap_or_default();
+                let cur = if f.is_empty() {
+                    gsi_device::SlotOccupant::Unknown
+                } else {
+                    gsi_device::SlotOccupant::parse(
+                        &gsi_device::read_slot(std::path::Path::new(&f)).occupant,
+                    )
+                };
+                let plan = gsi_device::plan_switch(
+                    cur,
+                    to,
+                    opt(&args, "--magisk").as_deref(),
+                    opt(&args, "--twrp").as_deref(),
+                );
+                for w in &plan.warnings {
+                    println!("warn: {w}");
+                }
+                match &plan.action {
+                    gsi_device::SwitchAction::AlreadyThere => {
+                        println!("already there: {}", to.as_str());
+                        0
+                    }
+                    gsi_device::SwitchAction::Flash { image } => {
+                        println!("plan: flash {image} (execution needs native fastboot, Phase 8)");
+                        3
+                    }
+                    gsi_device::SwitchAction::NeedInput(what) => {
+                        println!("need input: {what}");
+                        2
+                    }
+                }
+            }
+            _ => usage(),
+        },
         _ => usage(),
     };
     std::process::exit(code);

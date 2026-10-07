@@ -1,0 +1,14 @@
+[package]
+name = "gsi-device"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Device layer state: recovery_ramdisk slot tracking compatible with script state files, plus switch planning. Flashing needs the native fastboot layer."
+
+[lib]
+name = "gsi_device"
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
