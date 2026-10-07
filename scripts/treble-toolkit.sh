@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.14.2"
+TTVERSION="2.15.0"
 # Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
 # still enforced), developer (unlocks dump-* commands).
 RUNMODE_REQ=""
@@ -266,6 +266,10 @@ for r in json.load(open(sys.argv[1])).get('roms',[]):
     if not nm: continue
     ver=str(r.get('version',r.get('android',r.get('build',''))))
     label=nm+(' '+ver if ver else '')
+    variant=str(r.get('variant',''))
+    if variant and variant not in label: label+=' '+variant
+    bld=str(r.get('build',''))
+    if bld and bld not in label: label+=' ('+bld+')'
     if label not in seen:
         seen.add(label); print('rom:'+label+'|'+label)
 " "$f" 2>/dev/null
@@ -685,7 +689,7 @@ zip_entries() { # zip -> entry list
 export_recovery() { # rompath -> prints dir; sets EXPORT_FILES
   local rom="$1" base dir low
   [ -f "$rom" ] || { log ERROR "$(L 'ROM file missing: ' 'ROM-Datei fehlt: ')$rom"; return 3; }
-  base="$(basename "$rom" | sed 's/\.[^.]*$//')"
+  base="$(basename "$rom" | sed -e 's/\.tar\.gz$//' -e 's/\.tgz$//' -e 's/\.[^.]*$//')"
   dir="$REC_DIR/${base}-$STAMP"
   mkdir -p "$dir"
   EXPORT_FILES=""
@@ -758,7 +762,44 @@ EOF2
       fi
       log ERROR "$(L 'No boot.img/recovery.img/payload.bin in ZIP. Probably a GSI system package (no recovery by design).' 'Kein boot.img/recovery.img/payload.bin im ZIP. Wahrscheinlich GSI-System-Paket (kein Recovery).')"
       return 3 ;;
-    *) log ERROR "$(L 'Unsupported format (use .img or ROM .zip).' 'Format nicht unterstuetzt (.img oder ROM-.zip).')"; return 3 ;;
+    *.tar|*.tar.gz|*.tgz)
+      local stage="$dir/_archive" f dst2
+      mkdir -p "$stage"
+      if command -v tar >/dev/null 2>&1 && tar -xf "$rom" -C "$stage" 2>/dev/null; then
+        while IFS= read -r f; do
+          [ -n "$f" ] || continue
+          dst2="$dir/$(basename "$f")"
+          cp -f "$f" "$dst2"
+          if [ "$(boot_magic_ver "$dst2")" != "-1" ]; then EXPORT_FILES="$EXPORT_FILES $dst2"; else rm -f "$dst2"; fi
+        done < <(find "$stage" -type f \( -iname '*recovery*.img' -o -iname 'boot.img' \) 2>/dev/null)
+        if [ -n "$EXPORT_FILES" ]; then
+          printf '{"source": "%s", "kind": "rom-tar"}\n' "$rom" > "$dir/metadata.json"
+          log SUCCESS "$(L 'Exported from ROM tar archive. Your patch base when this ROM is installed.' 'Aus ROM-TAR exportiert. Deine Patch-Basis wenn dieses ROM installiert ist.')"
+          printf '%s' "$dir"; return 0
+        fi
+        local pay; pay="$(find "$stage" -type f -iname 'payload.bin' 2>/dev/null | head -1)"
+        if [ -n "$pay" ]; then
+          local dumper2
+          dumper2="$(find "$TOOL_DIR" \( -iname '*payload*dumper*' -o -name 'payload-dumper-go' \) -type f 2>/dev/null | head -1)"
+          if [ -n "$dumper2" ]; then
+            "$dumper2" -o "$dir" -p "boot,recovery" "$pay" > "$dir/dumper.log" 2>&1 || true
+            for o in "$dir"/*.img; do
+              [ -f "$o" ] || continue
+              if [ "$(boot_magic_ver "$o")" != "-1" ]; then EXPORT_FILES="$EXPORT_FILES $o"; fi
+            done
+            if [ -n "$EXPORT_FILES" ]; then printf '%s' "$dir"; return 0; fi
+          else
+            log ERROR "$(L 'payload.bin inside tar: place payload-dumper-go in data/tools/ or extract boot.img manually.' 'payload.bin im TAR: payload-dumper-go nach data/tools/ legen oder boot.img manuell extrahieren.')"
+            return 3
+          fi
+        fi
+      else
+        log ERROR "$(L 'Archive extract failed (need tar).' 'Archiv-Extrakt fehlgeschlagen (braucht tar).')"
+        return 1
+      fi
+      log ERROR "$(L 'No boot.img/recovery.img/payload.bin in archive. Probably a GSI system package (no recovery by design).' 'Kein boot.img/recovery.img/payload.bin im Archiv. Wahrscheinlich GSI-System-Paket (kein Recovery).')"
+      return 3 ;;
+    *) log ERROR "$(L 'Unsupported format (use .img, ROM .zip or .tar/.tar.gz/.tgz).' 'Format nicht unterstuetzt (.img, ROM-.zip oder .tar/.tar.gz/.tgz).')"; return 3 ;;
   esac
 }
 
@@ -1254,8 +1295,8 @@ screen_extract() {
 }
 screen_export() {
   header "$(L 'Recovery export from compatible custom ROMs' 'Recovery-Export aus Custom-ROMs')"; printf '\n'
-  printf '%s\n' "$(L 'Drop ROM packages into data/roms/ (.zip or .img). GSI system images are refused honestly.' 'ROM-Pakete nach data/roms/ (.zip/.img). GSI wird ehrlich abgelehnt.')"
-  local roms; roms="$(find "$ROM_DIR" -maxdepth 1 \( -iname '*.zip' -o -iname '*.img' \) -type f 2>/dev/null)"
+  printf '%s\n' "$(L 'Drop ROM packages into data/roms/ (.zip/.tar.gz or .img). GSI system images are refused honestly.' 'ROM-Pakete nach data/roms/ (.zip/.tar.gz/.img). GSI wird ehrlich abgelehnt.')"
+  local roms; roms="$(find "$ROM_DIR" -maxdepth 1 \( -iname '*.zip' -o -iname '*.img' -o -iname '*.tar' -o -iname '*.tar.gz' -o -iname '*.tgz' \) -type f 2>/dev/null)"
   local rom=""
   if [ -z "$roms" ]; then
     printf '%s' "$(L 'ROM path (Enter=abort): ' 'ROM-Pfad (Enter=Abbruch): ')"; iread -r rom
@@ -1711,28 +1752,83 @@ main_menu() {
   load_rom
   find_tools; detect_mode
   while true; do
-    menu "$(L 'Main menu - Huawei P10 Root Manager (OS-independent)' 'Hauptmenue - Huawei P10 Root Manager')" \
-      "$(L 'Status overview' 'Status-Uebersicht')" "$(L 'Wizard steps 1-9' 'Wizard Step 1-9')" \
-      "$(L 'Workflow goals (planner + resume)' 'Workflow-Ziele (Planner + Resume)')" "$(L 'Resume saved workflow' 'Gespeicherten Workflow fortsetzen')" \
-      "Step 1 - Detect" "Step 2 - Analyze" "Step 3 - Firmware" "Step 4 - Extract" \
-      "Step 5 - Magisk" "Step 6 - Backup" "Step 7 - Flash" "Step 8+9 - Verify" \
-      "$(L 'Recovery export (custom ROMs)' 'Recovery-Export (Custom-ROMs)')" "$(L 'Install ROM / GSI (guided)' 'ROM / GSI installieren (gefuehrt)')" \
-      "$(L 'Root methods (Magisk preferred)' 'Root-Methoden (Magisk bevorzugt)')" "$(L 'TWRP path (guide+flash)' 'TWRP-Pfad (Anleitung+Flash)')" \
-      "$(L 'Compatibility registry' 'Kompatibilitaets-Registry')" "$(L 'Persist root fixes (service.d)' 'Root-Fixes persistieren (service.d)')" \
-      "$(L 'Unlock guide (PotatoNV)' 'Unlock-Anleitung (PotatoNV)')" "$(L 'Kernels + fixes (wiki)' 'Kernel + Fixes (Wiki)')" \
-      "Restore / Unroot" "$(L 'Boot tricks (Huawei)' 'Boot-Tricks (Huawei)')" "$(L 'Tools + diagnostic ZIP' 'Tools + Diagnose-ZIP')" \
-      "$(L 'Full reinstall (ROM + wipe + flash)' 'Komplett-Reinstall (ROM + Wipe + Flash)')" \
+    menu "$(L 'Main menu - what do you want to do?' 'Hauptmenue - was willst du tun?')" \
+      "$(L 'Guided run (asks system + goal, runs automatically)' 'Gefuehrter Lauf (fragt System + Ziel, laeuft automatisch)')" \
+      "$(L 'Check device (status, detect, analyze, logs)' 'Geraet pruefen (Status, Detect, Analyse, Logs)')" \
+      "$(L 'Single steps (individual screens)' 'Einzel-Steps (einzelne Screens)')" \
+      "$(L 'Workflows (goals, resume, reinstall)' 'Workflows (Ziele, Resume, Reinstall)')" \
+      "$(L 'Settings (my system)' 'Einstellungen (mein System)')" \
       "$(L 'Exit' 'Beenden')"
     c="$REPLY_MENU"
     case "$c" in
-      -1|24) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
-      0) status_screen ;; 1) wizard ;; 2) screen_goals ;; 3) screen_resume ;;
-      4) screen_detect ;; 5) screen_analyze ;; 6) screen_firmware ;; 7) screen_extract ;;
-      8) screen_patch ;; 9) screen_backup ;; 10) screen_flash ;; 11) screen_verify ;;
-      12) screen_export ;; 13) screen_flashsystem ;; 14) screen_rootmethods ;; 15) screen_twrp ;;
-      16) screen_compat ;; 17) screen_persist ;; 18) screen_unlock ;; 19) screen_kernelfixes ;;
-      20) do_restore "" "" || true; pause_tt ;; 21) screen_bootkeys ;; 22) screen_tools ;;
-      23) screen_reinstall ;;
+      -1|5) log SUCCESS "$(L 'Exiting. Log: ' 'Beendet. Log: ')$TTLOG"; break ;;
+      0) wizard ;; 1) menu_check ;; 2) menu_steps ;; 3) menu_workflows ;; 4) menu_settings ;;
+    esac
+  done
+}
+menu_check() {
+  while true; do
+    menu "$(L 'Check device (read-only)' 'Geraet pruefen (read-only)')" \
+      "$(L 'Status overview' 'Status-Uebersicht')" "Step 1 - Detect" "Step 2 - Analyze" \
+      "$(L 'Logs + diagnostic ZIP' 'Logs + Diagnose-ZIP')" "$(L 'Back' 'Zurueck')"
+    c="$REPLY_MENU"
+    case "$c" in
+      -1|4) return ;;
+      0) status_screen ;; 1) screen_detect ;; 2) screen_analyze ;; 3) screen_tools ;;
+    esac
+  done
+}
+menu_steps() {
+  while true; do
+    menu "$(L 'Single steps (extras)' 'Einzel-Steps (Extras)')" \
+      "$(L 'Firmware (find + download)' 'Firmware (finden + laden)')" \
+      "$(L 'Extract stock recovery' 'Stock-Recovery extrahieren')" \
+      "$(L 'Recovery export (custom ROMs)' 'Recovery-Export (Custom-ROMs)')" \
+      "$(L 'Magisk patch' 'Magisk-Patch')" "$(L 'Backup' 'Backup')" \
+      "$(L 'Flash (safety gate)' 'Flash (Safety-Gate)')" \
+      "$(L 'Install ROM / GSI' 'ROM / GSI installieren')" \
+      "$(L 'TWRP path' 'TWRP-Pfad')" "$(L 'Root methods' 'Root-Methoden')" \
+      "$(L 'Compatibility registry' 'Kompatibilitaets-Registry')" \
+      "$(L 'Persist root fixes' 'Root-Fixes persistieren')" \
+      "$(L 'Unlock guide' 'Unlock-Anleitung')" "$(L 'Kernels + fixes' 'Kernel + Fixes')" \
+      "$(L 'Boot tricks' 'Boot-Tricks')" "$(L 'Wipe userdata' 'Userdata wipen')" \
+      "Restore / Unroot" "$(L 'Reboot + verify' 'Reboot + Verify')" \
+      "$(L 'Tools' 'Tools')" "$(L 'Back' 'Zurueck')"
+    c="$REPLY_MENU"
+    case "$c" in
+      -1|18) return ;;
+      0) screen_firmware ;; 1) screen_extract ;; 2) screen_export ;; 3) screen_patch ;;
+      4) screen_backup ;; 5) screen_flash ;; 6) screen_flashsystem ;; 7) screen_twrp ;;
+      8) screen_rootmethods ;; 9) screen_compat ;; 10) screen_persist ;; 11) screen_unlock ;;
+      12) screen_kernelfixes ;; 13) screen_bootkeys ;; 14) guided_wipe || true; pause_tt ;;
+      15) do_restore "" "" || true; pause_tt ;; 16) screen_verify ;; 17) screen_tools ;;
+    esac
+  done
+}
+menu_workflows() {
+  while true; do
+    menu "$(L 'Workflows (planner + resume)' 'Workflows (Planner + Resume)')" \
+      "$(L 'Workflow goals' 'Workflow-Ziele')" \
+      "$(L 'Resume saved workflow' 'Gespeicherten Workflow fortsetzen')" \
+      "$(L 'Full reinstall' 'Komplett-Reinstall')" \
+      "$(L 'Back' 'Zurueck')"
+    c="$REPLY_MENU"
+    case "$c" in
+      -1|3) return ;;
+      0) screen_goals ;; 1) screen_resume ;; 2) screen_reinstall ;;
+    esac
+  done
+}
+menu_settings() {
+  while true; do
+    load_rom
+    menu "$(L 'Settings' 'Einstellungen') $(L 'Phone runs:' 'Handy laeuft mit:') $(rom_label "$INSTALLED_ROM")" \
+      "$(L 'My system (Stock / custom ROM)' 'Mein System (Stock / Custom-ROM)')" \
+      "$(L 'Back' 'Zurueck')"
+    c="$REPLY_MENU"
+    case "$c" in
+      -1|1) return ;;
+      0) select_rom; pause_tt ;;
     esac
   done
 }

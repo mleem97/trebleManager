@@ -40,6 +40,7 @@ roms:
   - { name: LineageOS, version: 18.1, status: working, gsi: arm64_bgN }
   - { name: LineageOS, version: 19.1, status: working, gsi: arm64_bgN }
   - { name: LineageOS, version: 20, status: working, gsi: arm64_bgN, note: NOT the Light build }
+  - { name: LineageOS, version: 20, variant: UNOFFICIAL, build: 20251021, status: working, gsi: arm64_bgN, note: TrebleDroid with GApps, Android 13 (user-verified VTR-L09, same Kirin 960) }
   - { name: LineageOS 20 Light, version: 20, status: broken, reason: wiki-tested non-booting on P10, markers: [light] }
   - { name: PixelExperience, android: 13, status: working, vendor: 9.0.1.190 }
   - { name: SuperiorOS, android: 13, build: 20240401, status: working-slim, image: SuperiorOS_A13-arm64-bgS-slim_20240401.img }

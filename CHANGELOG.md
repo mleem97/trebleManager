@@ -1,5 +1,12 @@
 # Changelog — trebleManager
 
+## v2.15.0
+
+- Slim step-by-step menus: main menu collapsed from ~27 entries to 5 (guided run / check device / single steps / workflows / settings) with submenus in both shells; each path runs automatically after one choice
+- Custom ROM export in every format: `.img`, `.zip`, `.tar`, `.tar.gz`, `.tgz` (tar.exe/python fallback on Windows, tar on Linux/macOS) with boot-magic validation, hashes and metadata
+- Registry: LineageOS 20-20251021-UNOFFICIAL-arm64_bgN (TrebleDroid with GApps, Android 13) added as selectable working ROM (VTR-L09 verified, VTR-L29 same platform); ROM labels now carry variant/build so builds stay distinct
+- Test suites print version header (stale-cache detection); by-name asserts hardened array-safe
+
 ## v2.14.2
 
 - Docs consistency: INSTRUCTIONS wizard flow rewritten ROM-aware (goal words, visible SKIPs, ROM patch-base rule); removed last stale "stock source still needed" statement; wiki synced (Root-Guide ROM question, FAQ patch-base rule, Troubleshooting verdicts + online-run, Home central starter)

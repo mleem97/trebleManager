@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.14.2-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.15.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -68,7 +68,7 @@ UI language: English by default, German if the system language is German.
 - Firmware baseline + compatibility check (model family strict, submodel/region/EMUI as WARN; example firmware advisory only, never exclusive)
 - Stock firmware downloader with progress (BITS resume + WebClient fallback) and mandatory `YES` confirmation
 - `UPDATE.APP` analysis + `RECOVERY_RAMDIS(K).img` validation (size, SHA-256/512, header magic, exact filename kept)
-- **Recovery export from compatible custom ROMs** (direct `.img`, ROM `.zip` with `boot/recovery.img`, `payload.bin` via payload-dumper-go; GSI system images honestly refused)
+- **Recovery export from compatible custom ROMs** (direct `.img`, ROM `.zip`/`.tar`/`.tar.gz`/`.tgz` with `boot/recovery.img`, `payload.bin` via payload-dumper-go; GSI system images honestly refused)
 - **Compatibility registry** (`data/compatibility/huawei/p10/*.yaml` + generated `.json`): researched ROM/firmware/TWRP/Magisk matrix per variant (working / working-slim / working-with-fixes / broken / variant-dependent). TUI screen + `compat` CLI show recommendations; `flash-system` hard-blocks researched-broken builds (e.g. Lineage 20 Light, HavocOS 3.12); vendor (Oreo vs Pie) + storage (eMMC vs UFS) advice in analysis
 - **Guided ROM/GSI install** (`flash-system`, TUI menu): image checks (size, arm64, A-only), double confirmation, `fastboot flash system`, eRecovery wipe guidance — never auto-wipes userdata
 - **TWRP path** (guide + guided flash): device-exact builds, image validation, automatic slot backup, explicit shared-slot warning (TWRP ↔ Magisk overwrite each other), Vol-Up boot, never TWRP userdata wipe
@@ -251,6 +251,7 @@ next to `adb.exe` and double-click it.
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
+- [`release/v2.15.0`](https://github.com/mleem97/trebleManager/tree/release/v2.15.0) ([tag `v2.15.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.15.0))
 - [`release/v2.14.2`](https://github.com/mleem97/trebleManager/tree/release/v2.14.2) ([tag `v2.14.2`](https://github.com/mleem97/trebleManager/releases/tag/v2.14.2))
 - [`release/v2.14.1`](https://github.com/mleem97/trebleManager/tree/release/v2.14.1) ([tag `v2.14.1`](https://github.com/mleem97/trebleManager/releases/tag/v2.14.1))
 - [`release/v2.14.0`](https://github.com/mleem97/trebleManager/tree/release/v2.14.0) ([tag `v2.14.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.14.0))

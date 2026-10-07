@@ -5,6 +5,7 @@ set -u
 PASS=0; FAIL=0
 ok() { PASS=$((PASS+1)); printf '[PASS] %s\n' "$1"; }
 bad() { FAIL=$((FAIL+1)); printf '[FAIL] %s\n' "$1"; }
+printf 'test-parsers (bash %s, src: %s)\n' "$BASH_VERSION" "${BASH_SOURCE[0]:-pipe/stdin}"
 
 # Online run (curl|bash): without repo layout fetch the FULL release ZIP
 # (same trust root) and run the suite from it. Guard prevents loops.
@@ -81,7 +82,7 @@ $line"
   done < "$SRC"
   eval "$block" || { bad "load: $name"; return; }
 }
-for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name compat_file compat_broken_markers compat_roms vendor_advice resolve_mode goal_steps step_gate device_states platform_tools_url install_base_dir flash_verdict rom_suggest rom_label; do import_fn "$fn"; done
+for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name compat_file compat_broken_markers compat_roms vendor_advice resolve_mode goal_steps step_gate device_states platform_tools_url install_base_dir flash_verdict rom_suggest rom_label rom_options rom_broken; do import_fn "$fn"; done
 
 # Need TTLANG + PROFILE_ID + stubs used by imported funcs
 TTLANG="en"
@@ -194,6 +195,10 @@ printf '%s\n' "Erasing 'userdata'                                 OKAY [  2.1s]"
 [ "$(rom_label 'rom:LineageOS 20')" = "LineageOS 20" ] && ok "label rom id" || bad "label rom id"
 [ "$(rom_label 'other')" = "Other custom ROM" ] && ok "label other" || bad "label other"
 [ "$(rom_label '')" = "?" ] && ok "label empty" || bad "label empty"
+TOOL_ROOT="$ROOT_D"; PROFILE_ID="VTR-L09"
+rom_options | grep -q "UNOFFICIAL (20251021)" && ok "unofficial lineage selectable (VTR-L09)" || bad "unofficial lineage selectable (VTR-L09)"
+rom_options | grep -q "^stock|" && ok "stock option first" || bad "stock option first"
+rom_broken | grep -qi "light" && ok "broken light listed unselectable" || bad "broken light listed unselectable"
 
 # ---- 18. Launchers: one central entry, online starters bootstrap full ZIP ----
 [ -f "$ROOT_D/Start-TrebleToolkit.bat" ] && ok "central starter present" || bad "central starter present"

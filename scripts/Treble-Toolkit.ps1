@@ -50,7 +50,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.14.2"
+$TTVersion = "2.15.0"
 
 function Get-TTScriptRoot {
   # Script directory under -File AND irm|iex. Never Split-Path $null:
@@ -852,6 +852,10 @@ function Get-RomOptions {
       $ver = [string]$r.version; if ($ver -eq "") { $ver = [string]$r.android }
       if ($ver -eq "") { $ver = [string]$r.build }
       $label = $nm; if ($ver -ne "") { $label += " " + $ver }
+      $variant = [string]$r.variant
+      if ($variant -ne "" -and -not $label.Contains($variant)) { $label += " " + $variant }
+      $bld = [string]$r.build
+      if ($bld -ne "" -and -not $label.Contains($bld)) { $label += " (" + $bld + ")" }
       $st = [string]$r.status
       if ($st -eq "working" -or $st -eq "working-slim" -or $st -eq "working-with-fixes" -or $st -eq "variant-dependent") {
         $id = "rom:" + $label
@@ -1134,13 +1138,39 @@ function Get-RomImageEntries {
   } catch { return @() }
 }
 
+function Expand-TTRomArchive {
+  # Extracts .tar/.tar.gz/.tgz ROM packages to $DestDir. tar.exe (Win10+) first,
+  # python tarfile fallback. Returns $true on success.
+  param([string]$Archive, [string]$DestDir)
+  if (-not (Test-Path $DestDir)) { New-Item -ItemType Directory -Path $DestDir -Force | Out-Null }
+  try {
+    $tar = (Get-Command "tar.exe" -ErrorAction SilentlyContinue).Source
+    if ($tar -ne "" -and (Test-Path $tar)) {
+      & $tar -xf $Archive -C $DestDir 2>&1 | Out-Null
+      if ($LASTEXITCODE -eq 0) { return $true }
+    }
+  } catch {}
+  try {
+    $py = (Get-Command "python" -ErrorAction SilentlyContinue).Source
+    if ([string]::IsNullOrEmpty($py)) { $py = (Get-Command "python3" -ErrorAction SilentlyContinue).Source }
+    if ($py -ne "" -and (Test-Path $py)) {
+      & $py -c "import tarfile,sys; tarfile.open(sys.argv[1]).extractall(sys.argv[2])" $Archive $DestDir 2>&1 | Out-Null
+      if ($LASTEXITCODE -eq 0) { return $true }
+    }
+  } catch {}
+  return $false
+}
+
 function Export-RecoveryFromRom {
   # Exports boot/recovery images from a custom ROM package to data/recovery/<name>/.
   # Never fakes: GSI system images and unknown formats are refused with reasons.
   param([string]$RomPath)
   $res = @{ Ok = $false; Files = @(); Dir = ""; Notes = @() }
   if (-not (Test-Path $RomPath)) { $res.Notes += (L "ROM file missing: " "ROM-Datei fehlt: ") + $RomPath; return $res }
-  $base = [System.IO.Path]::GetFileNameWithoutExtension($RomPath)
+  $rawBase = [System.IO.Path]::GetFileName($RomPath)
+  if ($rawBase.ToLower().EndsWith(".tar.gz")) { $base = $rawBase.Substring(0, $rawBase.Length - 7) }
+  elseif ($rawBase.ToLower().EndsWith(".tgz")) { $base = $rawBase.Substring(0, $rawBase.Length - 4) }
+  else { $base = [System.IO.Path]::GetFileNameWithoutExtension($RomPath) }
   $dir = Join-Path $TTRecDir ($base + "-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
   New-Item -ItemType Directory -Path $dir -Force | Out-Null
   $res.Dir = $dir
@@ -1179,7 +1209,7 @@ function Export-RecoveryFromRom {
       $zip.Dispose()
       foreach ($f in $res.Files) { $h = Get-FileHashInfo $f; $h.SHA256 | Out-File ($f + ".sha256") -Encoding ascii }
       (@{ source = $RomPath; kind = "rom-zip"; files = ($res.Files | ForEach-Object { [System.IO.Path]::GetFileName($_) }); exported = (Get-Date -Format "yyyy-MM-dd HH:mm:ss") } | ConvertTo-Json -Depth 4) | Out-File (Join-Path $dir "metadata.json") -Encoding utf8
-      if ($res.Files.Count -gt 0) { $res.Ok = $true; $res.Notes += (L "Exported from ROM zip. Check device profile: P10 Magisk path still needs stock RECOVERY_RAMDISK." "Aus ROM-ZIP exportiert. Geraeteprofil pruefen: P10-Magisk-Weg braucht weiter Stock-RECOVERY_RAMDISK.") }
+      if ($res.Files.Count -gt 0) { $res.Ok = $true; $res.Notes += (L "Exported from ROM zip. This is your patch base when this ROM is installed (never stock for it)." "Aus ROM-ZIP exportiert. Das ist deine Patch-Basis wenn dieses ROM installiert ist (niemals Stock dafuer).") }
     } elseif ($hasPayload) {
       $dumper = Get-ChildItem -Path $TTToolDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*payload*dumper*" -or $_.Name -eq "payload-dumper-go.exe" } | Select-Object -First 1
       if ($dumper -ne $null) {
@@ -1199,7 +1229,44 @@ function Export-RecoveryFromRom {
     }
     return $res
   }
-  $res.Notes += (L "Unsupported format (use .img or ROM .zip)." "Nicht unterstuetztes Format (.img oder ROM-.zip nutzen).")
+  if ($low.EndsWith(".tar") -or $low.EndsWith(".tar.gz") -or $low.EndsWith(".tgz")) {
+    $stage = Join-Path $dir "_archive"
+    if (-not (Expand-TTRomArchive $RomPath $stage)) {
+      $res.Notes += (L "Archive extract failed (need tar.exe or python). Extract boot.img manually, then re-run export." "Archiv-Extrakt fehlgeschlagen (braucht tar.exe oder python). boot.img manuell extrahieren, dann Export wiederholen.")
+      return $res
+    }
+    $all = Get-ChildItem -Path $stage -Recurse -File -ErrorAction SilentlyContinue
+    $cands = @($all | Where-Object { $_.Name -like "*recovery*.img" -or $_.Name -eq "boot.img" })
+    $pay = @($all | Where-Object { $_.Name -eq "payload.bin" } | Select-Object -First 1)
+    if ($cands.Count -gt 0) {
+      foreach ($c in $cands) {
+        $dst = Join-Path $dir $c.Name
+        Copy-Item $c.FullName $dst -Force
+        if ((Test-BootImageMagic $dst) -ge 0) { $res.Files += $dst }
+        else { $res.Notes += (L "Extracted but no boot magic: " "Extradiert aber kein Boot-Magic: ") + $c.Name }
+      }
+      foreach ($f in $res.Files) { $h = Get-FileHashInfo $f; $h.SHA256 | Out-File ($f + ".sha256") -Encoding ascii }
+      (@{ source = $RomPath; kind = "rom-tar"; files = ($res.Files | ForEach-Object { [System.IO.Path]::GetFileName($_) }); exported = (Get-Date -Format "yyyy-MM-dd HH:mm:ss") } | ConvertTo-Json -Depth 4) | Out-File (Join-Path $dir "metadata.json") -Encoding utf8
+      if ($res.Files.Count -gt 0) { $res.Ok = $true; $res.Notes += (L "Exported from ROM tar archive. This is your patch base when this ROM is installed (never stock for it)." "Aus ROM-TAR-Archiv exportiert. Das ist deine Patch-Basis wenn dieses ROM installiert ist (niemals Stock dafuer).") }
+    } elseif ($pay.Count -gt 0) {
+      $dumper = Get-ChildItem -Path $TTToolDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*payload*dumper*" -or $_.Name -eq "payload-dumper-go.exe" } | Select-Object -First 1
+      if ($dumper -ne $null) {
+        try {
+          & $dumper.FullName -o $dir -p "boot,recovery" $pay[0].FullName 2>&1 | Out-File (Join-Path $dir "dumper.log") -Encoding utf8
+          $outs = Get-ChildItem -Path $dir -Filter "*.img" -ErrorAction SilentlyContinue
+          foreach ($o in $outs) { if ((Test-BootImageMagic $o.FullName) -ge 0) { $res.Files += $o.FullName } }
+          if ($res.Files.Count -gt 0) { $res.Ok = $true }
+          else { $res.Notes += (L "Dumper ran but no valid boot images found." "Dumper lief, aber keine gueltigen Boot-Images gefunden.") }
+        } catch { $res.Notes += (L "Dumper failed: " "Dumper fehlgeschlagen: ") + $_.Exception.Message }
+      } else {
+        $res.Notes += (L "payload.bin inside tar without dumped images: place payload-dumper-go in data/tools/ or extract boot.img manually, then re-run export." "payload.bin im TAR ohne extrahierte Images: payload-dumper-go nach data/tools/ legen oder boot.img manuell extrahieren, dann Export wiederholen.")
+      }
+    } else {
+      $res.Notes += (L "No boot.img/recovery.img/payload.bin in this archive. Probably a GSI system package - it has no recovery." "Kein boot.img/recovery.img/payload.bin in diesem Archiv. Wahrscheinlich GSI-System-Paket - hat kein Recovery.")
+    }
+    return $res
+  }
+  $res.Notes += (L "Unsupported format (use .img, ROM .zip or .tar/.tar.gz/.tgz)." "Nicht unterstuetztes Format (.img, ROM-.zip oder .tar/.tar.gz/.tgz nutzen).")
   return $res
 }
 
@@ -2333,11 +2400,11 @@ function Screen-ExportRecovery {
     Write-Host (L "This file becomes your Magisk patch base. Stock firmware is NOT used." "Diese Datei wird deine Magisk-Patch-Basis. Stock-Firmware wird NICHT benutzt.") -ForegroundColor White
   }
   Write-Host ""
-  Write-Host (L "Drop ROM packages into data/roms/ (.zip with boot/recovery.img or payload.bin, or .img directly)." "ROM-Pakete nach data/roms/ legen (.zip mit boot/recovery.img oder payload.bin, oder .img direkt).") -ForegroundColor Gray
+  Write-Host (L "Drop ROM packages into data/roms/ (.zip/.tar.gz with boot/recovery.img or payload.bin, or .img directly)." "ROM-Pakete nach data/roms/ legen (.zip/.tar.gz mit boot/recovery.img oder payload.bin, oder .img direkt).") -ForegroundColor Gray
   Write-Host (L "GSI system images contain no recovery and are refused honestly." "GSI-System-Images enthalten kein Recovery und werden ehrlich abgelehnt.") -ForegroundColor Gray
   Write-Host ""
   $roms = @()
-  foreach ($ext in @("*.zip","*.img")) {
+  foreach ($ext in @("*.zip","*.img","*.tar","*.tar.gz","*.tgz")) {
     $hits = Get-ChildItem -Path $TTRomDir -Filter $ext -File -ErrorAction SilentlyContinue
     foreach ($h in $hits) { $roms += $h.FullName }
   }
@@ -3339,62 +3406,110 @@ function Start-TTTui {
     Write-TTLog (L "No admin. Fastboot/USB drivers may need admin (BAT asks for elevation, menu=admin restart)." "Kein Admin. Fastboot/USB-Treiber brauchen ggf. Admin (BAT fragt Elevation, Menue=Admin-Neustart).") "WARNING"
   }
   while ($true) {
-    $c = Show-TTMenu (L "Main menu - Huawei P10 Root Manager (OS-independent)" "Hauptmenue - Huawei P10 Root Manager (OS-unabhaengig)") @(
-      (L "Status overview" "Status-Uebersicht"),
-      (L "Wizard steps 1-9 (guided)" "Wizard Step 1-9 (gefuehrt)"),
-      (L "Workflow goals (planner + resume)" "Workflow-Ziele (Planner + Resume)"),
-      (L "Resume saved workflow" "Gespeicherten Workflow fortsetzen"),
-      (L "Step 1 - Detect device" "Step 1 - Device erkennen"),
-      (L "Step 2 - Analyze (OS/partitions/boot chain)" "Step 2 - Analyse (OS/Partitionen/Bootchain)"),
-      (L "Step 3 - Determine firmware" "Step 3 - Firmware bestimmen"),
-      (L "Step 4 - Extract/validate RECOVERY_RAMDISK" "Step 4 - RECOVERY_RAMDISK extrahieren/validieren"),
-      (L "Step 5 - Prepare/patch Magisk" "Step 5 - Magisk vorbereiten/patchen"),
-      (L "Step 6 - Create backup" "Step 6 - Backup erstellen"),
-      (L "Step 7 - Flash recovery_ramdisk (safety gate)" "Step 7 - Flash recovery_ramdisk (Safety-Gate)"),
-      (L "Step 8+9 - Reboot + verify root" "Step 8+9 - Reboot + Root verifizieren"),
-      (L "Recovery export (custom ROMs)" "Recovery-Export (Custom-ROMs)"),
-      (L "Install ROM / GSI system image (guided)" "ROM / GSI System-Image installieren (gefuehrt)"),
-      (L "Root methods (Magisk preferred)" "Root-Methoden (Magisk bevorzugt)"),
-      (L "TWRP path (guide + flash)" "TWRP-Pfad (Anleitung + Flash)"),
-      (L "Compatibility registry" "Kompatibilitaets-Registry"),
-      (L "Persist root fixes (service.d)" "Root-Fixes persistieren (service.d)"),
-      (L "Bootloader unlock guide (PotatoNV)" "Bootloader-Unlock-Anleitung (PotatoNV)"),
-      (L "Kernels + known fixes (wiki)" "Kernel + bekannte Fixes (Wiki)"),
-      "Restore / Unroot",
-      (L "Boot tricks (Huawei, exact)" "Boot-Tricks (Huawei, exakt)"),
-      (L "Tools + diagnostic ZIP" "Tools + Diagnose-ZIP"),
-      "Logs",
-      (L "Full reinstall (ROM choice + wipe + flash)" "Komplett-Reinstall (ROM-Wahl + Wipe + Flash)"),
-      (L "Admin restart" "Admin-Neustart"),
+    $c = Show-TTMenu (L "Main menu - what do you want to do?" "Hauptmenue - was willst du tun?") @(
+      (L "Guided run (asks system + goal, runs automatically)" "Gefuehrter Lauf (fragt System + Ziel, laeuft automatisch)"),
+      (L "Check device (status, detect, analyze, logs)" "Geraet pruefen (Status, Detect, Analyse, Logs)"),
+      (L "Single steps (individual screens)" "Einzel-Steps (einzelne Screens)"),
+      (L "Workflows (goals, resume, reinstall)" "Workflows (Ziele, Resume, Reinstall)"),
+      (L "Settings (my system, admin restart)" "Einstellungen (mein System, Admin-Neustart)"),
       (L "Exit" "Beenden")
-    ) (L "GSI stays intact on root path | Never wipe userdata | Never bootloader-unlock" "GSI bleibt erhalten auf Root-Pfad | Nie userdata loeschen | Nie Bootloader-Unlock")
-    if ($c -eq -1 -or $c -eq 26) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
+    ) (L "Pick one - each path guides you step by step" "Waehle eins - jeder Weg fuehrt dich Step by Step")
+    if ($c -eq -1 -or $c -eq 5) { Write-TTLog ((L "Exiting. Log: " "Beendet. Log: ") + $TT.Log) "SUCCESS"; break }
+    if ($c -eq 0) { Start-TTWizard }
+    elseif ($c -eq 1) { Show-TTCheckMenu }
+    elseif ($c -eq 2) { Show-TTStepsMenu }
+    elseif ($c -eq 3) { Show-TTWorkflowMenu }
+    elseif ($c -eq 4) { Show-TTSettingsMenu }
+  }
+}
+
+function Show-TTCheckMenu {
+  while ($true) {
+    $c = Show-TTMenu (L "Check device (read-only)" "Geraet pruefen (read-only)") @(
+      (L "Status overview" "Status-Uebersicht"),
+      (L "Detect device" "Device erkennen"),
+      (L "Analyze (OS/partitions/boot chain)" "Analyse (OS/Partitionen/Bootchain)"),
+      (L "Logs + diagnostic ZIP" "Logs + Diagnose-ZIP"),
+      (L "Back" "Zurueck")
+    ) ""
+    if ($c -eq -1 -or $c -eq 4) { return }
     if ($c -eq 0) { Show-TTStatus }
-    elseif ($c -eq 1) { Start-TTWizard }
-    elseif ($c -eq 2) { Screen-GoalSelect }
-    elseif ($c -eq 3) { Screen-Resume }
-    elseif ($c -eq 4) { Screen-Detect }
-    elseif ($c -eq 5) { Screen-Analyze }
-    elseif ($c -eq 6) { Screen-Firmware }
-    elseif ($c -eq 7) { Screen-Extract }
-    elseif ($c -eq 8) { Screen-Patch }
-    elseif ($c -eq 9) { Screen-Backup }
-    elseif ($c -eq 10) { Screen-Flash }
-    elseif ($c -eq 11) { Screen-RebootVerify }
-    elseif ($c -eq 12) { Screen-ExportRecovery }
-    elseif ($c -eq 13) { Screen-FlashSystem }
-    elseif ($c -eq 14) { Screen-RootMethods }
-    elseif ($c -eq 15) { Screen-Twrp }
-    elseif ($c -eq 16) { Screen-Compatibility }
-    elseif ($c -eq 17) { Screen-PersistFixes }
-    elseif ($c -eq 18) { Screen-Unlock }
-    elseif ($c -eq 19) { Screen-KernelFixes }
-    elseif ($c -eq 20) { Screen-Restore }
-    elseif ($c -eq 21) { Screen-Bootkeys }
-    elseif ($c -eq 22) { Screen-Tools }
-    elseif ($c -eq 23) { Screen-Logs }
-    elseif ($c -eq 24) { Screen-Reinstall }
-    elseif ($c -eq 25) {
+    elseif ($c -eq 1) { Screen-Detect }
+    elseif ($c -eq 2) { Screen-Analyze }
+    elseif ($c -eq 3) { Screen-Logs }
+  }
+}
+
+function Show-TTStepsMenu {
+  while ($true) {
+    $c = Show-TTMenu (L "Single steps (extras)" "Einzel-Steps (Extras)") @(
+      (L "Firmware (find + download)" "Firmware (finden + laden)"),
+      (L "Extract stock recovery" "Stock-Recovery extrahieren"),
+      (L "Recovery export (custom ROMs)" "Recovery-Export (Custom-ROMs)"),
+      (L "Magisk patch" "Magisk-Patch"),
+      (L "Backup" "Backup"),
+      (L "Flash (safety gate)" "Flash (Safety-Gate)"),
+      (L "Install ROM / GSI" "ROM / GSI installieren"),
+      (L "TWRP path" "TWRP-Pfad"),
+      (L "Root methods" "Root-Methoden"),
+      (L "Compatibility registry" "Kompatibilitaets-Registry"),
+      (L "Persist root fixes" "Root-Fixes persistieren"),
+      (L "Unlock guide" "Unlock-Anleitung"),
+      (L "Kernels + fixes" "Kernel + Fixes"),
+      (L "Boot tricks" "Boot-Tricks"),
+      (L "Wipe userdata" "Userdata wipen"),
+      (L "Restore / Unroot" "Restore / Unroot"),
+      (L "Reboot + verify" "Reboot + Verify"),
+      (L "Tools" "Tools"),
+      (L "Back" "Zurueck")
+    ) ""
+    if ($c -eq -1 -or $c -eq 18) { return }
+    if ($c -eq 0) { Screen-Firmware }
+    elseif ($c -eq 1) { Screen-Extract }
+    elseif ($c -eq 2) { Screen-ExportRecovery }
+    elseif ($c -eq 3) { Screen-Patch }
+    elseif ($c -eq 4) { Screen-Backup }
+    elseif ($c -eq 5) { Screen-Flash }
+    elseif ($c -eq 6) { Screen-FlashSystem }
+    elseif ($c -eq 7) { Screen-Twrp }
+    elseif ($c -eq 8) { Screen-RootMethods }
+    elseif ($c -eq 9) { Screen-Compatibility }
+    elseif ($c -eq 10) { Screen-PersistFixes }
+    elseif ($c -eq 11) { Screen-Unlock }
+    elseif ($c -eq 12) { Screen-KernelFixes }
+    elseif ($c -eq 13) { Screen-Bootkeys }
+    elseif ($c -eq 14) { Screen-Wipe }
+    elseif ($c -eq 15) { Screen-Restore }
+    elseif ($c -eq 16) { Screen-RebootVerify }
+    elseif ($c -eq 17) { Screen-Tools }
+  }
+}
+
+function Show-TTWorkflowMenu {
+  while ($true) {
+    $c = Show-TTMenu (L "Workflows (planner + resume)" "Workflows (Planner + Resume)") @(
+      (L "Workflow goals" "Workflow-Ziele"),
+      (L "Resume saved workflow" "Gespeicherten Workflow fortsetzen"),
+      (L "Full reinstall" "Komplett-Reinstall"),
+      (L "Back" "Zurueck")
+    ) ""
+    if ($c -eq -1 -or $c -eq 3) { return }
+    if ($c -eq 0) { Screen-GoalSelect }
+    elseif ($c -eq 1) { Screen-Resume }
+    elseif ($c -eq 2) { Screen-Reinstall }
+  }
+}
+
+function Show-TTSettingsMenu {
+  while ($true) {
+    $c = Show-TTMenu (L "Settings" "Einstellungen") @(
+      (L "My system (Stock / custom ROM)" "Mein System (Stock / Custom-ROM)"),
+      (L "Admin restart" "Admin-Neustart"),
+      (L "Back" "Zurueck")
+    ) ((L "Phone runs: " "Handy laeuft mit: ") + (Get-RomLabel $TT.InstalledRom))
+    if ($c -eq -1 -or $c -eq 2) { return }
+    if ($c -eq 0) { Select-InstalledRom | Out-Null; Pause-TT }
+    elseif ($c -eq 1) {
       try {
         $exe = (Get-Process -Id $PID).Path
         $sp = $MyInvocation.MyCommand.Path

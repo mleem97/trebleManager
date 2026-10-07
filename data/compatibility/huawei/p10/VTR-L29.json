@@ -104,6 +104,15 @@
       "note": "NOT the Light build"
     },
     {
+      "name": "LineageOS",
+      "version": 20,
+      "variant": "UNOFFICIAL",
+      "build": 20251021,
+      "status": "working",
+      "gsi": "arm64_bgN",
+      "note": "TrebleDroid with GApps, Android 13 (user-verified VTR-L09, same Kirin 960)"
+    },
+    {
       "name": "LineageOS 20 Light",
       "version": 20,
       "status": "broken",

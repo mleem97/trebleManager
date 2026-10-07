@@ -30,6 +30,7 @@ roms:
   - { name: LineageOS, version: 18.1, status: working, gsi: arm64_bgN }
   - { name: LineageOS, version: 19.1, status: working, gsi: arm64_bgN }
   - { name: LineageOS, version: 20, status: working, gsi: arm64_bgN, note: NOT the Light build }
+  - { name: LineageOS, version: 20, variant: UNOFFICIAL, build: 20251021, status: working, gsi: arm64_bgN, note: TrebleDroid with GApps, Android 13 (user-verified VTR-L09) }
   - { name: LineageOS 20 Light, version: 20, status: broken, reason: wiki-tested non-booting on P10, markers: [light] }
   - { name: HavocOS, version: 3.12, status: broken, reason: phone/media crashes, no SIM on VTR-L09 EMUI 9.1, markers: [havoc] }
   - { name: LeaOS, status: variant-dependent, reason: L29 builds on L09 run laggy, match submodel }

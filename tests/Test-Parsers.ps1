@@ -76,6 +76,10 @@ if (-not $env:TT_TEST_BOOTSTRAPPED) {
 $ErrorActionPreference = "Stop"
 $Fail = 0
 $Pass = 0
+$__suiteSrc = $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrEmpty($__suiteSrc)) { $__suiteSrc = "remote/iex (bootstrapped)" }
+Write-Host ("Test-Parsers (PS " + $PSVersionTable.PSVersion + ", src: " + $__suiteSrc + ")") -ForegroundColor DarkGray
+Remove-Variable __suiteSrc -ErrorAction SilentlyContinue
 
 function Assert-Equal {
   param($Name, $Expected, $Actual)
@@ -146,8 +150,13 @@ Assert-True "getvar key/value" ($p2.Vars.Count -gt 0)
 
 # ---- 4. Partition-Parser ----
 $by = ConvertFrom-ByNameListing "recovery_ramdisk -> /dev/block/mmcblk0p30`nboot -> /dev/block/mmcblk0p28`nsystem -> /dev/block/mmcblk0p60"
-Assert-True "recovery_ramdisk gefunden" (($by | Where-Object { $_.Name -eq "recovery_ramdisk" }).Count -eq 1)
-Assert-True "boot gefunden" (($by | Where-Object { $_.Name -eq "boot" }).Count -eq 1)
+$__rr = @($by | Where-Object { $_.Name -eq "recovery_ramdisk" })
+$__bb = @($by | Where-Object { $_.Name -eq "boot" })
+Assert-True "recovery_ramdisk gefunden" ($__rr.Count -eq 1)
+Assert-True "boot gefunden" ($__bb.Count -eq 1)
+if ($__rr.Count -ne 1 -or $__bb.Count -ne 1) {
+  Write-Host ("DIAG parsed=" + $by.Count + " names=" + (($by | ForEach-Object { $_.Name }) -join ",")) -ForegroundColor Yellow
+}
 
 # ---- 5. getprop-Parser (beide Formate) ----
 $h = ConvertFrom-GetpropDump @("[ro.product.model]: [TrebleDroid with GApps]","[ro.build.version.release]: [13]","ro.secure = 1")
