@@ -5,6 +5,11 @@ members = [
     "crates/gsi-android",
     "crates/gsi-root-core",
     "crates/gsi-root-cli",
+    "crates/gsi-config",
+    "crates/gsi-workflow",
+    "crates/gsi-update",
+    "crates/gsi-fs",
+    "crates/gsi-root-gui",
 ]
 
 [workspace.package]

@@ -22,6 +22,15 @@ confirmation, then runs `fastboot flash recovery_ramdisk twrp.img`. Boot it by
 holding Vol-Up; leave system unmodified when asked; **never** factory-reset
 userdata from TWRP (use stock recovery).
 
+## Can Magisk and TWRP persist at the same time?
+
+No — on the P10 both live in the single `recovery_ramdisk` slot and
+overwrite each other (this is a hardware fact, not a tool limit). What the
+tool does instead: every flash records the slot occupant (magisk/twrp/stock,
+shown in Status), and after each flash it offers the reverse flash as a
+one-tap switch-back — no path re-entry. The APTouch fix (`service.d`) is
+independent of the slot and persists across both.
+
 ## Do I need the original RECOVERY or the one from my custom ROM?
 
 The **original** one — always. Magisk is patched into the stock Huawei

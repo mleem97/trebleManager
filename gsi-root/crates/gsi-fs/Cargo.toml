@@ -1,0 +1,10 @@
+[package]
+name = "gsi-fs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Read-only ext4 inspection (superblock, extents, dirs, symlinks, files, xattrs). Writer comes next."
+
+[lib]
+name = "gsi_fs"
+path = "src/lib.rs"

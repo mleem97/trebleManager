@@ -1209,7 +1209,7 @@ safe_flash() { # patched_image [--yes]
   log WARNING "Starting: fastboot flash $part <patched>"
   local out; out="$(fb_flash flash "$part" "$img" 2>&1)"
   printf '%s\n' "$out" >> "$TTLOG"
-  if printf '%s\n' "$out" | flash_verdict; then log SUCCESS "$(L 'Flash reported: OK.' 'Flash gemeldet: OK.')"; return 0; fi
+  if printf '%s\n' "$out" | flash_verdict; then log SUCCESS "$(L 'Flash reported: OK.' 'Flash gemeldet: OK.')"; save_slot "magisk"; return 0; fi
   log ERROR "$(L 'Flash not OK (see result above).' 'Flash nicht OK (siehe Ergebnis oben).')"; return 1
 }
 verify_root() { # [--no-reboot]
@@ -1253,6 +1253,7 @@ do_restore() { # [backupdir] [--yes]
   fi
   fb_flash flash "$part" "$pick/original.img" 2>&1 | tee -a "$TTLOG"
   log WARNING "$(L 'Restore executed.' 'Restore ausgefuehrt.')"
+  save_slot "stock"
 }
 do_diagnostic() { # [--anonymize]
   local anon="${1:-}" stamp ser zipf tmp
@@ -1520,6 +1521,7 @@ status_screen() {
   header "$(L 'Status (any OS detected, nothing assumed)' 'Status (jedes OS erkannt, nichts vorausgesetzt)')"; printf '\n'
   printf 'Device profile : %s (%s)\nOS class         : %s\nOS detail        : %s\nAndroid          : %s\nMode             : %s\n' "$PROFILE_ID" "$(marketing_name)" "$OS_KIND" "$OS_DETAIL" "$OS_RELEASE" "$MODE"
   printf 'Phone runs       : %s\n' "$(rom_label "$INSTALLED_ROM")"
+  printf 'Slot (recovery_ramdisk): %s  (TWRP/Magisk share it, last flashed wins)\n' "$(read_slot | cut -d'|' -f1)"
   if printf '%s' "$BYNAME_RAW" | grep -q recovery_ramdisk; then printf 'RecoveryRamdisk: DETECTED\n'; else printf 'RecoveryRamdisk: UNKNOWN/NOT DETECTED\n'; fi
   printf 'Firmware         : %s\nStock image      : %s\nPatched image    : %s\nBackup           : %s\n' "${FW_BASELINE:-UNKNOWN}" "${STOCK_IMAGE:-missing}" "${PATCHED_IMAGE:-missing}" "${BACKUP_DIR:-missing}"
   pause_tt
@@ -1718,6 +1720,13 @@ screen_flash() {
     case "$k" in y|Y|j|J) adb_run reboot bootloader 2>/dev/null; for _ in $(seq 1 30); do sleep 1; detect_mode; [ "$MODE" = "fastboot" ] && break; done ;; esac
   fi
   safe_flash "$PATCHED_IMAGE" || true
+  tw=""
+  if [ -n "${TWRP_IMAGE:-}" ] && [ -f "$TWRP_IMAGE" ]; then tw="$TWRP_IMAGE"; fi
+  if [ -z "$tw" ]; then tw="$(read_slot | cut -d'|' -f2)"; [ -f "$tw" ] || tw=""; fi
+  if [ -n "$tw" ]; then
+    printf '\n%s' "$(L 'Slot holds Magisk. Install known TWRP now (one tap, overwrites Magisk slot)? [y/N]: ' 'Slot hat Magisk. Bekanntes TWRP jetzt installieren (one tap, ueberschreibt Magisk-Slot)? [j/N]: ')"; iread -r tw2
+    case "$tw2" in y|Y|j|J) TWRP_IMAGE="$tw"; twrp_flash "$tw" || true ;; esac
+  fi
   pause_tt
 }
 screen_verify() {
@@ -1854,7 +1863,7 @@ twrp_flash() { # image [--yes]
   log WARNING "Starting: fastboot flash $part <twrp>"
   local out; out="$(fb_flash flash "$part" "$img" 2>&1)"
   printf '%s\n' "$out" >> "$TTLOG"
-  if printf '%s\n' "$out" | flash_verdict; then log SUCCESS "$(L 'TWRP flash OK. Boot: hold Vol-Up.' 'TWRP-Flash OK. Boot: Vol-Up halten.')"; return 0; fi
+  if printf '%s\n' "$out" | flash_verdict; then log SUCCESS "$(L 'TWRP flash OK. Boot: hold Vol-Up.' 'TWRP-Flash OK. Boot: Vol-Up halten.')"; save_slot "twrp" "$img"; return 0; fi
   log ERROR "$(L 'TWRP flash not OK (see result above).' 'TWRP-Flash nicht OK (siehe Ergebnis oben).')"; return 1
 }
 screen_twrp() {
@@ -1863,7 +1872,15 @@ screen_twrp() {
   printf '%s\n' "$(L 'Rules: shared slot with Magisk; backup first; never wipe userdata in TWRP; boot with Vol-Up.' 'Regeln: Slot mit Magisk teilen; erst Backup; nie userdata in TWRP wipen; Boot mit Vol-Up.')"
   printf '%s' "$(L 'TWRP image path: ' 'TWRP-Image-Pfad: ')"; iread -r img
   if [ -z "$img" ] || [ ! -f "$img" ]; then log WARNING "$(L 'Invalid path, aborting.' 'Pfad ungueltig, Abbruch.')"; pause_tt; return; fi
-  twrp_flash "$img" || true
+  TWRP_IMAGE="$img"
+  if twrp_flash "$img"; then
+    if [ -n "$PATCHED_IMAGE" ] && [ -f "$PATCHED_IMAGE" ]; then
+      printf '\n%s' "$(L 'Slot now holds TWRP. Flash Magisk back now (one tap, same safety gate)? [Y/n]: ' 'Slot hat jetzt TWRP. Jetzt Magisk zurueckflashen (one tap, gleiches Safety-Gate)? [J/n]: ')"; iread -r sw
+      case "$sw" in ""|y|Y|j|J)
+        if safe_flash "$PATCHED_IMAGE" --yes; then printf '%s\n' "$(L 'Slot holds Magisk again. Reboot with Vol-Up + Power for root.' 'Slot hat wieder Magisk. Reboot mit Vol-Up + Power fuer Root.')"; fi ;;
+      esac
+    fi
+  fi
   pause_tt
 }
 validate_device() { # read-only post-flash check; prints "name|1/0|detail" lines
@@ -2014,6 +2031,29 @@ json.dump(st,open(f,"w"),indent=2)
 PYEOF
   fi
   log INFO "Root state persisted: $root"
+}
+save_slot() { # occupant [detail] -> slot state in state file (shared recovery_ramdisk slot)
+  local occ="$1" det="${2:-}" f
+  f="$(state_file)"
+  if command -v python3 >/dev/null 2>&1; then
+    ST_OCC="$occ" ST_DET="$det" ST_FILE="$f" python3 - <<'PYEOF' 2>/dev/null || true
+import json,os,datetime
+f=os.environ['ST_FILE']
+try: st=json.load(open(f))
+except Exception: st={"goal":"","steps":[]}
+st["slot"]={"occupant":os.environ['ST_OCC'],"detail":os.environ['ST_DET'],"timestamp":datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+st["updated"]=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+json.dump(st,open(f,"w"),indent=2)
+PYEOF
+  fi
+  log INFO "Slot state: $occ"
+}
+read_slot() { # prints occupant|detail (unknown when unset)
+  local f; f="$(state_file)"
+  if [ -f "$f" ] && command -v python3 >/dev/null 2>&1; then
+    python3 -c "import json,sys; s=json.load(open(sys.argv[1])).get('slot',{}); print(str(s.get('occupant','unknown'))+'|'+str(s.get('detail','')))" "$f" 2>/dev/null && return 0
+  fi
+  printf 'unknown|'
 }
 install_persist_fixes() { # service.d boot scripts (aptouch+smartpa); needs uid=0
   local id

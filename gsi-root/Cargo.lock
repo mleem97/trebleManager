@@ -1651,6 +1651,10 @@ name = "gsi-config"
 version = "0.1.0"
 
 [[package]]
+name = "gsi-fs"
+version = "0.1.0"
+
+[[package]]
 name = "gsi-image"
 version = "0.1.0"
 

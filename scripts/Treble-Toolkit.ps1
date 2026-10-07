@@ -1933,6 +1933,7 @@ function Invoke-TTSafeFlash {
   $v = Get-FlashVerdict $o
   Show-FlashVerdict $v ("flash " + $part)
   $ok = ($v.Verdict -eq "OK")
+  if ($ok) { Save-SlotState "magisk" "" }
   return [bool]$ok
 }
 
@@ -2012,6 +2013,7 @@ function Invoke-TTRestoreFlow {
   $o = Invoke-TTFastboot @("flash",$part,$orig)
   Write-Host ($o -join "`n") -ForegroundColor White
   Write-TTLog (L "Restore executed, output above." "Restore ausgefuehrt, Ausgabe oben.") "WARNING"
+  Save-SlotState "stock" ""
   return $true
 }
 
@@ -2274,6 +2276,8 @@ function Show-TTStatus {
   Write-Host ((L "Stock image    : " "Stock-Image   : ") + $(if ($TT.StockImage -ne "") { $TT.StockImage } else { (L "missing" "fehlt") })) -ForegroundColor White
   Write-Host ((L "Patched image  : " "Patched-Image : ") + $(if ($TT.PatchedImage -ne "") { $TT.PatchedImage } else { (L "missing" "fehlt") })) -ForegroundColor White
   Write-Host ("Backup        : " + $(if ($TT.BackupDir -ne "") { $TT.BackupDir } else { (L "missing" "fehlt") })) -ForegroundColor White
+  $slot = Get-SlotState
+  Write-Host ((L "Slot (recovery_ramdisk): " "Slot (recovery_ramdisk): ") + $slot.occupant + "  (TWRP/Magisk share it, last flashed wins)") -ForegroundColor Cyan
   Write-Host ""
   Write-Host (L "Bootloader: Unknown/Unlocked/Locked is NEVER guessed from 'Command not allowed'." "Bootloader: Unknown/Unlocked/Locked wird NICHT aus 'Command not allowed' geraten.") -ForegroundColor DarkGray
   Write-Host (L "Magisk: only report verified (uid=0), never from boot alone." "Magisk: nur verifiziert melden (uid=0), niemals aus Boot allein.") -ForegroundColor DarkGray
@@ -2746,7 +2750,24 @@ function Screen-Flash {
       }
     }
   }
-  Invoke-TTSafeFlash | Out-Null
+  $fok = Invoke-TTSafeFlash
+  if ($fok) {
+    $tw = $TT.TwrpImage
+    if ([string]::IsNullOrWhiteSpace($tw) -or -not (Test-Path $tw)) {
+      $tw = ""
+      $sl = Get-SlotState
+      if ($sl.detail -ne "" -and (Test-Path $sl.detail)) { $tw = $sl.detail }
+    }
+    if ($tw -ne "" -and (Test-Path $tw)) {
+      Write-Host ""
+      Write-Host (L "Slot holds Magisk. Install known TWRP now (one tap, overwrites Magisk slot)? [y/N]: " "Slot hat Magisk. Bekanntes TWRP jetzt installieren (one tap, ueberschreibt Magisk-Slot)? [j/N]: ") -NoNewline -ForegroundColor Yellow
+      $tw2 = Read-Host
+      if ($tw2 -eq "Y" -or $tw2 -eq "y" -or $tw2 -eq "J" -or $tw2 -eq "j") {
+        $TT.TwrpImage = $tw
+        Invoke-TwrpFlash $tw | Out-Null
+      }
+    }
+  }
   Pause-TT
 }
 
@@ -3229,7 +3250,11 @@ function Invoke-TwrpFlash {
   $v = Get-FlashVerdict $o
   Show-FlashVerdict $v ("flash " + $part)
   $ok = ($v.Verdict -eq "OK")
-  if ($ok) { Write-Host (L "TWRP flash OK. Boot: hold Vol-Up." "TWRP-Flash OK. Boot: Vol-Up halten.") -ForegroundColor Green }
+  if ($ok) {
+    Write-Host (L "TWRP flash OK. Boot: hold Vol-Up." "TWRP-Flash OK. Boot: Vol-Up halten.") -ForegroundColor Green
+    Save-SlotState "twrp" $Image
+    $TT.TwrpImage = $Image
+  }
   return [bool]$ok
 }
 
@@ -3248,7 +3273,21 @@ function Screen-Twrp {
     Write-TTLog (L "Invalid image path, aborting (guide shown above)." "Image-Pfad ungueltig, Abbruch (Anleitung oben).") "WARNING"
     Pause-TT; return
   }
-  Invoke-TwrpFlash $img | Out-Null
+  $TT.TwrpImage = $img
+  if (Invoke-TwrpFlash $img) {
+    # One-tap switch-back: Magisk and TWRP share the slot, so offer the
+    # reverse flash right away (no path re-entry).
+    if ($TT.PatchedImage -ne "" -and (Test-Path $TT.PatchedImage)) {
+      Write-Host ""
+      Write-Host (L "Slot now holds TWRP. Flash Magisk back now (one tap, same safety gate)? [Y/n]: " "Slot hat jetzt TWRP. Jetzt Magisk zurueckflashen (one tap, gleiches Safety-Gate)? [J/n]: ") -NoNewline -ForegroundColor Cyan
+      $sw = Read-Host
+      if ($sw -eq "" -or $sw -eq "Y" -or $sw -eq "y" -or $sw -eq "J" -or $sw -eq "j") {
+        if (Invoke-TTSafeFlash) {
+          Write-Host (L "Slot holds Magisk again. Reboot with Vol-Up + Power for root." "Slot hat wieder Magisk. Reboot mit Vol-Up + Power fuer Root.") -ForegroundColor Green
+        }
+      }
+    }
+  }
   Pause-TT
 }
 
@@ -3759,6 +3798,27 @@ function Save-RootState {
   $st.updated = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
   ($st | ConvertTo-Json -Depth 6) | Out-File $f -Encoding utf8
   Write-TTLog ("Root state persisted: " + $Root) "INFO"
+}
+
+function Save-SlotState {
+  # Which occupant was last flashed to recovery_ramdisk (magisk/twrp/stock).
+  # TWRP and Magisk share this slot (mutual overwrite) - the state makes the
+  # one-tap switch-back possible without re-entering paths.
+  param([string]$Occupant, [string]$Detail = "")
+  $f = Get-WorkflowStateFile
+  $st = Read-WorkflowState
+  if ($st -eq $null) { $st = @{ version = $TTVersion; goal = ""; steps = @() } }
+  $sl = @{ occupant = $Occupant; detail = $Detail; timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss") }
+  $st | Add-Member -NotePropertyName "slot" -NotePropertyValue $sl -Force
+  $st.updated = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+  ($st | ConvertTo-Json -Depth 6) | Out-File $f -Encoding utf8
+  Write-TTLog ("Slot state: " + $Occupant) "INFO"
+}
+
+function Get-SlotState {
+  $st = Read-WorkflowState
+  if ($st -eq $null -or $st.slot -eq $null) { return @{ occupant = "unknown"; detail = "" } }
+  return @{ occupant = [string]$st.slot.occupant; detail = [string]$st.slot.detail }
 }
 
 $PersistScripts = @{
