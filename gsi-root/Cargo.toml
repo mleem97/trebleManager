@@ -10,6 +10,7 @@ members = [
     "crates/gsi-update",
     "crates/gsi-fs",
     "crates/gsi-device",
+    "crates/gsi-tool",
     "crates/gsi-root-gui",
 ]
 

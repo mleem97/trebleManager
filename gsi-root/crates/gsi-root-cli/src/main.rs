@@ -25,6 +25,10 @@ fn usage() -> ! {
     eprintln!("  device switch --to magisk|twrp [--magisk <img>] [--twrp <img>] [--state-file <path>]");
     eprintln!("  config show                  resolved app directories");
     eprintln!("  device slot|switch            slot state + switch plan (no flashing yet)");
+    eprintln!("  device detect|info            devices via managed adb/fastboot binding");
+    eprintln!("  adb devices                   list adb devices (needs adb on PATH)");
+    eprintln!("  fastboot devices|getvar       fastboot queries (needs fastboot on PATH)");
+    eprintln!("  tools                         managed external tools status");
     eprintln!("  install [--yes]              self-copy to user bin dir (--yes: persist PATH on Unix)");
     eprintln!("  version");
     std::process::exit(2);
@@ -252,6 +256,147 @@ fn opt_path(p: Option<PathBuf>) -> String {
         .unwrap_or_else(|| "(unresolvable)".to_string())
 }
 
+/// Managed tool lookup: PATH plus trebleManager tool dirs when present.
+fn find_managed(name: &str) -> Option<gsi_tool::Tool> {
+    let mut extra = Vec::new();
+    for cand in [
+        "tools/platform-tools",
+        "data/tools",
+        "platform-tools",
+        "tools",
+    ] {
+        let p = PathBuf::from(cand);
+        if p.is_dir() {
+            extra.push(p);
+        }
+    }
+    gsi_tool::locate(name, &extra)
+}
+
+fn device_detect() -> i32 {
+    use std::time::Duration;
+    let mut any = false;
+    if let Some(adb) = find_managed("adb") {
+        println!("adb: {}", adb.path.display());
+        if let Some(v) = gsi_tool::probe_version(&adb) {
+            println!("adb version: {v}");
+        }
+        let r = gsi_tool::run(&adb, &["devices"], Duration::from_secs(20));
+        for d in gsi_device::parse::adb_devices(
+            &r.stdout.lines().collect::<Vec<_>>(),
+        ) {
+            println!("adb {} {}", d.serial, d.state);
+            any = true;
+        }
+        if !r.success {
+            println!("adb devices failed: {}", r.stderr.trim());
+        }
+    } else {
+        println!("adb: not found (managed binding needs adb on PATH)");
+    }
+    if let Some(fb) = find_managed("fastboot") {
+        println!("fastboot: {}", fb.path.display());
+        if let Some(v) = gsi_tool::probe_version(&fb) {
+            println!("fastboot version: {v}");
+        }
+        let r = gsi_tool::run(&fb, &["devices"], Duration::from_secs(20));
+        for d in gsi_device::parse::fastboot_devices(
+            &r.stdout.lines().collect::<Vec<_>>(),
+        ) {
+            println!("fastboot {} {}", d.serial, d.state);
+            any = true;
+        }
+        if !r.success {
+            println!("fastboot devices failed: {}", r.stderr.trim());
+        }
+    } else {
+        println!("fastboot: not found (managed binding needs fastboot on PATH)");
+    }
+    if any {
+        0
+    } else {
+        println!("no devices (or no tools)");
+        1
+    }
+}
+
+fn device_info() -> i32 {
+    use std::time::Duration;
+    let adb = match find_managed("adb") {
+        Some(a) => a,
+        None => {
+            println!("adb: not found");
+            return 1;
+        }
+    };
+    let r = gsi_tool::run(
+        &adb,
+        &["shell", "getprop"],
+        Duration::from_secs(30),
+    );
+    if !r.success {
+        println!("getprop failed (no Android device?)");
+        return 1;
+    }
+    let props =
+        gsi_device::parse::getprop(&r.stdout.lines().collect::<Vec<_>>());
+    for k in [
+        "ro.product.model",
+        "ro.product.device",
+        "ro.build.version.release",
+        "ro.build.display.id",
+        "ro.treble.enabled",
+    ] {
+        if let Some(v) = props.get(k) {
+            println!("{k} = {v}");
+        }
+    }
+    0
+}
+
+fn tools_status() -> i32 {
+    // Managed externals: present/version or honest absence. Never faked.
+    let mut missing = false;
+    for name in ["adb", "fastboot"] {
+        match find_managed(name) {
+            Some(t) => {
+                let v = gsi_tool::probe_version(&t).unwrap_or_default();
+                println!("{name}: {} {v}", t.path.display());
+            }
+            None => {
+                println!("{name}: MISSING (native protocol: Phase 8)");
+                missing = true;
+            }
+        }
+    }
+    // Extractor programs (data/tools style drops + PATH).
+    let mut found_extractor = false;
+    for exe in [
+        "huawei_firmware_extractor.py",
+        "payload-dumper-go",
+        "payload-dumper-go.exe",
+        "splitupdate",
+        "split_updata.pl",
+    ] {
+        let bare = exe.trim_end_matches(".py").trim_end_matches(".exe");
+        if find_managed(exe).is_some()
+            || find_managed(bare).is_some()
+            || std::path::Path::new(exe).is_file()
+        {
+            println!("extractor: {exe} present");
+            found_extractor = true;
+        }
+    }
+    if !found_extractor {
+        println!("extractor: none found (place HuaweiFirmwareExtractor/payload-dumper-go into data/tools/)");
+    }
+    if missing {
+        1
+    } else {
+        0
+    }
+}
+
 fn self_install(add_path: bool) -> i32 {
     let dir = match gsi_config::user_bin_dir() {
         Some(d) => d,
@@ -376,6 +521,68 @@ fn main() {
             _ => usage(),
         },
         "install" => self_install(flag(&args, "--yes")),
+        "adb" => match args.first().map(String::as_str) {
+            Some("devices") => match find_managed("adb") {
+                Some(a) => {
+                    use std::time::Duration;
+                    let r = gsi_tool::run(&a, &["devices"], Duration::from_secs(20));
+                    println!("{}", r.stdout.trim_end());
+                    if r.success {
+                        0
+                    } else {
+                        1
+                    }
+                }
+                None => {
+                    println!("adb: not found");
+                    1
+                }
+            },
+            _ => usage(),
+        },
+        "fastboot" => match args.first().map(String::as_str) {
+            Some("devices") => match find_managed("fastboot") {
+                Some(f) => {
+                    use std::time::Duration;
+                    let r = gsi_tool::run(&f, &["devices"], Duration::from_secs(20));
+                    println!("{}", r.stdout.trim_end());
+                    if r.success {
+                        0
+                    } else {
+                        1
+                    }
+                }
+                None => {
+                    println!("fastboot: not found");
+                    1
+                }
+            },
+            Some("getvar") => match find_managed("fastboot") {
+                Some(f) => {
+                    use std::time::Duration;
+                    let what = args.get(1).cloned().unwrap_or_else(|| "all".to_string());
+                    let r = gsi_tool::run(&f, &["getvar", &what], Duration::from_secs(30));
+                    println!("{}", r.stdout.trim_end());
+                    let g = gsi_device::parse::getvar(
+                        &r.stdout.lines().collect::<Vec<_>>(),
+                    );
+                    if g.command_denied {
+                        println!("note: command denied is a Huawei quirk, not a lock proof");
+                    }
+                    if r.success {
+                        0
+                    } else {
+                        1
+                    }
+                }
+                None => {
+                    println!("fastboot: not found");
+                    1
+                }
+            },
+            _ => usage(),
+        },
+        "tools" => tools_status(),
         "device" => match args.first().map(String::as_str) {
             Some("slot") => {
                 let f = opt(&args, "--state-file")
@@ -384,6 +591,8 @@ fn main() {
                 println!("slot: {} ({})", r.occupant, r.detail);
                 0
             }
+            Some("detect") => device_detect(),
+            Some("info") => device_info(),
             Some("switch") => {
                 let to = gsi_device::SlotOccupant::parse(
                     &opt(&args, "--to").unwrap_or_default(),

@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
 
+pub mod parse;
+
 /// Who last occupied the shared recovery_ramdisk slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SlotOccupant {

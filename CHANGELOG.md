@@ -1,5 +1,9 @@
 # Changelog — trebleManager
 
+## v2.22.0
+
+- Rust owns more real behavior: `gsi-tool` managed external binding (locate/version/timeout-guarded run, no shell), device-output parsers ported 1:1 (adb/fastboot/getprop/by-name/getvar incl. Huawei quirk semantics), CLI `device detect|info`, `adb devices`, `fastboot devices|getvar`, `tools` all execute against real binaries (verified live incl. attached Android, read-only); native protocols stay Phase 8
+
 ## v2.21.0
 
 - Slint GUI live: Dashboard/GSI/Updates/Logs/Settings with Lucide icons, wired to the same core (analyze real, patch honestly refused, update check real); `gsi-root` without args starts the GUI

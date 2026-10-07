@@ -1,0 +1,10 @@
+[package]
+name = "gsi-tool"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Managed external-tool binding (locate, version-probe, run with timeout, parse). Used until native protocols land; never shell scripts."
+
+[lib]
+name = "gsi_tool"
+path = "src/lib.rs"

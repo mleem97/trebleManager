@@ -17,4 +17,5 @@ gsi-config = { path = "../gsi-config" }
 gsi-workflow = { path = "../gsi-workflow" }
 gsi-update = { path = "../gsi-update" }
 gsi-device = { path = "../gsi-device" }
+gsi-tool = { path = "../gsi-tool" }
 gsi-root-gui = { path = "../gsi-root-gui" }

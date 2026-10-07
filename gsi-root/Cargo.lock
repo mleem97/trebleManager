@@ -1676,6 +1676,7 @@ dependencies = [
  "gsi-image",
  "gsi-root-core",
  "gsi-root-gui",
+ "gsi-tool",
  "gsi-update",
  "gsi-workflow",
 ]
@@ -1699,6 +1700,10 @@ dependencies = [
  "slint",
  "slint-build",
 ]
+
+[[package]]
+name = "gsi-tool"
+version = "0.1.0"
 
 [[package]]
 name = "gsi-update"

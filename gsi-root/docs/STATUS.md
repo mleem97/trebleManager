@@ -53,6 +53,11 @@ Levels: `DONE` (implemented + tested) · `PARTIAL` (works, gaps noted) ·
 - Switch *execution* (native fastboot flash): PLANNED (Phase 8).
   Scripts remain the executor until then — single source of planning truth
   is already Rust.
+- Managed tool binding (`gsi-tool`: locate/version/run/timeout, no shell):
+  DONE. `device detect|info`, `adb devices`, `fastboot devices|getvar`,
+  `tools` execute against real system binaries (verified against live
+  `adb`/`fastboot` + a real attached Android device, read-only).
+  Native ADB/fastboot protocols: PLANNED (Phase 8).
 
 ## GUI (Slint + Lucide)
 
