@@ -1,5 +1,10 @@
 # Changelog — trebleManager
 
+## v2.19.0
+
+- gsi-root workspace started: `gsi-image` (gzip/sparse/raw + header parsing), `gsi-android` (build.prop), `gsi-root-core` (profiles, engines, plans, manifests with honesty levels), `gsi-root-cli` (analyze/inspect work, patch/verify refuse as EXPERIMENTAL), huawei-p10 device profile (static facts only); 15 cargo tests green, zero warnings
+- Central vendors/devcontainer convention adopted: no local `.vendors`/`.devcontainer` copies — `.devcontainer` is a symlink to the central Rust profile, new deps go to central manifests first (CONTRIBUTING)
+
 ## v2.18.0
 
 - Rust core started (ROADMAP §6): `core/treble_core` with pure `images`, `fastboot`, `firmware`, `roms` modules + `ttcore` CLI (`image-kind`, `flash-verdict`, `check-url`), 19 `cargo test` tests green, zero dependencies; PS1/bash integration comes later, reference behavior unchanged

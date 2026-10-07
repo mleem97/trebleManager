@@ -1,0 +1,10 @@
+[package]
+name = "gsi-image"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Container and Android image format detection (gzip, sparse, raw). No external tools."
+
+[lib]
+name = "gsi_image"
+path = "src/lib.rs"

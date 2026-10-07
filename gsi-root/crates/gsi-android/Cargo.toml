@@ -1,0 +1,10 @@
+[package]
+name = "gsi-android"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Android property file parsing (build.prop and friends). No external tools."
+
+[lib]
+name = "gsi_android"
+path = "src/lib.rs"

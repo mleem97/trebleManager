@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/gsi-image",
+    "crates/gsi-android",
+    "crates/gsi-root-core",
+    "crates/gsi-root-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"

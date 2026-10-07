@@ -17,3 +17,5 @@ $TEMP/
 trebleManager-*.zip
 trebleManager-*.zip.sha256
 core/*/target/
+gsi-root/target/
+gsi-root/*/target/

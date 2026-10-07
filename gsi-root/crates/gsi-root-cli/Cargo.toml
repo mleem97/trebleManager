@@ -1,0 +1,15 @@
+[package]
+name = "gsi-root-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "gsi-root command line: analyze/inspect/patch/verify over gsi-root-core."
+
+[[bin]]
+name = "gsi-root"
+path = "src/main.rs"
+
+[dependencies]
+gsi-image = { path = "../gsi-image" }
+gsi-android = { path = "../gsi-android" }
+gsi-root-core = { path = "../gsi-root-core" }

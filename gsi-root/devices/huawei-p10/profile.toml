@@ -1,0 +1,31 @@
+# Huawei P10 — device profile (static facts only, no GSI logic here).
+#
+# Maturity per field: VERIFIED = proven here or in trebleManager registry,
+# EXPERIMENTAL = planned/untested. Never present theory as tested.
+
+[device]
+name = "Huawei P10"
+manufacturer = "Huawei"
+models = ["VTR-L09", "VTR-L29"]   # VERIFIED (registry + device reports)
+model_note = "VTR-L09 Europe, VTR-L29 Global"
+soc = "Kirin 960"                 # VERIFIED
+arch = "arm64"                    # VERIFIED
+treble = true                     # VERIFIED
+
+[boot]
+# VERIFIED via trebleManager registry (partitions) + P10 Treble docs.
+slots = "a-only"
+normal_boot_ramdisk = false
+recovery_ramdisk = true
+system_as_root_gsi = true
+
+[partitions]
+system = "system"
+vendor = "vendor"
+recovery_ramdisk = "recovery_ramdisk"
+
+[root.normal_boot]
+# EXPERIMENTAL: no hardware POC yet. Documented working method remains
+# patched stock recovery_ramdisk + Vol-Up/Power (see trebleManager).
+status = "experimental"
+note = "Goal: normal power-boot with active root, no key combo. Not proven."
