@@ -50,7 +50,67 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.11.0"
+$TTVersion = "2.12.0"
+
+# Self-bootstrap for remote single-file runs (irm|iex, temp download):
+# without repo layout (no data/compatibility) fetch the FULL release ZIP
+# (same trust root: this repo) and relaunch from it. Full run, not degraded.
+# Guard TT_BOOTSTRAPPED=1 prevents loops. Offline -> degraded warning, no crash.
+if (-not $env:TT_BOOTSTRAPPED) {
+  $__root = Split-Path -Parent $MyInvocation.MyCommand.Path
+  if ([string]::IsNullOrEmpty($__root)) { $__root = (Get-Location).Path }
+  if ((Split-Path -Leaf $__root) -eq "scripts") { $__root = Split-Path -Parent $__root }
+  if (-not (Test-Path (Join-Path $__root "data/compatibility"))) {
+    Write-Host "Single-file run detected - fetching full toolkit layout ..." -ForegroundColor Cyan
+    Write-Host "Einzeldatei erkannt - lade volles Toolkit-Layout ..." -ForegroundColor Cyan
+    try {
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      $__wc = New-Object Net.WebClient
+      $__tag = ([string](($__wc.DownloadString("https://api.github.com/repos/mleem97/trebleManager/releases/latest") | ConvertFrom-Json).tag_name)).Trim()
+      if ([string]::IsNullOrEmpty($__tag)) { throw "empty release tag" }
+      $__base = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "trebleManager"
+      if (-not (Test-Path $__base)) { New-Item -ItemType Directory -Path $__base -Force | Out-Null }
+      $__dest = Join-Path $__base $__tag
+      $__target = Join-Path $__dest "scripts/Treble-Toolkit.ps1"
+      if (-not (Test-Path $__target)) {
+        $__zip = Join-Path $__base ("trebleManager-" + $__tag + ".zip")
+        $__wc.DownloadFile("https://github.com/mleem97/trebleManager/releases/download/" + $__tag + "/trebleManager-" + $__tag + ".zip", $__zip)
+        try {
+          $__exp = (([string]$__wc.DownloadString("https://github.com/mleem97/trebleManager/releases/download/" + $__tag + "/trebleManager-" + $__tag + ".zip.sha256") -split '\s+')[0]).Trim().ToUpper()
+          $__act = (Get-FileHash $__zip -Algorithm SHA256).Hash.ToUpper()
+          if ($__exp -ne "" -and $__exp -ne $__act) { Remove-Item $__zip -Force; throw "SHA256 MISMATCH, deleted, aborting bootstrap" }
+          Write-Host "SHA256 OK." -ForegroundColor Green
+        } catch {
+          if ($_.Exception.Message -match "MISMATCH") { throw }
+          Write-Host ("WARN: hash check skipped (" + $_.Exception.Message + ")") -ForegroundColor Yellow
+        }
+        if (-not (Test-Path $__dest)) { New-Item -ItemType Directory -Path $__dest -Force | Out-Null }
+        Expand-Archive -Path $__zip -DestinationPath $__dest -Force
+      }
+      if (Test-Path $__target) {
+        $env:TT_BOOTSTRAPPED = "1"
+        $__fw = @()
+        if ($Command -ne "") { $__fw += $Command }
+        foreach ($a in $args) { $__fw += $a }
+        if ($Image -ne "") { $__fw += @("--image", $Image) }
+        if ($FirmwareFile -ne "") { $__fw += @("--firmware-file", $FirmwareFile) }
+        if ($Mode -ne "" -and $Mode -ne "safe") { $__fw += @("--mode", $Mode) }
+        if ($Goal -ne "") { $__fw += @("--goal", $Goal) }
+        if ($Json) { $__fw += "--json" }
+        if ($Yes) { $__fw += "--yes" }
+        if ($NoReboot) { $__fw += "--no-reboot" }
+        if ($Anonymize) { $__fw += "--anonymize" }
+        $__exe = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        & $__exe -NoProfile -ExecutionPolicy Bypass -File $__target @$__fw
+        exit $LASTEXITCODE
+      }
+      Write-Host "WARN: bootstrap failed - continuing degraded without registry." -ForegroundColor Yellow
+    } catch {
+      Write-Host ("WARN: bootstrap failed (" + $_.Exception.Message + ") - continuing degraded without registry.") -ForegroundColor Yellow
+    }
+  }
+  Remove-Variable __root,__wc,__tag,__base,__dest,__target,__zip,__exp,__act,__fw,__exe -ErrorAction SilentlyContinue
+}
 
 # Spec error cases (handled explicitly, SEARCHABLE):
 # ADB not found / No device detected / USB debugging authorization required (ADB unauthorized) /

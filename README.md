@@ -4,7 +4,7 @@
 > TrebleDroid/Lineage GSI via Magisk `recovery_ramdisk` patching — detect, analyze,
 > extract, patch, backup, flash, verify, restore. No blind flashing, no touched GSI.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.11.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE) [![Version](https://img.shields.io/badge/Version-2.12.0-orange?style=for-the-badge)](CHANGELOG.md) [![Windows](https://img.shields.io/badge/Windows-PS%205.1%20%2B%207-blue?style=for-the-badge)](#installation) [![Linux](https://img.shields.io/badge/Linux-bash-green?style=for-the-badge)](#installation) [![Device](https://img.shields.io/badge/Device-Huawei%20P10%20VTR--L29-yellow?style=for-the-badge)](#compatibility)
 
 ## Links
 
@@ -163,14 +163,20 @@ curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/run-from
 Caches under `~/.local/share/trebleManager/<tag>`, verifies SHA256, then
 `exec`s `scripts/treble-toolkit.sh`. Stays interactive (reads `/dev/tty`).
 
-### Fallback: single file, no layout (degraded)
+### Fallback: single file, fully remote (self-bootstrapping)
 
 ```powershell
 irm https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1 | iex
 ```
 
-Works, but **without** the compatibility registry, setup and tools folders —
-use the starters above whenever possible.
+```bash
+curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/treble-toolkit.sh | bash
+```
+
+Both scripts detect the missing layout, download the **full release ZIP**
+(SHA256-verified, cached), and **relaunch themselves from it** — same 100%
+run as ZIP or starter, CLI args are forwarded. Offline they warn and continue
+degraded (no registry) instead of crashing.
 
 First run on a fresh machine: use `Setup-TrebleToolkit.bat` once (auto-UAC,
 execution policy, installs ADB/fastboot + optional scrcpy into user PATH,
@@ -190,6 +196,7 @@ Pick `trebleManager-vX.Y.Z.zip` + its `.sha256`, verify, extract anywhere,
 New version = new release — published artifacts are never modified.
 Each release lives on its own branch + tag:
 
+- [`release/v2.12.0`](https://github.com/mleem97/trebleManager/tree/release/v2.12.0) ([tag `v2.12.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.12.0))
 - [`release/v2.11.0`](https://github.com/mleem97/trebleManager/tree/release/v2.11.0) ([tag `v2.11.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.11.0))
 - [`release/v2.10.0`](https://github.com/mleem97/trebleManager/tree/release/v2.10.0) ([tag `v2.10.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.10.0))
 - [`release/v2.9.0`](https://github.com/mleem97/trebleManager/tree/release/v2.9.0) ([tag `v2.9.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.9.0))

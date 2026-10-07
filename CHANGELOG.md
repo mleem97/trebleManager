@@ -1,5 +1,10 @@
 # Changelog — trebleManager
 
+## v2.12.0
+
+- 100% remote execution: both scripts self-bootstrap — `irm ... | iex` and `curl ... | bash` detect the missing layout, fetch the full SHA256-verified release ZIP (cached, loop-guarded via `TT_BOOTSTRAPPED`), forward CLI args, and relaunch from it; SHA mismatch deletes + aborts, offline warns degraded instead of crashing
+- README fallback section rewritten (no longer degraded)
+
 ## v2.11.0
 
 - Online run = ZIP run: `Run-FromGitHub.bat` now bootstraps the FULL release ZIP (latest via API, SHA256-verified, cached in `%LOCALAPPDATA%\trebleManager`) and always chains into the central starter `Start-TrebleToolkit.bat` — no more single-PS1 degradeds; new `run-from-github.sh` does the same on Linux/macOS

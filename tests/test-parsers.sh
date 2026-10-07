@@ -133,6 +133,10 @@ grep -q "SHA256" "$ROOT_D/Run-FromGitHub.bat" && ok "online bat verifies hash" |
 bash -n "$ROOT_D/run-from-github.sh" && ok "online sh syntax" || bad "online sh syntax"
 grep -q "treble-toolkit.sh" "$ROOT_D/run-from-github.sh" && ok "online sh launches toolkit" || bad "online sh launches toolkit"
 grep -q "run-from-github" "$ROOT_D/README.md" && ok "readme documents online start" || bad "readme documents online start"
+grep -q "TT_BOOTSTRAPPED" "$ROOT_D/scripts/treble-toolkit.sh" && ok "bash self-bootstrap" || bad "bash self-bootstrap"
+grep -q "TT_BOOTSTRAPPED" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 self-bootstrap" || bad "ps1 self-bootstrap"
+grep -q "SHA256 MISMATCH" "$ROOT_D/scripts/Treble-Toolkit.ps1" && ok "ps1 bootstrap aborts on mismatch" || bad "ps1 bootstrap aborts on mismatch"
+grep -q "SHA256 MISMATCH" "$ROOT_D/scripts/treble-toolkit.sh" && ok "bash bootstrap aborts on mismatch" || bad "bash bootstrap aborts on mismatch"
 
 printf '\nResult: %s PASS, %s FAIL\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
