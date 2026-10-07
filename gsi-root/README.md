@@ -25,7 +25,7 @@ gsi-root/
     huawei-p10/         static device facts (profile.toml)
 ```
 
-## Build / test (dry run — no device touched)
+## Build / test (Dry Run Tests — no device touched)
 
 ```bash
 cargo build -p gsi-root-cli

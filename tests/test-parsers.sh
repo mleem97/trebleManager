@@ -6,7 +6,7 @@ PASS=0; FAIL=0
 ok() { PASS=$((PASS+1)); printf '[PASS] %s\n' "$1"; }
 bad() { FAIL=$((FAIL+1)); printf '[FAIL] %s\n' "$1"; }
 printf 'test-parsers (bash %s, src: %s)\n' "$BASH_VERSION" "${BASH_SOURCE[0]:-pipe/stdin}"
-printf 'DRY RUN - no device flashed or touched (simulated outputs only).\n'
+printf 'DRY RUN TESTS - no device flashed or touched (simulated outputs only).\n'
 
 # Online run (curl|bash): without repo layout fetch the FULL release ZIP
 # (same trust root) and run the suite from it. Guard prevents loops.

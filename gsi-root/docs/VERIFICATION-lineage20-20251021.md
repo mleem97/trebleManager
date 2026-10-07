@@ -1,6 +1,6 @@
 # Verification record — lineage-20.0-20251021-UNOFFICIAL-arm64_bgN-signed
 
-> **DRY RUN** — everything below runs without flashing or touching any
+> **DRY RUN TESTS** — everything below runs without flashing or touching any
 > device (downloaded bytes + static analysis only). Boot, root and hardware
 > behavior need the P10 and are NOT covered here.
 

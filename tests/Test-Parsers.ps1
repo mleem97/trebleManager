@@ -79,7 +79,7 @@ $Pass = 0
 $__suiteSrc = $MyInvocation.MyCommand.Path
 if ([string]::IsNullOrEmpty($__suiteSrc)) { $__suiteSrc = "remote/iex (bootstrapped)" }
 Write-Host ("Test-Parsers (PS " + $PSVersionTable.PSVersion + ", src: " + $__suiteSrc + ")") -ForegroundColor DarkGray
-Write-Host ("DRY RUN - no device flashed or touched (simulated command outputs only).") -ForegroundColor DarkGray
+Write-Host ("DRY RUN TESTS - no device flashed or touched (simulated command outputs only).") -ForegroundColor DarkGray
 Remove-Variable __suiteSrc -ErrorAction SilentlyContinue
 
 function Assert-Equal {

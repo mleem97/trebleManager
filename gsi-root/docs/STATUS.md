@@ -27,10 +27,14 @@ Levels: `DONE` (implemented + tested) · `PARTIAL` (works, gaps noted) ·
 
 ## Test levels (naming rule)
 
-- **Dry Run** — runs without flashing or touching any device: all `cargo
-  test` suites, both `Test-Parsers`/`test-parsers` suites (simulated command
-  outputs), static image analysis, export-refusal checks, and records like
+- **Dry Run Tests** — tests and test results produced without flashing or
+  touching any device: all `cargo test` suites, both
+  `Test-Parsers`/`test-parsers` suites (simulated command outputs), static
+  image analysis, export-refusal checks, and records like
   `VERIFICATION-*.md`. Safe anywhere.
+- **Instructions / guides** are written as plain command/GUI instructions
+  and are NOT labeled dry run — they describe actions to execute (some need
+  a device, which the guide states where it matters).
 - **Hardware tests** — need the physical device (flash, boot, root verify,
   cold boot, persistence). Always explicit, never part of a dry run.
   The P10 is currently held remotely (not on this machine) — hardware tests
