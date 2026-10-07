@@ -1,0 +1,10 @@
+[package]
+name = "gsi-i18n"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tiny bilingual (en/de) message table for gsi-root flows. No external deps."
+
+[lib]
+name = "gsi_i18n"
+path = "src/lib.rs"

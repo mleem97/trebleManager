@@ -14,6 +14,8 @@ gsi-image = { path = "../gsi-image" }
 gsi-root-core = { path = "../gsi-root-core" }
 gsi-config = { path = "../gsi-config" }
 gsi-update = { path = "../gsi-update" }
+gsi-device = { path = "../gsi-device" }
+gsi-tool = { path = "../gsi-tool" }
 slint.workspace = true
 
 [build-dependencies]

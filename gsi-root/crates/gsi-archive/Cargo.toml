@@ -3,7 +3,7 @@ name = "gsi-archive"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Native archive handling: gzip/xz decompress, tar list/extract. No external tools."
+description = "Native archive handling: gzip/xz decompress, tar/zip list/extract, UPDATE.APP probe. No external tools."
 
 [lib]
 name = "gsi_archive"
@@ -13,3 +13,4 @@ path = "src/lib.rs"
 flate2.workspace = true
 tar.workspace = true
 lzma-rs.workspace = true
+zip.workspace = true

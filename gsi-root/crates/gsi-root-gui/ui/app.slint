@@ -15,14 +15,71 @@ export component App inherits Window {
     in-out property <string> page: "dashboard";
     in-out property <string> gsi-path: "";
     in-out property <string> gsi-result: "";
+    in-out property <string> detect-result: "";
+    in-out property <string> tools-result: "";
     in-out property <string> update-repo: "mleem97/trebleManager";
     in-out property <string> update-result: "";
     in-out property <string> log-text: "";
     in-out property <string> version-text: "gsi-root";
     in-out property <string> channel: "Stable";
 
+    in-out property <string> flash-result: "";
+    in-out property <string> flash-system-result: "";
+    in-out property <string> wipe-result: "";
+    in-out property <string> unlock-result: "";
+    in-out property <string> verify-result: "";
+    in-out property <string> preflight-result: "";
+    in-out property <string> backup-result: "";
+    in-out property <string> restore-result: "";
+    in-out property <string> reinstall-result: "";
+    in-out property <string> resume-result: "";
+    in-out property <string> bootkeys-result: "";
+    in-out property <string> extract-result: "";
+    in-out property <string> download-result: "";
+    in-out property <string> firmware-result: "";
+    in-out property <string> export-result: "";
+    in-out property <string> kernel-result: "";
+    in-out property <string> twrp-result: "";
+    in-out property <string> compat-result: "";
+    in-out property <string> goals-result: "";
+    in-out property <string> rootmethods-result: "";
+    in-out property <string> patch-result: "";
+    in-out property <string> persist-result: "";
+    in-out property <string> romselect-result: "";
+    in-out property <string> help-result: "";
+    in-out property <string> status-result: "";
+    in-out property <string> wizard-result: "";
+
+    callback flash-refresh() -> string;
+    callback flash-system-refresh() -> string;
+    callback wipe-refresh() -> string;
+    callback unlock-refresh() -> string;
+    callback verify-refresh() -> string;
+    callback preflight-refresh() -> string;
+    callback backup-refresh() -> string;
+    callback restore-refresh() -> string;
+    callback reinstall-refresh() -> string;
+    callback resume-refresh() -> string;
+    callback bootkeys-refresh() -> string;
+    callback extract-refresh() -> string;
+    callback download-refresh() -> string;
+    callback firmware-refresh() -> string;
+    callback export-refresh() -> string;
+    callback kernel-refresh() -> string;
+    callback twrp-refresh() -> string;
+    callback compat-refresh() -> string;
+    callback goals-refresh() -> string;
+    callback rootmethods-refresh() -> string;
+    callback patch-refresh() -> string;
+    callback persist-refresh() -> string;
+    callback romselect-refresh() -> string;
+    callback help-refresh() -> string;
+    callback status-refresh() -> string;
+    callback wizard-refresh() -> string;
     callback analyze-image(string) -> string;
     callback patch-image(string) -> string;
+    callback detect-devices() -> string;
+    callback list-tools() -> string;
     callback check-update(string) -> string;
     callback append-log(string);
 
@@ -50,9 +107,37 @@ export component App inherits Window {
             for nav in [
                 { id: "dashboard", label: "Dashboard", icon: @image-url("../../../assets/icons/home.svg") },
                 { id: "gsi", label: "GSI", icon: @image-url("../../../assets/icons/file-text.svg") },
+                { id: "detect", label: "Detect", icon: @image-url("../../../assets/icons/smartphone.svg") },
+                { id: "tools", label: "Tools", icon: @image-url("../../../assets/icons/folder.svg") },
                 { id: "updates", label: "Updates", icon: @image-url("../../../assets/icons/refresh-cw.svg") },
                 { id: "logs", label: "Logs", icon: @image-url("../../../assets/icons/terminal.svg") },
                 { id: "settings", label: "Settings", icon: @image-url("../../../assets/icons/settings.svg") },
+                { id: "flash", label: "Flash", icon: @image-url("../../../assets/icons/shield-check.svg") },
+                { id: "flash-system", label: "Flash System", icon: @image-url("../../../assets/icons/download.svg") },
+                { id: "wipe", label: "Wipe", icon: @image-url("../../../assets/icons/x.svg") },
+                { id: "unlock", label: "Unlock", icon: @image-url("../../../assets/icons/info.svg") },
+                { id: "verify", label: "Verify", icon: @image-url("../../../assets/icons/check.svg") },
+                { id: "preflight", label: "Preflight", icon: @image-url("../../../assets/icons/activity.svg") },
+                { id: "backup", label: "Backup", icon: @image-url("../../../assets/icons/folder.svg") },
+                { id: "restore", label: "Restore", icon: @image-url("../../../assets/icons/refresh-cw.svg") },
+                { id: "reinstall", label: "Reinstall", icon: @image-url("../../../assets/icons/upload.svg") },
+                { id: "resume", label: "Resume", icon: @image-url("../../../assets/icons/terminal.svg") },
+                { id: "bootkeys", label: "Bootkeys", icon: @image-url("../../../assets/icons/smartphone.svg") },
+                { id: "extract", label: "Extract", icon: @image-url("../../../assets/icons/folder.svg") },
+                { id: "download", label: "Download", icon: @image-url("../../../assets/icons/download.svg") },
+                { id: "firmware", label: "Firmware", icon: @image-url("../../../assets/icons/file-text.svg") },
+                { id: "export", label: "Export", icon: @image-url("../../../assets/icons/terminal.svg") },
+                { id: "kernel", label: "Kernel", icon: @image-url("../../../assets/icons/settings.svg") },
+                { id: "twrp", label: "TWRP", icon: @image-url("../../../assets/icons/smartphone.svg") },
+                { id: "compat", label: "Compatibility", icon: @image-url("../../../assets/icons/file-text.svg") },
+                { id: "goals", label: "Goals", icon: @image-url("../../../assets/icons/activity.svg") },
+                { id: "rootmethods", label: "Root Methods", icon: @image-url("../../../assets/icons/info.svg") },
+                { id: "patch", label: "Patch", icon: @image-url("../../../assets/icons/settings.svg") },
+                { id: "persist", label: "Persist", icon: @image-url("../../../assets/icons/terminal.svg") },
+                { id: "romselect", label: "System", icon: @image-url("../../../assets/icons/smartphone.svg") },
+                { id: "help", label: "Help", icon: @image-url("../../../assets/icons/terminal.svg") },
+                { id: "status", label: "Status", icon: @image-url("../../../assets/icons/check.svg") },
+                { id: "wizard", label: "Wizard", icon: @image-url("../../../assets/icons/home.svg") },
             ] : Rectangle {
                 height: 36px;
                 border-radius: 8px;
@@ -135,6 +220,50 @@ export component App inherits Window {
                 }
             }
 
+            if page == "detect": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Detect"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Attached devices via managed adb/fastboot (read-only queries). Missing tools or devices are reported honestly."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            detect-result = detect-devices();
+                            append-log("detect refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> detect-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "tools": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Tools"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Managed external tools (adb/fastboot plus extractor programs). PATH plus known tool dirs, version probe when present."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            tools-result = list-tools();
+                            append-log("tools refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> tools-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
             if page == "updates": VerticalLayout {
                 spacing: 8px;
                 Text { text: "Updates"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
@@ -181,6 +310,578 @@ export component App inherits Window {
                 Text { text: "Settings"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
                 Text { text: "Config, cache, downloads, artifacts, logs and backups resolve to platform-correct user directories (override via environment). No hardcoded home paths."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
                 Text { text: "Offline capable: analyze/inspect/extract/patch-prep/verify run without network. Only downloads and update checks need it."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+            }
+
+            if page == "flash": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Flash"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Flash plan preview (read-only). Live flashing needs a device, backup and double confirm — refused without."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            flash-result = flash-refresh();
+                            append-log("flash refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> flash-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "flash-system": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Flash System"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "System-flash plan preview (read-only). Live flash refused without a device."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            flash-system-result = flash-system-refresh();
+                            append-log("flash-system refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> flash-system-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "wipe": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Wipe"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Wipe plan preview (read-only, userdata only). Live erase refused without a device."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            wipe-result = wipe-refresh();
+                            append-log("wipe refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> wipe-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "unlock": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Unlock"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Bootloader-unlock guidance (read-only). Never executes by design."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            unlock-result = unlock-refresh();
+                            append-log("unlock refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> unlock-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "verify": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Verify"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Root/validation plan preview (read-only). Live adb checks need a device."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            verify-result = verify-refresh();
+                            append-log("verify refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> verify-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "preflight": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Preflight"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Preflight blockers preview (read-only). Setup help is text only."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            preflight-result = preflight-refresh();
+                            append-log("preflight refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> preflight-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "backup": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Backup"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Backup plan preview (read-only). Device dump needs a live device (Phase 8)."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            backup-result = backup-refresh();
+                            append-log("backup refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> backup-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "restore": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Restore"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Restore plan preview (read-only). Live flash refused without a device."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            restore-result = restore-refresh();
+                            append-log("restore refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> restore-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "reinstall": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Reinstall"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Reinstall checklist preview (read-only). Wipe/flash refused without a device."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            reinstall-result = reinstall-refresh();
+                            append-log("reinstall refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> reinstall-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "resume": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Resume"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Resume state preview (read-only). Execution stays in the guided runner."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            resume-result = resume-refresh();
+                            append-log("resume refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> resume-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "bootkeys": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Bootkeys"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Key-combo reference (read-only guide)."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            bootkeys-result = bootkeys-refresh();
+                            append-log("bootkeys refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> bootkeys-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "extract": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Extract"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Archive content preview (read-only). Extraction stays manual via extractor tools."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            extract-result = extract-refresh();
+                            append-log("extract refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> extract-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "download": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Download"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Download options preview (read-only). No fetch executed from here."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            download-result = download-refresh();
+                            append-log("download refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> download-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "firmware": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Firmware"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Firmware baseline and compat preview (read-only)."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            firmware-result = firmware-refresh();
+                            append-log("firmware refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> firmware-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "export": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Export"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Export-recovery plan preview (read-only). System-as-base refused; repack open."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            export-result = export-refresh();
+                            append-log("export refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> export-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "kernel": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Kernel"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Kernel-fix options (read-only, informational)."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            kernel-result = kernel-refresh();
+                            append-log("kernel refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> kernel-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "twrp": VerticalLayout {
+                spacing: 8px;
+                Text { text: "TWRP"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "TWRP plan preview (read-only). Shared-slot warning included; flash gated."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            twrp-result = twrp-refresh();
+                            append-log("twrp refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> twrp-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "compat": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Compatibility"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Compatibility verdicts preview (read-only). Live registry load pending."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            compat-result = compat-refresh();
+                            append-log("compat refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> compat-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "goals": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Goals"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Goal plan preview (read-only). Execution refused without runner+device."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            goals-result = goals-refresh();
+                            append-log("goals refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> goals-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "rootmethods": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Root Methods"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Root-method table (read-only)."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            rootmethods-result = rootmethods-refresh();
+                            append-log("rootmethods refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> rootmethods-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "patch": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Patch"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Patch-base rule preview (read-only). Patching is EXPERIMENTAL and refused."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            patch-result = patch-refresh();
+                            append-log("patch refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> patch-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "persist": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Persist"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Persist-fix plan preview (read-only). Live install needs uid=0 (Phase 8)."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            persist-result = persist-refresh();
+                            append-log("persist refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> persist-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "romselect": VerticalLayout {
+                spacing: 8px;
+                Text { text: "System"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Installed-ROM select preview (read-only). Persistence stays script-side."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            romselect-result = romselect-refresh();
+                            append-log("romselect refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> romselect-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "help": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Help"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Usage reference (read-only)."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            help-result = help-refresh();
+                            append-log("help refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> help-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "status": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Status"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Status preview (read-only). Missing values render as unknown, never guessed."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            status-result = status-refresh();
+                            append-log("status refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> status-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
+            }
+
+            if page == "wizard": VerticalLayout {
+                spacing: 8px;
+                Text { text: "Wizard"; font-size: 22px; font-weight: 700; color: #e8eaf0; }
+                Text { text: "Guided-path preview (read-only). Live run refused."; font-size: 12px; color: #8a90a3; wrap: word-wrap; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: "Refresh";
+                        clicked => {
+                            wizard-result = wizard-refresh();
+                            append-log("wizard refresh");
+                        }
+                    }
+                }
+                TextEdit {
+                    text <=> wizard-result;
+                    read-only: true;
+                    font-size: 12px;
+                    vertical-stretch: 1;
+                }
             }
         }
     }

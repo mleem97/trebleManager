@@ -15,6 +15,7 @@ members = [
     "crates/gsi-state",
     "crates/gsi-gates",
     "crates/gsi-diag",
+    "crates/gsi-i18n",
     "crates/gsi-tool",
     "crates/gsi-root-gui",
 ]

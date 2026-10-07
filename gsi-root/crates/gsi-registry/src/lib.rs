@@ -381,6 +381,223 @@ pub fn repo_profile_path(profile: &str) -> PathBuf {
         .join(format!("{profile}.json"))
 }
 
+// ------------------------------------------------------------ tools block
+
+/// Platform-tools reference from the registry `tools` block.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlatformToolsRef {
+    /// Registry source tag (e.g. `direct-official`).
+    pub source: String,
+    /// URL pattern with `{os}` placeholder (e.g. `...-latest-{os}.zip`).
+    pub url_pattern: String,
+    /// Provided binaries (e.g. `adb`, `fastboot`).
+    pub provides: Vec<String>,
+    /// Human note.
+    pub note: String,
+}
+
+/// Firmware extractor reference from the registry `tools` block.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ExtractorRef {
+    /// Display name (e.g. `HuaweiFirmwareExtractor`).
+    pub name: String,
+    /// File name to fetch (e.g. `huawei_firmware_extractor.py`).
+    pub file: String,
+    /// Direct download URL.
+    pub url: String,
+    /// Source tag (e.g. `direct`).
+    pub source: String,
+    /// Runtime need (e.g. `python3.9+`).
+    pub needs: String,
+    /// Usage hint (`use` field in JSON).
+    pub use_hint: String,
+    /// Human note.
+    pub note: String,
+}
+
+/// Registry `tools` block (platform-tools + extractor references).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ToolsBlock {
+    /// Platform-tools entry when present.
+    pub platform_tools: Option<PlatformToolsRef>,
+    /// Extractor entries (may be empty).
+    pub extractors: Vec<ExtractorRef>,
+}
+
+fn str_field(v: &serde_json::Value, key: &str) -> String {
+    v.get(key)
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
+fn str_list(v: &serde_json::Value, key: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(arr) = v.get(key).and_then(|x| x.as_array()) {
+        for item in arr {
+            if let Some(s) = item.as_str() {
+                out.push(s.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// Parse the `tools` block from a profile JSON value (pure, no I/O).
+///
+/// Missing block yields an empty [`ToolsBlock`]; unknown fields ignored.
+pub fn parse_tools_block(value: &serde_json::Value) -> ToolsBlock {
+    let tools = match value.get("tools") {
+        Some(t) => t,
+        None => return ToolsBlock::default(),
+    };
+    let platform_tools = tools
+        .get("platform_tools")
+        .or_else(|| tools.get("platform-tools"))
+        .map(|p| {
+            let pattern = {
+                let a = str_field(p, "url_pattern");
+                if !a.is_empty() {
+                    a
+                } else {
+                    let b = str_field(p, "url");
+                    if !b.is_empty() {
+                        b
+                    } else {
+                        str_field(p, "pattern")
+                    }
+                }
+            };
+            PlatformToolsRef {
+                source: str_field(p, "source"),
+                url_pattern: pattern,
+                provides: str_list(p, "provides"),
+                note: str_field(p, "note"),
+            }
+        })
+        .filter(|p| {
+            !p.url_pattern.is_empty() || !p.source.is_empty() || !p.provides.is_empty()
+        });
+    let mut extractors = Vec::new();
+    if let Some(arr) = tools.get("extractors").and_then(|x| x.as_array()) {
+        for e in arr {
+            let use_hint = {
+                let a = str_field(e, "use");
+                if !a.is_empty() {
+                    a
+                } else {
+                    str_field(e, "use_hint")
+                }
+            };
+            let r = ExtractorRef {
+                name: str_field(e, "name"),
+                file: str_field(e, "file"),
+                url: str_field(e, "url"),
+                source: str_field(e, "source"),
+                needs: str_field(e, "needs"),
+                use_hint,
+                note: str_field(e, "note"),
+            };
+            if !r.name.is_empty() || !r.file.is_empty() || !r.url.is_empty() {
+                extractors.push(r);
+            }
+        }
+    }
+    ToolsBlock {
+        platform_tools,
+        extractors,
+    }
+}
+
+/// Load the `tools` block from a profile JSON file.
+pub fn tools_block(profile_json: &Path) -> Result<ToolsBlock, String> {
+    let text = std::fs::read_to_string(profile_json).map_err(|e| format!("read: {e}"))?;
+    let v: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("json: {e}"))?;
+    Ok(parse_tools_block(&v))
+}
+
+/// Normalize an OS hint to a registry token (`linux`/`darwin`/`windows`).
+fn normalize_os_token(os: &str) -> String {
+    let low = os.trim().to_lowercase();
+    if low.contains("linux") {
+        "linux".to_string()
+    } else if low.contains("darwin") || low.contains("macos") || low == "mac" || low.contains("mac_") {
+        "darwin".to_string()
+    } else {
+        "windows".to_string()
+    }
+}
+
+/// Select the platform-tools URL for an OS from a [`ToolsBlock`].
+///
+/// Substitutes `{os}` in the registry `url_pattern` with the normalized
+/// token. Only `https://` URLs are returned.
+pub fn platform_tools_url(tools: &ToolsBlock, os: &str) -> Result<String, String> {
+    let pattern = match &tools.platform_tools {
+        Some(p) if !p.url_pattern.trim().is_empty() => p.url_pattern.trim().to_string(),
+        _ => return Err("tools: no platform-tools url_pattern in registry".to_string()),
+    };
+    let token = normalize_os_token(os);
+    let url = pattern.replace("{os}", &token);
+    if url.starts_with("https://") {
+        Ok(url)
+    } else {
+        Err("tools: platform-tools URL rejected (https only)".to_string())
+    }
+}
+
+/// Extractor URL by name or file (case-insensitive, pure lookup).
+pub fn extractor_url(tools: &ToolsBlock, name: &str) -> Result<String, String> {
+    let want = name.trim().to_lowercase();
+    if want.is_empty() {
+        return firmware_extractor_url(tools);
+    }
+    for e in &tools.extractors {
+        if e.name.to_lowercase() == want || e.file.to_lowercase() == want {
+            if e.url.starts_with("https://") {
+                return Ok(e.url.clone());
+            }
+            return Err("tools: extractor URL rejected (https only)".to_string());
+        }
+    }
+    let mut avail = Vec::new();
+    for e in &tools.extractors {
+        if !e.name.is_empty() {
+            avail.push(e.name.clone());
+        }
+    }
+    Err(format!(
+        "tools: unknown extractor '{name}' (available: {})",
+        avail.join(", ")
+    ))
+}
+
+/// Primary firmware-extractor URL (first Huawei/firmware match, else first).
+pub fn firmware_extractor_url(tools: &ToolsBlock) -> Result<String, String> {
+    if tools.extractors.is_empty() {
+        return Err("tools: no extractors in registry".to_string());
+    }
+    let mut first: Option<&ExtractorRef> = None;
+    for e in &tools.extractors {
+        if first.is_none() {
+            first = Some(e);
+        }
+        let blob = format!("{} {}", e.name, e.file).to_lowercase();
+        if blob.contains("huawei") || blob.contains("firmware") || blob.contains("extract") {
+            if e.url.starts_with("https://") {
+                return Ok(e.url.clone());
+            }
+            return Err("tools: extractor URL rejected (https only)".to_string());
+        }
+    }
+    match first {
+        Some(e) if e.url.starts_with("https://") => Ok(e.url.clone()),
+        Some(_) => Err("tools: extractor URL rejected (https only)".to_string()),
+        None => Err("tools: no extractors in registry".to_string()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -466,5 +683,91 @@ mod tests {
             assert!(!unofficial.is_empty(), "UNOFFICIAL entry expected");
             assert_eq!(android_of(&unofficial[0]), 13);
         }
+    }
+
+    fn tools_sample() -> serde_json::Value {
+        serde_json::json!({
+            "tools": {
+                "platform_tools": {
+                    "source": "direct-official",
+                    "url_pattern": "https://dl.google.com/android/repository/platform-tools-latest-{os}.zip",
+                    "provides": ["adb", "fastboot"],
+                    "note": "Google official CDN, per-OS zip"
+                },
+                "extractors": [
+                    {
+                        "name": "HuaweiFirmwareExtractor",
+                        "file": "huawei_firmware_extractor.py",
+                        "url": "https://raw.githubusercontent.com/Natsume324/HuaweiFirmwareExtractor/main/huawei_firmware_extractor.py",
+                        "source": "direct",
+                        "needs": "python3.9+",
+                        "use": "python huawei_firmware_extractor.py UPDATE.APP -p RECOVERY_RAMDIS -o <dir>",
+                        "note": "dependency-free"
+                    }
+                ]
+            }
+        })
+    }
+
+    #[test]
+    fn tools_block_parses_fixture() {
+        let t = parse_tools_block(&tools_sample());
+        let p = t.platform_tools.expect("platform tools expected");
+        assert_eq!(p.source, "direct-official");
+        assert!(p.provides.contains(&"adb".to_string()));
+        assert_eq!(t.extractors.len(), 1);
+        assert_eq!(t.extractors[0].file, "huawei_firmware_extractor.py");
+    }
+
+    #[test]
+    fn tools_block_missing_is_empty() {
+        let t = parse_tools_block(&serde_json::json!({"roms": []}));
+        assert!(t.platform_tools.is_none());
+        assert!(t.extractors.is_empty());
+        assert!(platform_tools_url(&t, "linux").is_err());
+        assert!(firmware_extractor_url(&t).is_err());
+    }
+
+    #[test]
+    fn platform_tools_url_per_os() {
+        let t = parse_tools_block(&tools_sample());
+        assert_eq!(
+            platform_tools_url(&t, "Linux").unwrap(),
+            "https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
+        );
+        assert_eq!(
+            platform_tools_url(&t, "Darwin").unwrap(),
+            "https://dl.google.com/android/repository/platform-tools-latest-darwin.zip"
+        );
+        assert_eq!(
+            platform_tools_url(&t, "windows-msvc").unwrap(),
+            "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
+        );
+        assert_eq!(
+            platform_tools_url(&t, "").unwrap(),
+            "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
+        );
+    }
+
+    #[test]
+    fn extractor_urls() {
+        let t = parse_tools_block(&tools_sample());
+        let u = firmware_extractor_url(&t).unwrap();
+        assert!(u.contains("huawei_firmware_extractor.py"));
+        assert_eq!(extractor_url(&t, "HuaweiFirmwareExtractor").unwrap(), u);
+        assert_eq!(
+            extractor_url(&t, "huawei_firmware_extractor.py").unwrap(),
+            u
+        );
+        assert!(extractor_url(&t, "nope").is_err());
+    }
+
+    #[test]
+    fn live_tools_block_parses() {
+        let t = tools_block(&repo_profile_path("VTR-L29")).expect("tools must load");
+        let url = platform_tools_url(&t, "linux").expect("url expected");
+        assert!(url.starts_with("https://dl.google.com/"));
+        let ext = firmware_extractor_url(&t).expect("extractor expected");
+        assert!(ext.starts_with("https://"));
     }
 }

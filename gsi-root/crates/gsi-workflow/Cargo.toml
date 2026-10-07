@@ -12,4 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 gsi-root-core = { path = "../gsi-root-core" }
 gsi-image = { path = "../gsi-image" }
+gsi-device = { path = "../gsi-device" }
+gsi-gates = { path = "../gsi-gates" }
+gsi-state = { path = "../gsi-state" }
 sha2.workspace = true

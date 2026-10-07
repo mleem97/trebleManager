@@ -10,53 +10,51 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 
 ## Archiv/Export — 5 offen
 
-- [ ] `Expand-TTRomArchive` (PowerShell, 70 %) — zip extract open
+- [ ] `zip_entries` (Bash, 95 %)
+- [ ] `Invoke-TTUpdateAppAnalysis` (PowerShell, 90 %) — manual-extractor note kept
+- [ ] `Expand-TTRomArchive` (PowerShell, 85 %) — thin path wrapper stays CLI-side
 - [ ] `Export-RecoveryFromRom` (PowerShell, 40 %) — write/repack + device glue open
 - [ ] `export_recovery` (Bash, 40 %)
-- [ ] `Invoke-TTUpdateAppAnalysis` (PowerShell, 20 %) — Refusal-Logik portierbar, Dekomprimierung braucht Archive-Crate
-- [ ] `zip_entries` (Bash, 20 %)
 
-## Logik/State/Planung — 39 offen
+## Logik/State/Planung — 37 offen
 
+- [ ] `Find-LocalSystemImage` (PowerShell, 95 %)
+- [ ] `Find-TTRecoveryImage` (PowerShell, 95 %) — dirs passed in
+- [ ] `Find-TTRomBaseImage` (PowerShell, 95 %)
 - [ ] `Get-OSClassification` (PowerShell, 95 %)
+- [ ] `Get-RomImageEntries` (PowerShell, 95 %)
+- [ ] `Get-RomOptions` (PowerShell, 95 %)
 - [ ] `Load-InstalledRom` (PowerShell, 95 %) — multi-token=Err, honest
 - [ ] `Read-WorkflowState` (PowerShell, 95 %) — corrupt=Err, honest
+- [ ] `Test-RecoveryImageFile` (PowerShell, 95 %)
 - [ ] `Test-StepGate` (PowerShell, 95 %) — live probing stays caller-side
 - [ ] `Write-WorkflowState` (PowerShell, 95 %)
 - [ ] `os_classify` (Bash, 95 %) — live prop collection stays caller-side
 - [ ] `read_state_goal` (Bash, 95 %)
+- [ ] `rom_base_image` (Bash, 95 %) — documented tiebreak
+- [ ] `rom_options` (Bash, 95 %)
+- [ ] `save_config` (Bash, 95 %)
 - [ ] `step_gate` (Bash, 95 %)
-- [ ] `Get-RomOptions` (PowerShell, 90 %)
+- [ ] `Get-TTScriptRoot` (PowerShell, 90 %) — single documented env/CWD fallback
+- [ ] `Test-SystemImageFile` (PowerShell, 90 %) — arm64 rules advisory like PS
 - [ ] `Write-ValidationReport` (PowerShell, 90 %) — timestamping stays caller-side
+- [ ] `goal_screen` (Bash, 90 %) — text only, no execution
+- [ ] `install_base_dir` (Bash, 90 %) — writability is explicit input
 - [ ] `load_rom` (Bash, 90 %) — bash mangling replaced by Err
-- [ ] `rom_options` (Bash, 90 %) — listing UI stays script/GUI
+- [ ] `profile_gsi_advice` (Bash, 90 %)
+- [ ] `select_target` (Bash, 90 %)
 - [ ] `New-WorkflowPlan` (PowerShell, 85 %) — live gate blocking stays exec layer
 - [ ] `Invoke-FailureFlow` (PowerShell, 80 %) — TUI + restore exec refused
 - [ ] `Invoke-TTSelfElevate` (PowerShell, 80 %) — UAC stays OS-side by design
 - [ ] `Test-TTAdmin` (PowerShell, 80 %) — elevation OS-side by design
-- [ ] `install_base_dir` (Bash, 80 %) — logic ported, tool-linking not
-- [ ] `profile_gsi_advice` (Bash, 80 %) — advice text stays script
-- [ ] `rom_broken` (Bash, 80 %)
-- [ ] `Get-TTScriptRoot` (PowerShell, 70 %) — same rule, different API
 - [ ] `resolver_entries` (Bash, 70 %) — chain glue stays script
-- [ ] `Find-LocalSystemImage` (PowerShell, 60 %)
-- [ ] `Find-TTRecoveryImage` (PowerShell, 60 %)
-- [ ] `Find-TTRomBaseImage` (PowerShell, 60 %)
-- [ ] `Test-RecoveryImageFile` (PowerShell, 60 %) — size policy open
-- [ ] `Test-SystemImageFile` (PowerShell, 60 %)
-- [ ] `goal_screen` (Bash, 60 %)
-- [ ] `rom_base_image` (Bash, 60 %)
-- [ ] `Get-TTToolRoot` (PowerShell, 50 %)
 - [ ] `profile_verified` (Bash, 50 %)
 - [ ] `profile_variant` (Bash, 40 %)
 - [ ] `run_goal` (Bash, 40 %)
-- [ ] `save_config` (Bash, 40 %) — tool-path JSON open
-- [ ] `Get-RomImageEntries` (PowerShell, 20 %) — zip list open
 - [ ] `Write-TTLog` (PowerShell, 20 %)
 - [ ] `log` (Bash, 20 %)
 - [ ] `Invoke-TTFirstRun` (PowerShell, 0 %)
 - [ ] `Invoke-TTRootVerification` (PowerShell, 0 %)
-- [ ] `select_target` (Bash, 0 %)
 
 ## Device-Ausfuehrung — 58 offen
 
@@ -64,60 +62,60 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 - [ ] `patch_base` (Bash, 95 %)
 - [ ] `Test-TTFlashReadiness` (PowerShell, 90 %) — live re-query stays caller-side
 - [ ] `check_readiness` (Bash, 90 %)
+- [ ] `scan_dir_for_tools` (Bash, 90 %)
 - [ ] `verify_download` (Bash, 90 %)
+- [ ] `Find-TTTools` (PowerShell, 85 %)
 - [ ] `Get-TTFirmwareBaseline` (PowerShell, 85 %) — live reads stay caller-side
 - [ ] `Invoke-Preflight` (PowerShell, 85 %) — live parts refused
 - [ ] `New-TTDiagnostic` (PowerShell, 85 %) — live adb capture stays caller-side
 - [ ] `Test-DownloadedFirmware` (PowerShell, 85 %) — UPDATE.APP inner check deferred
 - [ ] `do_diagnostic` (Bash, 85 %)
+- [ ] `find_tools` (Bash, 85 %)
+- [ ] `install_platform_tools` (Bash, 85 %) — fetch/extract stays caller-side
+- [ ] `platform_tools_url` (Bash, 85 %) — fetch/extract stays caller-side
 - [ ] `preflight` (Bash, 85 %)
-- [ ] `Find-TTTools` (PowerShell, 80 %) — config-file merge open
-- [ ] `find_tools` (Bash, 80 %)
+- [ ] `add_to_path` (Bash, 80 %) — no env mutation in lib
+- [ ] `link_into_tools` (Bash, 80 %) — explicit [y/N] plan
+- [ ] `validate_checked` (Bash, 80 %)
+- [ ] `Get-DeviceStates` (PowerShell, 75 %) — live queries open
+- [ ] `Update-TTMode` (PowerShell, 75 %) — live queries open
+- [ ] `detect_mode` (Bash, 75 %)
+- [ ] `device_states` (Bash, 75 %)
 - [ ] `Invoke-FirmwareDownload` (PowerShell, 70 %) — no progress events yet
+- [ ] `Invoke-TTAndroidAnalysis` (PowerShell, 70 %) — live adb spawn open
+- [ ] `Invoke-TTFastbootAnalysis` (PowerShell, 70 %) — live fastboot spawn open
+- [ ] `android_analysis` (Bash, 70 %)
 - [ ] `download_firmware` (Bash, 70 %)
+- [ ] `fastboot_analysis` (Bash, 70 %)
 - [ ] `Get-TTProp` (PowerShell, 60 %)
+- [ ] `Install-PersistFixes` (PowerShell, 60 %) — live adb Phase 8
+- [ ] `Invoke-GuidedWipe` (PowerShell, 60 %) — live exec Phase 8
+- [ ] `Invoke-SystemFlash` (PowerShell, 60 %) — live exec Phase 8
+- [ ] `Invoke-TTRestoreFlow` (PowerShell, 60 %) — live exec Phase 8
+- [ ] `Invoke-TTSafeFlash` (PowerShell, 60 %) — live exec Phase 8
+- [ ] `Invoke-TwrpFlash` (PowerShell, 60 %) — live exec Phase 8
 - [ ] `New-TTBackup` (PowerShell, 60 %) — device dd refused, Phase 8
 - [ ] `Prepare-TTMagiskPatch` (PowerShell, 60 %) — instructions text open
 - [ ] `adb_prop` (Bash, 60 %) — glue open
 - [ ] `do_backup` (Bash, 60 %)
+- [ ] `do_restore` (Bash, 60 %)
+- [ ] `guided_wipe` (Bash, 60 %)
+- [ ] `install_persist_fixes` (Bash, 60 %)
 - [ ] `prepare_patch` (Bash, 60 %)
-- [ ] `scan_dir_for_tools` (Bash, 60 %)
+- [ ] `safe_flash` (Bash, 60 %)
+- [ ] `system_flash` (Bash, 60 %)
+- [ ] `twrp_flash` (Bash, 60 %)
 - [ ] `Invoke-DeveloperDump` (PowerShell, 55 %) — live adb refused
 - [ ] `developer_dump` (Bash, 55 %)
 - [ ] `Invoke-FastbootLogged` (PowerShell, 50 %)
 - [ ] `Invoke-TTAdb` (PowerShell, 50 %) — protocol native: Phase 8
 - [ ] `Invoke-TTFastboot` (PowerShell, 50 %)
+- [ ] `Invoke-TTValidate` (PowerShell, 50 %) — live adb Phase 8
 - [ ] `adb_run` (Bash, 50 %)
 - [ ] `fb_flash` (Bash, 50 %)
 - [ ] `fb_run` (Bash, 50 %)
-- [ ] `link_into_tools` (Bash, 50 %)
-- [ ] `Get-DeviceStates` (PowerShell, 30 %) — parsers done, state machine open
-- [ ] `add_to_path` (Bash, 30 %) — generic PATH mgmt open
-- [ ] `device_states` (Bash, 30 %)
-- [ ] `Install-PersistFixes` (PowerShell, 20 %)
-- [ ] `Invoke-GuidedWipe` (PowerShell, 20 %)
-- [ ] `Invoke-SystemFlash` (PowerShell, 20 %)
-- [ ] `Invoke-TTRestoreFlow` (PowerShell, 20 %)
-- [ ] `Invoke-TTSafeFlash` (PowerShell, 20 %)
-- [ ] `Invoke-TwrpFlash` (PowerShell, 20 %)
-- [ ] `do_restore` (Bash, 20 %)
-- [ ] `guided_wipe` (Bash, 20 %)
-- [ ] `install_persist_fixes` (Bash, 20 %)
-- [ ] `platform_tools_url` (Bash, 20 %) — URLs only in scripts
-- [ ] `safe_flash` (Bash, 20 %)
-- [ ] `system_flash` (Bash, 20 %)
-- [ ] `twrp_flash` (Bash, 20 %)
-- [ ] `Invoke-TTAndroidAnalysis` (PowerShell, 10 %) — parsers done
-- [ ] `Invoke-TTFastbootAnalysis` (PowerShell, 10 %)
-- [ ] `Update-TTMode` (PowerShell, 10 %) — parsers done
-- [ ] `android_analysis` (Bash, 10 %)
-- [ ] `detect_mode` (Bash, 10 %)
-- [ ] `fastboot_analysis` (Bash, 10 %)
-- [ ] `install_platform_tools` (Bash, 10 %)
-- [ ] `Invoke-TTValidate` (PowerShell, 0 %)
-- [ ] `validate_checked` (Bash, 0 %)
-- [ ] `validate_device` (Bash, 0 %)
-- [ ] `verify_root` (Bash, 0 %)
+- [ ] `validate_device` (Bash, 50 %) — live adb Phase 8
+- [ ] `verify_root` (Bash, 50 %) — live adb Phase 8
 
 ## Download — 8 offen
 
@@ -132,108 +130,93 @@ dann GUI). TUI-Zeilen wandern in Slint (Phase 9), nicht 1:1.
 
 ## Pure Tests/Pruefer — 3 offen
 
+- [ ] `test_image` (Bash, 95 %)
+- [ ] `test_system_image` (Bash, 95 %)
 - [ ] `Test-RomAgainstRegistry` (PowerShell, 80 %) — gate wiring stays script
-- [ ] `test_image` (Bash, 60 %)
-- [ ] `test_system_image` (Bash, 60 %)
 
 ## Bootstrap-Logik — 2 offen
 
 - [ ] `Get-BootstrapReleaseFile` (PowerShell, 70 %) — download/verify stays caller-side
 - [ ] `bootstrap_fetch` (Bash, 70 %)
 
-## TUI/interaktiv — 89 offen
+## TUI/interaktiv — 74 offen
 
-- [ ] `Get-CompatRegistry` (PowerShell, 90 %) — watch/policy UI stays script
-- [ ] `compat_broken_markers` (Bash, 90 %)
-- [ ] `compat_firmware_base` (Bash, 90 %)
-- [ ] `compat_roms` (Bash, 90 %) — policy UI stays script
-- [ ] `Show-FlashVerdict` (PowerShell, 80 %) — ttcore prints verdicts
-- [ ] `compat_file` (Bash, 60 %) — profile discovery stays script
+- [ ] `Get-CompatRegistry` (PowerShell, 95 %)
+- [ ] `Screen-Wipe` (PowerShell, 95 %) — live erase Phase 8 refused
+- [ ] `Select-InstalledRom` (PowerShell, 95 %) — twin of select_rom
+- [ ] `compat_broken_markers` (Bash, 95 %)
+- [ ] `compat_file` (Bash, 95 %)
+- [ ] `compat_firmware_base` (Bash, 95 %)
+- [ ] `compat_roms` (Bash, 95 %)
+- [ ] `screen_wipe` (Bash, 95 %)
+- [ ] `select_rom` (Bash, 95 %)
+- [ ] `Screen-Flash` (PowerShell, 90 %) — live flash Phase 8 refused
+- [ ] `Screen-FlashSystem` (PowerShell, 90 %) — live flash Phase 8 refused
+- [ ] `Screen-RebootVerify` (PowerShell, 90 %) — live adb Phase 8 refused
+- [ ] `Select-TargetDevice` (PowerShell, 90 %) — live scan in dispatch
+- [ ] `Select-TargetImage` (PowerShell, 90 %) — flags replace ReadKey
+- [ ] `Show-FlashVerdict` (PowerShell, 90 %) — FAILED veto kept
+- [ ] `Show-PreflightBlocked` (PowerShell, 90 %) — setup help is text only
+- [ ] `Show-TTCheckMenu` (PowerShell, 90 %)
+- [ ] `Show-TTHelp` (PowerShell, 90 %)
+- [ ] `Show-TTMenu` (PowerShell, 90 %) — OS actions stay OS-side
+- [ ] `Show-TTSettingsMenu` (PowerShell, 90 %)
+- [ ] `Show-TTStepsMenu` (PowerShell, 90 %)
+- [ ] `Show-TTWorkflowMenu` (PowerShell, 90 %)
+- [ ] `menu_check` (Bash, 90 %)
+- [ ] `menu_settings` (Bash, 90 %)
+- [ ] `menu_steps` (Bash, 90 %)
+- [ ] `menu_workflows` (Bash, 90 %)
+- [ ] `screen_flash` (Bash, 90 %)
+- [ ] `screen_flashsystem` (Bash, 90 %)
+- [ ] `screen_verify` (Bash, 90 %)
+- [ ] `select_target_image` (Bash, 90 %)
+- [ ] `show_help` (Bash, 90 %)
+- [ ] `Screen-Bootkeys` (PowerShell, 85 %)
+- [ ] `Select-RootTarget` (PowerShell, 85 %) — stock sub-choice stays guided note
+- [ ] `screen_bootkeys` (Bash, 85 %)
+- [ ] `select_root_target` (Bash, 85 %)
+- [ ] `Screen-KernelFixes` (PowerShell, 80 %)
+- [ ] `Screen-RootMethods` (PowerShell, 80 %) — live wiring pending
+- [ ] `ensure_scrcpy` (Bash, 80 %)
+- [ ] `ensure_tool` (Bash, 80 %) — interactive guiding in dispatch
+- [ ] `screen_kernelfixes` (Bash, 80 %)
+- [ ] `screen_rootmethods` (Bash, 80 %)
+- [ ] `Screen-Compatibility` (PowerShell, 75 %) — live registry load pending
+- [ ] `Screen-Resume` (PowerShell, 75 %) — exec stays guided runner
+- [ ] `Show-TTStatus` (PowerShell, 75 %) — missing renders as unknown
+- [ ] `screen_compat` (Bash, 75 %)
+- [ ] `screen_resume` (Bash, 75 %)
+- [ ] `status_screen` (Bash, 75 %)
+- [ ] `Screen-Backup` (PowerShell, 70 %) — live copy/hash Phase 8
+- [ ] `Screen-GoalSelect` (PowerShell, 70 %) — live plan + run stays scripts
+- [ ] `Screen-PersistFixes` (PowerShell, 70 %) — live install refused
+- [ ] `screen_backup` (Bash, 70 %)
+- [ ] `screen_goals` (Bash, 70 %)
+- [ ] `screen_persist` (Bash, 70 %)
+- [ ] `Screen-Patch` (PowerShell, 65 %) — live Magisk flow refused
+- [ ] `Screen-Reinstall` (PowerShell, 65 %) — wipe/flash refused
+- [ ] `screen_patch` (Bash, 65 %)
+- [ ] `screen_reinstall` (Bash, 65 %)
+- [ ] `Screen-Firmware` (PowerShell, 60 %) — no download from page
+- [ ] `Screen-Restore` (PowerShell, 60 %) — live flash refused
+- [ ] `Start-TTWizard` (PowerShell, 60 %) — live run refused
+- [ ] `screen_firmware` (Bash, 60 %)
+- [ ] `wizard` (Bash, 60 %)
+- [ ] `Screen-Extract` (PowerShell, 50 %) — extraction stays manual
+- [ ] `screen_extract` (Bash, 50 %)
+- [ ] `Screen-ExportRecovery` (PowerShell, 40 %) — repack open
+- [ ] `Screen-Logs` (PowerShell, 40 %) — file browser open
+- [ ] `Screen-Twrp` (PowerShell, 40 %) — flash gated
 - [ ] `Start-GoalWorkflow` (PowerShell, 40 %) — exec open
-- [ ] `L` (PowerShell, 0 %)
-- [ ] `Pause-TT` (PowerShell, 0 %)
-- [ ] `Screen-Analyze` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Backup` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Bootkeys` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Compatibility` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Detect` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-DownloadFirmware` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-ExportRecovery` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Extract` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Firmware` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Flash` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-FlashSystem` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-GoalSelect` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-KernelFixes` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Logs` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Patch` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-PersistFixes` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-RebootVerify` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Reinstall` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Restore` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Resume` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-RootMethods` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Tools` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Twrp` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Unlock` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Screen-Wipe` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Select-InstalledRom` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Select-RootTarget` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Select-TargetDevice` (PowerShell, 0 %)
-- [ ] `Select-TargetImage` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Show-PreflightBlocked` (PowerShell, 0 %)
-- [ ] `Show-TTCheckMenu` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Show-TTHeader` (PowerShell, 0 %)
-- [ ] `Show-TTHelp` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Show-TTMenu` (PowerShell, 0 %)
-- [ ] `Show-TTSettingsMenu` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Show-TTStatus` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Show-TTStepsMenu` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Show-TTWorkflowMenu` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Start-TTTui` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `Start-TTWizard` (PowerShell, 0 %) — GUI Phase 9 (Slint)
-- [ ] `ensure_scrcpy` (Bash, 0 %)
-- [ ] `ensure_tool` (Bash, 0 %)
-- [ ] `header` (Bash, 0 %)
-- [ ] `iread` (Bash, 0 %)
-- [ ] `main_menu` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `menu` (Bash, 0 %)
-- [ ] `menu_check` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `menu_settings` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `menu_steps` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `menu_workflows` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `pause_tt` (Bash, 0 %)
-- [ ] `screen_analyze` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_backup` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_bootkeys` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_compat` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_detect` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_download` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_export` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_extract` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_firmware` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_flash` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_flashsystem` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_goals` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_kernelfixes` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_patch` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_persist` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_reinstall` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_resume` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_rootmethods` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_tools` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_twrp` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_unlock` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_verify` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `screen_wipe` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `select_rom` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `select_root_target` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `select_target_image` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `show_help` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `status_screen` (Bash, 0 %) — GUI Phase 9 (Slint)
-- [ ] `wizard` (Bash, 0 %) — GUI Phase 9 (Slint)
+- [ ] `screen_export` (Bash, 40 %)
+- [ ] `screen_twrp` (Bash, 40 %)
+- [ ] `Screen-DownloadFirmware` (PowerShell, 30 %) — no fetch from page
+- [ ] `screen_download` (Bash, 30 %)
+- [ ] `Screen-Analyze` (PowerShell, 20 %) — GSI page covers image-side only
+- [ ] `screen_analyze` (Bash, 20 %)
 
-Offen gesamt: 204 von 264 Funktionen.
+Offen gesamt: 187 von 258 Funktionen.
 
 ## Nach 100 % blockiert / blocked until 100 % (POST-100)
 
