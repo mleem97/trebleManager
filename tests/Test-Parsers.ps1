@@ -40,7 +40,7 @@ function Import-TTFunction {
   $block = $Src.Substring($start, ($i - $start) + 1)
   try { Invoke-Expression $block } catch { Write-Host ("Ladefehler " + $Name + ": " + $_.Exception.Message) -ForegroundColor Red; $script:Fail++ }
 }
-foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode","Unquote-Path","Get-GoalSteps")) {
+foreach ($fn in @("ConvertFrom-AdbDevices","ConvertFrom-FastbootDevices","ConvertFrom-GetpropDump","ConvertFrom-ByNameListing","ConvertFrom-FastbootGetvar","Get-OSClassification","Test-FirmwareCompatibility","Test-FirmwareUrl","Test-BootImageMagic","Get-PreferredRootMethod","Test-RomAgainstRegistry","Get-VendorAdvice","Resolve-RunMode","Unquote-Path","Get-GoalSteps","Get-FlashVerdict")) {
   Import-TTFunction $fn
 }
 
@@ -181,6 +181,16 @@ Assert-Equal "plain path" 'C:\plain\a.img' (Unquote-Path 'C:\plain\a.img')
 $WorkflowGoals = @{ "root" = @("reconnaissance","flash","validate"); "restore_original" = @("reconnaissance","restore") }
 Assert-Equal "root steps" 3 (Get-GoalSteps "root").Count
 Assert-Equal "unknown goal empty" 0 (Get-GoalSteps "nope").Count
+
+# ---- 19. Flash verdict: FAILED vetoes, progress words are not success ----
+$v = Get-FlashVerdict @("Sending 'system' (1126400 KB)              OKAY [ 28.1s]","Writing 'system'                                 OKAY [ 41.2s]","Finished. Total time: 70.003s")
+Assert-Equal "verdict OK on full success" "OK" $v.Verdict
+$v = Get-FlashVerdict @("Sending 'system' (1126400 KB)              OKAY [ 28.1s]","Writing 'system'          FAILED (remote: 'Command not allowed')","Finished. Total time: 0.010s")
+Assert-Equal "verdict FAILED despite Writing+OKAY" "FAILED" $v.Verdict
+$v = Get-FlashVerdict @("Erasing 'userdata' ...")
+Assert-Equal "verdict UNCLEAR on progress only" "UNCLEAR" $v.Verdict
+$v = Get-FlashVerdict @("Erasing 'userdata'                                 OKAY [  2.1s]","Finished. Total time: 2.150s")
+Assert-Equal "verdict OK on erase success" "OK" $v.Verdict
 
 # ---- 15. Immutable release: single version everywhere ----
 $TTRoot = Split-Path -Parent $PSScriptRoot

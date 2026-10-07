@@ -50,7 +50,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$TTVersion = "2.12.1"
+$TTVersion = "2.12.2"
 
 # Self-bootstrap for remote single-file runs (irm|iex, temp download):
 # without repo layout (no data/compatibility) fetch the FULL release ZIP
@@ -1141,6 +1141,42 @@ function Invoke-FastbootLogged {
   return @(Invoke-TTFastboot @Arguments)
 }
 
+function Get-FlashVerdict {
+  # Pure evaluator for fastboot flash/erase output. FAILED lines veto everything:
+  # progress words like "Writing"/"Erasing" alone are NOT success. OK requires
+  # at least one OKAY plus a Finished line. Returns hashtable, no side effects.
+  param([string[]]$Lines)
+  $res = @{ Verdict = "UNCLEAR"; Okay = 0; Failed = @(); TotalTime = "" }
+  foreach ($l in $Lines) {
+    if ($l -match "OKAY") { $res.Okay++ }
+    if ($l -match "FAILED|remote:|^\s*error") { $res.Failed += $l.Trim() }
+    if ($l -match "Finished\.?\s*Total time:\s*(\S+)") { $res.TotalTime = $Matches[1] }
+  }
+  if ($res.Failed.Count -gt 0) { $res.Verdict = "FAILED" }
+  elseif ($res.Okay -gt 0 -and $res.TotalTime -ne "") { $res.Verdict = "OK" }
+  return $res
+}
+
+function Show-FlashVerdict {
+  # Clear on-screen result for a flash/erase verdict. Full raw output always
+  # stays in the session log ($TT.Log) - the screen shows verdict + reasons.
+  param($V, [string]$What = "flash")
+  if ($V.Verdict -eq "OK") {
+    $t = $V.Okay.ToString() + " OKAY"
+    if ($V.TotalTime -ne "") { $t += ", " + $V.TotalTime }
+    Write-Host ((L "FLASH RESULT: OK (" "FLASH-ERGEBNIS: OK (") + $t + ")") -ForegroundColor Green
+    Write-TTLog ("Flash result OK (" + $t + ").") "SUCCESS"
+  } elseif ($V.Verdict -eq "FAILED") {
+    Write-Host (L "FLASH RESULT: FAILED - nothing claimed as done." "FLASH-ERGEBNIS: FEHLGESCHLAGEN - nichts als erledigt behaupten.") -ForegroundColor Red
+    foreach ($f in ($V.Failed | Select-Object -First 3)) { Write-Host (" ! " + $f) -ForegroundColor Red }
+    Write-Host (L "Hints: 'Command not allowed' = Huawei refused (retry, cable, TROUBLESHOOTING). 'too large' = image bigger than partition. Full output is in the log." "Hinweise: 'Command not allowed' = Huawei lehnt ab (Retry, Kabel, TROUBLESHOOTING). 'too large' = Image groesser als Partition. Voll-Output im Log.") -ForegroundColor Yellow
+    Write-TTLog (("Flash result FAILED (" + $What + "): " + (($V.Failed | Select-Object -First 1) -join "; "))) "ERROR"
+  } else {
+    Write-Host (L "FLASH RESULT: UNCLEAR - no FAILED, but no Finished either. Verify manually before rebooting." "FLASH-ERGEBNIS: UNKLAR - kein FAILED, aber auch kein Finished. Vor Reboot manuell verifizieren.") -ForegroundColor Yellow
+    Write-TTLog (("Flash result UNCLEAR (" + $What + "): no FAILED, no Finished.")) "WARNING"
+  }
+}
+
 function Get-TTProp {
   param([string]$Name)
   $o = Invoke-TTAdb @("shell","getprop",$Name)
@@ -1555,9 +1591,9 @@ function Invoke-TTSafeFlash {
   # Command derived from profile (NOT hardcoded to other partitions)
   Write-TTLog "Starting: fastboot flash $part <patched>" "WARNING"
   $o = Invoke-TTFastboot @("flash",$part,$TT.PatchedImage)
-  Write-Host ($o -join "`n") -ForegroundColor White
-  $ok = ($o -join "`n") -match "OKAY|finished|Writing"
-  if ($ok) { Write-TTLog (L "Flash reported: OK (check output)." "Flash gemeldet: OK (Ausgabe pruefen).") "SUCCESS" } else { Write-TTLog (L "Flash output unclear/faulty - check output above." "Flash-Ausgabe unklar/fehlerhaft - Ausgabe oben pruefen.") "ERROR" }
+  $v = Get-FlashVerdict $o
+  Show-FlashVerdict $v ("flash " + $part)
+  $ok = ($v.Verdict -eq "OK")
   return [bool]$ok
 }
 
@@ -2359,12 +2395,12 @@ function Invoke-SystemFlash {
   }
   Write-TTLog "Starting: fastboot flash system <gsi>" "WARNING"
   $o = Invoke-FastbootLogged @("flash","system",$Image)
-  Write-Host $o -ForegroundColor White
-  $ok = ($o -join "`n") -match "OKAY|finished|Writing"
+  $v = Get-FlashVerdict $o
+  Show-FlashVerdict $v "flash system"
+  $ok = ($v.Verdict -eq "OK")
   if ($ok) {
-    Write-TTLog "System flash reported OK." "SUCCESS"
     Write-Host (L "Next: fastboot reboot -> eRecovery (Vol-Up 3s) -> wipe data/factory reset -> first setup." "Weiter: fastboot reboot -> eRecovery (Vol-Up 3s) -> Wipe/Factory Reset -> Setup.") -ForegroundColor Green
-  } else { Write-TTLog "System flash output unclear/faulty." "ERROR" }
+  }
   return [bool]$ok
 }
 
@@ -2450,10 +2486,10 @@ function Invoke-TwrpFlash {
   $part = $DeviceProfiles[$TT.ProfileId].TargetPartition
   Write-TTLog "Starting: fastboot flash $part <twrp>" "WARNING"
   $o = Invoke-FastbootLogged @("flash",$part,$Image)
-  Write-Host $o -ForegroundColor White
-  $ok = ($o -join "`n") -match "OKAY|finished|Writing"
-  if ($ok) { Write-TTLog "TWRP flash reported OK. Boot: hold Vol-Up." "SUCCESS" }
-  else { Write-TTLog "TWRP flash output unclear/faulty." "ERROR" }
+  $v = Get-FlashVerdict $o
+  Show-FlashVerdict $v ("flash " + $part)
+  $ok = ($v.Verdict -eq "OK")
+  if ($ok) { Write-Host (L "TWRP flash OK. Boot: hold Vol-Up." "TWRP-Flash OK. Boot: Vol-Up halten.") -ForegroundColor Green }
   return [bool]$ok
 }
 
@@ -2559,9 +2595,9 @@ function Invoke-GuidedWipe {
     Write-TTLog "CLI --yes: explicit wipe consent documented." "WARNING"
   }
   $o = Invoke-FastbootLogged @("erase","userdata")
-  Write-Host $o -ForegroundColor White
-  if (($o -join "`n") -match "OKAY|finished|Erasing") {
-    Write-TTLog "userdata erase reported OK." "SUCCESS"
+  $v = Get-FlashVerdict $o
+  Show-FlashVerdict $v "erase userdata"
+  if ($v.Verdict -eq "OK") {
     return $true
   }
   Write-Host (L "Device refused erase. Fallback (manual, safe): reboot to stock eRecovery (Vol-Up 3s) -> Wipe data / factory reset -> confirm on phone." "Geraet lehnt erase ab. Fallback (manuell, sicher): Stock-eRecovery booten (Vol-Up 3s) -> Wipe data / factory reset -> am Handy bestaetigen.") -ForegroundColor Yellow

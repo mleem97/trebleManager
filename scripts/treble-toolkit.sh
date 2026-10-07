@@ -7,7 +7,7 @@
 # Repo language: English. TUI German if $LANG starts with de.
 set -u
 
-TTVERSION="2.12.1"
+TTVERSION="2.12.2"
 # Run modes: safe (confirm everything), unattended (--yes auto-confirms, gates
 # still enforced), developer (unlocks dump-* commands).
 RUNMODE_REQ=""
@@ -161,6 +161,32 @@ USE_TMO=0; command -v timeout >/dev/null 2>&1 && USE_TMO=1
 adb_run() { if [ "$USE_TMO" = 1 ]; then timeout 30 "$ADB_BIN" "$@"; else "$ADB_BIN" "$@"; fi; }
 fb_run() { if [ "$USE_TMO" = 1 ]; then timeout 120 "$FB_BIN" "$@"; else "$FB_BIN" "$@"; fi; }
 fb_flash() { if [ "$USE_TMO" = 1 ]; then timeout 600 "$FB_BIN" "$@"; else "$FB_BIN" "$@"; fi; }
+flash_verdict() { # fastboot flash/erase output on stdin -> clear summary on stdout
+  # rc 0=OK 1=FAILED 2=UNCLEAR. FAILED lines veto everything: progress words
+  # like Writing/Erasing alone are NOT success. OK needs OKAY + Finished.
+  # Bilingual fixed text (no LANG dependency, testable pure logic).
+  local okay=0 first_failed="" total="" line
+  while IFS= read -r line; do
+    case "$line" in *OKAY*) okay=$((okay+1)) ;; esac
+    if printf '%s' "$line" | grep -qi -E 'FAILED|remote:|^[[:space:]]*error'; then
+      [ -z "$first_failed" ] && first_failed="$line"
+    fi
+    case "$line" in *[Ff]inished*) total="$(printf '%s' "$line" | sed -n 's/.*[Tt]otal time:[[:space:]]*//p')" ;; esac
+  done
+  if [ -n "$first_failed" ]; then
+    printf 'FLASH RESULT: FAILED - nothing claimed as done.\n'
+    printf ' ! %s\n' "$first_failed"
+    printf 'Hints / Hinweise: Command not allowed = Huawei refused (retry, cable, TROUBLESHOOTING). too large = image bigger than partition. Full output is in the log.\n'
+    return 1
+  fi
+  if [ "$okay" -gt 0 ] && [ -n "$total" ]; then
+    printf 'FLASH RESULT: OK (%s OKAY, %s).\n' "$okay" "$total"
+    return 0
+  fi
+  printf 'FLASH RESULT: UNCLEAR - no FAILED, but no Finished either. Verify manually before rebooting.\n'
+  printf 'FLASH-ERGEBNIS: UNKLAR - kein FAILED, aber auch kein Finished. Vor Reboot manuell verifizieren.\n'
+  return 2
+}
 iread() { if [ -c /dev/tty ] 2>/dev/null; then builtin read "$@" </dev/tty; else builtin read "$@"; fi; }
 find_tools() {
   # Saved setup config first (repo data/config.json or user config).
@@ -701,9 +727,9 @@ safe_flash() { # patched_image [--yes]
   fi
   log WARNING "Starting: fastboot flash $part <patched>"
   local out; out="$(fb_flash flash "$part" "$img" 2>&1)"
-  printf '%s\n' "$out" | tee -a "$TTLOG"
-  if printf '%s' "$out" | grep -q -i -E 'OKAY|finished|Writing'; then log SUCCESS "$(L 'Flash reported: OK.' 'Flash gemeldet: OK.')"; return 0; fi
-  log ERROR "$(L 'Flash output unclear/faulty.' 'Flash-Ausgabe unklar/fehlerhaft.')"; return 1
+  printf '%s\n' "$out" >> "$TTLOG"
+  if printf '%s\n' "$out" | flash_verdict; then log SUCCESS "$(L 'Flash reported: OK.' 'Flash gemeldet: OK.')"; return 0; fi
+  log ERROR "$(L 'Flash not OK (see result above).' 'Flash nicht OK (siehe Ergebnis oben).')"; return 1
 }
 verify_root() { # [--no-reboot]
   local noreboot="${1:-}"
@@ -1210,11 +1236,11 @@ system_flash() { # image [--yes]
   if [ "$MODE" != "fastboot" ]; then log ERROR "$(L 'Not in fastboot mode, aborting.' 'Nicht im Fastboot-Modus, Abbruch.')"; return 1; fi
   log WARNING "Starting: fastboot flash system <gsi>"
   local out; out="$(fb_flash flash system "$img" 2>&1)"
-  printf '%s\n' "$out" | tee -a "$TTLOG"
-  if printf '%s' "$out" | grep -q -i -E 'OKAY|finished|Writing'; then
+  printf '%s\n' "$out" >> "$TTLOG"
+  if printf '%s\n' "$out" | flash_verdict; then
     log SUCCESS "$(L 'System flash OK. Next: fastboot reboot -> eRecovery wipe -> setup.' 'System-Flash OK. Weiter: Reboot -> eRecovery Wipe -> Setup.')"; return 0
   fi
-  log ERROR "$(L 'System flash output unclear.' 'Ausgabe unklar.')"; return 1
+  log ERROR "$(L 'System flash not OK (see result above).' 'System-Flash nicht OK (siehe Ergebnis oben).')"; return 1
 }
 screen_flashsystem() {
   header "$(L 'Install ROM / GSI system image (fully guided)' 'ROM / GSI installieren (voll gefuehrt)')"; printf '\n'
@@ -1271,9 +1297,9 @@ twrp_flash() { # image [--yes]
   if [ "$MODE" != "fastboot" ]; then log ERROR "$(L 'Not in fastboot mode, aborting.' 'Nicht im Fastboot-Modus, Abbruch.')"; return 1; fi
   log WARNING "Starting: fastboot flash $part <twrp>"
   local out; out="$(fb_flash flash "$part" "$img" 2>&1)"
-  printf '%s\n' "$out" | tee -a "$TTLOG"
-  if printf '%s' "$out" | grep -q -i -E 'OKAY|finished|Writing'; then log SUCCESS "$(L 'TWRP flash OK. Boot: hold Vol-Up.' 'TWRP-Flash OK. Boot: Vol-Up halten.')"; return 0; fi
-  log ERROR "$(L 'TWRP flash output unclear.' 'Ausgabe unklar.')"; return 1
+  printf '%s\n' "$out" >> "$TTLOG"
+  if printf '%s\n' "$out" | flash_verdict; then log SUCCESS "$(L 'TWRP flash OK. Boot: hold Vol-Up.' 'TWRP-Flash OK. Boot: Vol-Up halten.')"; return 0; fi
+  log ERROR "$(L 'TWRP flash not OK (see result above).' 'TWRP-Flash nicht OK (siehe Ergebnis oben).')"; return 1
 }
 screen_twrp() {
   header "$(L 'TWRP path (guide + guided flash)' 'TWRP-Pfad (Anleitung + Flash)')"; printf '\n'
@@ -1350,8 +1376,8 @@ guided_wipe() { # double-confirmed userdata wipe, never automatic; eRecovery fal
     { [ "$b" = "YES" ] || [ "$b" = "JA" ]; } || return 1
   else log WARNING "CLI --yes: explicit wipe consent documented."; fi
   local out; out="$(fb_run erase userdata 2>&1)"
-  printf '%s\n' "$out" | tee -a "$TTLOG"
-  if printf '%s' "$out" | grep -q -i -E 'OKAY|finished|Erasing'; then
+  printf '%s\n' "$out" >> "$TTLOG"
+  if printf '%s\n' "$out" | flash_verdict; then
     log SUCCESS "$(L 'userdata erase reported OK.' 'userdata-erase gemeldet OK.')"; return 0
   fi
   printf '%s\n' "$(L 'Device refused erase. Fallback (manual, safe): stock eRecovery (Vol-Up 3s) -> Wipe data / factory reset -> confirm on phone.' 'Geraet lehnt ab. Fallback (manuell, sicher): Stock-eRecovery (Vol-Up 3s) -> Wipe -> am Handy bestaetigen.')"

@@ -1,5 +1,9 @@
 # Changelog — trebleManager
 
+## v2.12.2
+
+- Fixed faulty flash verdicts (all 8 flash/erase sites, PS1+bash): new `Get-FlashVerdict`/`flash_verdict` evaluator — FAILED lines veto everything, progress words (Writing/Erasing) alone are NOT success, OK requires OKAY + Finished line; screen now shows `FLASH RESULT: OK/FAILED/UNCLEAR` with OKAY count, total time, failing lines + cause hints (full raw output stays in the log)
+
 ## v2.12.1
 
 - README execution guide: new `Instant Execute` section (paste-ready one-liners for CMD via curl.exe, PowerShell via iwr/iex, Bash incl. pipe form) and rewritten `Download (offline ZIP — step by step)` (numbered: download, verify per shell incl. certutil, extract commands, central starter); stale hardcoded ZIP filename removed

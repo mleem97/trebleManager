@@ -25,7 +25,7 @@ $line"
   done < "$SRC"
   eval "$block" || { bad "load: $name"; return; }
 }
-for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name compat_file compat_broken_markers compat_roms vendor_advice resolve_mode goal_steps step_gate device_states platform_tools_url install_base_dir; do import_fn "$fn"; done
+for fn in valid_url boot_magic_ver firmware_compat os_classify profile_verified profile_variant test_system_image root_method_ids root_method_name compat_file compat_broken_markers compat_roms vendor_advice resolve_mode goal_steps step_gate device_states platform_tools_url install_base_dir flash_verdict; do import_fn "$fn"; done
 
 # Need TTLANG + PROFILE_ID + stubs used by imported funcs
 TTLANG="en"
@@ -121,8 +121,17 @@ SH_VER="$(grep -m1 '^TTVERSION=' "$ROOT_D/scripts/treble-toolkit.sh" | cut -d'"'
 grep -q "Version-$VER_FILE" "$ROOT_D/README.md" && ok "readme badge" || bad "readme badge"
 grep -q "## v$VER_FILE" "$ROOT_D/CHANGELOG.md" && ok "changelog entry" || bad "changelog entry"
 
-# ---- 13. Launchers: one central entry, online starters bootstrap full ZIP ----
-[ -f "$ROOT_D/Start-TrebleToolkit.bat" ] && ok "central starter present" || bad "central starter present"
+# ---- 13. Flash verdict: FAILED vetoes, progress words are not success ----
+printf '%s\n' "Sending 'system' (1126400 KB)              OKAY [ 28.1s]" "Writing 'system'                                 OKAY [ 41.2s]" "Finished. Total time: 70.003s" | flash_verdict >/dev/null 2>&1
+[ "$?" = 0 ] && ok "verdict OK on full success" || bad "verdict OK on full success"
+printf '%s\n' "Sending 'system' (1126400 KB)              OKAY [ 28.1s]" "Writing 'system'          FAILED (remote: 'Command not allowed')" "Finished. Total time: 0.010s" | flash_verdict >/dev/null 2>&1
+[ "$?" = 1 ] && ok "verdict FAILED despite Writing+OKAY" || bad "verdict FAILED despite Writing+OKAY"
+printf '%s\n' "Erasing 'userdata' ..." | flash_verdict >/dev/null 2>&1
+[ "$?" = 2 ] && ok "verdict UNCLEAR on progress only" || bad "verdict UNCLEAR on progress only"
+printf '%s\n' "Erasing 'userdata'                                 OKAY [  2.1s]" "Finished. Total time: 2.150s" | flash_verdict >/dev/null 2>&1
+[ "$?" = 0 ] && ok "verdict OK on erase success" || bad "verdict OK on erase success"
+
+# ---- 14. Launchers: one central entry, online starters bootstrap full ZIP ----[ -f "$ROOT_D/Start-TrebleToolkit.bat" ] && ok "central starter present" || bad "central starter present"
 grep -q 'scripts\\Treble-Toolkit.ps1' "$ROOT_D/Start-TrebleToolkit.bat" && ok "starter calls TUI" || bad "starter calls TUI"
 grep -q "pause" "$ROOT_D/Start-TrebleToolkit.bat" && ok "starter never silent" || bad "starter never silent"
 [ -f "$ROOT_D/Run-FromGitHub.bat" ] && ok "online starter bat present" || bad "online starter bat present"
