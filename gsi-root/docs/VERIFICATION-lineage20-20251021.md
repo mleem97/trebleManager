@@ -40,6 +40,21 @@ behavior are NOT proven by this document — that needs the P10.
   guidance. Correct: a system image can never be a Magisk patch base, and
   this GSI leaves `recovery_ramdisk` untouched stock.
 
+## Init path (POC basis for GSI Perma Flash)
+
+- `/init` is a symlink (SAR: kernel mounts system as root directly).
+- `/system/bin/init` exists: ELF aarch64, dynamically linked
+  (`/system/bin/bootstrap/linker64`), Android 33 — this is the second-stage
+  init and the structural hook candidate (no ramdisk binary to replace).
+- Init fragments in `/system/etc/init/` (incl. `hw/init.rc`); `init.environ.rc`
+  with `on early-init` at root.
+- Consequence: a perma-root hook must live in the system image itself
+  (second-stage redirect), not in a ramdisk. Requires: ext4 writer
+  (perms/xattrs/SELinux-preserving), repack, device vbmeta behavior check,
+  then hardware POC on the P10 (normal power-boot → `su` → `uid=0`).
+  None of that is proven yet — this section is the measured starting point,
+  not a result.
+
 ## What "working" still requires (phone needed)
 
 1. `fastboot flash system system.img` on VTR-L09/L29 (EMUI 9.1 base) → boots.

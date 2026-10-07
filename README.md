@@ -163,6 +163,16 @@ download.
 $b="$env:TEMP\Run-FromGitHub.bat"; iwr -UseBasicParsing -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/Run-FromGitHub.bat' -OutFile $b; & $b
 ```
 
+GUI: `& $b gui`. One-liner that installs + launches (no BAT file needed):
+
+```powershell
+irm https://raw.githubusercontent.com/mleem97/trebleManager/main/Install-Online.ps1 | iex
+```
+
+GUI via one-liner: append `-Gui` — `irm ... | iex` runs scripts without
+arguments, so for GUI use `& $b gui` or download `Install-Online.ps1` first:
+`powershell -File Install-Online.ps1 -Gui`.
+
 GUI: `& $b gui`. Linux mit GUI: `/tmp/run-from-github.sh gui` (lädt
 `gsi-root-linux-x86_64.tar.gz` nach `~/.local/bin`, PATH, startet GUI).
 
