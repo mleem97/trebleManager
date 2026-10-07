@@ -351,11 +351,12 @@ def main():
             tsum += status
 
     out = []
-    out.append("# Portierung nach Rust — Funktionsinventar\n")
+    out.append("# Portierung nach Rust — Funktionsinventar / Rust port inventory\n")
     out.append(GENERATED_NOTE)
     out.append(
         "Jede Script-Funktion mit Implementierungsort (PS1/Bash), Rust-Gegenstück "
-        "und Portierungsstatus (0–100 %). Bootstrap-Launcher (.bat/.sh/ps1-Dateien, "
+        "und Portierungsstatus (0–100 %). Every script function with its location "
+        "(PS1/Bash), Rust counterpart and port status (0–100 %). Bootstrap-Launcher (.bat/.sh/ps1-Dateien, "
         "kein Funktionsinventar) bleiben per Spec §4 dauerhaft Script. "
         "Stand: v" + (ROOT / "VERSION").read_text(encoding="utf-8").strip() + ".\n"
     )

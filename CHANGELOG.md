@@ -171,3 +171,38 @@
 - OS-independent analysis (Stock EMUI, TrebleDroid/Lineage GSI, custom ROMs)
 - Fixed prerequisite checker BAT (auto Android/fastboot mode, desktop log)
 - Smart launchers (local elevation + direct-from-GitHub loader)
+
+---
+
+<a id="de"></a>
+## Deutsch — Zusammenfassung pro Version
+
+- **v2.22.0**: Rust übernimmt echtes Verhalten (Tool-Binding, 1:1 portierte Geräte-Parser, live Device/ADB/Fastboot-CLI); Prebuilt-GUI-Binaries frisch.
+- **v2.21.0**: Slint-GUI live (Dashboard/GSI/Updates/Logs/Settings); Prebuilt-GUI-Binaries + Online-GUI-Install per Einzeiler.
+- **v2.20.0**: gsi-Config/Workflow/Update-Crates, CLI-Parität, STATUS-Mapping, Self-Install in PATH.
+- **v2.19.0**: gsi-root-Workspace (Image/Android/Core/CLI, P10-Profil); zentrale Vendors/Devcontainer-Konvention.
+- **v2.18.0**: Rust-Core-Start (Images/Fastboot/Firmware/ROMs + ttcore-CLI).
+- **v2.17.0**: Target-Image-Resolver, Artefakt-Registry mit geprüften URLs, Magisk-Auto-Fetch, Slim-Menüs, All-Format-Export.
+- **v2.16.1**: Persistent-Boot-Hinweis nach verifiziertem Root (bewusst manuell).
+- **v2.16.0**: APTouch-Fix automatisch in den Flows (sofort + persistent).
+- **v2.15.0**: Slim-Step-Menüs, All-Format-ROM-Export, UNOFFICIAL-LineageOS wählbar, Test-Header.
+- **v2.14.2**: Doku-Konsistenz (ROM-bewusster Wizard, Wiki-Sync).
+- **v2.14.1**: `irm|iex`-Fixes (Script-Root, Splat, Import-Scope, Fail-Fast).
+- **v2.14.0**: Install-ROM-Frage, Patch-Basis-Regel, ROM-bewusster Wizard mit `[SKIP]`s.
+- **v2.13.2**: Bootstrap ohne GitHub-API im Normalweg (gegen 403).
+- **v2.13.1**: API-403-Fix (User-Agent), klarer Exit bei Bootstrap-Fail.
+- **v2.13.0**: Test-Suiten laufen online (Self-Bootstrap).
+- **v2.12.2**: Echte Flash-Urteile (FAILED-Veto, OK braucht OKAY+Finished).
+- **v2.12.1**: Instant-Execute-Anleitung + Offline-ZIP-Steps.
+- **v2.12.0**: 100 % Remote-Runs (Self-Bootstrap beider Scripts).
+- **v2.11.0**: Online-Run = ZIP-Run (zentraler Starter), ein Einstiegspunkt.
+- **v2.10.0**: Full-Reinstall, geführter Wipe, Preflight-Ready-Anzeige, Starter-Härtung.
+- **v2.9.0**: Geführter Preflight mit Auto-Fix, Zero-File-Pipe-Runs.
+- **v2.8.0**: Root-Persistenz (service.d), Persistent-Boot-Guide, Audio-Debug.
+- **v2.7.0**: Orchestrator (Goals, Planner, State, Resume, Failure-Flow, JSON-API).
+- **v2.6.0**: Auto-Elevation, First-Run-Setup, Run-Modes, Validierung, Registry, Dumps.
+- **v2.4.0**: TWRP-Pfad, Root-Methoden-Prio, verifizierte/unverifizierte Profile.
+- **v2.3.0**: Full-Guidance (Wizard, ROM-Install, Unlock-/Kernel-Guides).
+- **v2.2.0**: Linux-Bash-Port (gleiche Logik, keine Extras).
+- **v2.1.0**: Zweisprachige TUI, Recovery-Export, Firmware-Downloader, Full-CLI, Safety-Gate, Backup/Restore, Diagnose, Docs.
+- **v2.0.0**: Komplette PowerShell-TUI + CLI-Wizard (Steps 1–9), OS-unabhängige Analyse, BAT-Checker, smarte Launcher.

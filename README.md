@@ -290,7 +290,6 @@ außer adb/fastboot keine Toolchain gewünscht ist.
 - [`release/v2.16.1`](https://github.com/mleem97/trebleManager/tree/release/v2.16.1) ([tag `v2.16.1`](https://github.com/mleem97/trebleManager/releases/tag/v2.16.1))
 - [`release/v2.16.0`](https://github.com/mleem97/trebleManager/tree/release/v2.16.0) ([tag `v2.16.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.16.0))
 - [`release/v2.15.0`](https://github.com/mleem97/trebleManager/tree/release/v2.15.0) ([tag `v2.15.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.15.0))
-- [`release/v2.15.0`](https://github.com/mleem97/trebleManager/tree/release/v2.15.0) ([tag `v2.15.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.15.0))
 - [`release/v2.14.2`](https://github.com/mleem97/trebleManager/tree/release/v2.14.2) ([tag `v2.14.2`](https://github.com/mleem97/trebleManager/releases/tag/v2.14.2))
 - [`release/v2.14.1`](https://github.com/mleem97/trebleManager/tree/release/v2.14.1) ([tag `v2.14.1`](https://github.com/mleem97/trebleManager/releases/tag/v2.14.1))
 - [`release/v2.14.0`](https://github.com/mleem97/trebleManager/tree/release/v2.14.0) ([tag `v2.14.0`](https://github.com/mleem97/trebleManager/releases/tag/v2.14.0))
@@ -421,3 +420,375 @@ development states are intentionally not presented as stable releases.
 ## License
 
 This project is licensed under the **Apache License 2.0**. See [`LICENSE`](LICENSE).
+
+---
+
+<a id="de"></a>
+## Deutsch — trebleManager
+
+> Windows-PowerShell-TUI + CLI zum Rooten des **Huawei P10 (VTR-L29 und andere)**
+> auf TrebleDroid/Lineage-GSI via Magisk-`recovery_ramdisk`-Patching — Detect,
+> Analyze, Extract, Patch, Backup, Flash, Verify, Restore. Kein Blind-Flash,
+> kein angefasstes GSI.
+
+## Links
+
+- **Repository:** [github.com/mleem97/trebleManager](https://github.com/mleem97/trebleManager)
+- **Wiki (Anleitung, EN+DE):** [github.com/mleem97/trebleManager/wiki](https://github.com/mleem97/trebleManager/wiki) — als `wiki/`-Subrepo gespiegelt (`git clone --recurse-submodules`; beide pushen via `./push-all.sh` / `Push-All.bat`)
+- **Issues:** [github.com/mleem97/trebleManager/issues](https://github.com/mleem97/trebleManager/issues)
+- **Technik-Basis:** [phhusson Discussion #2542](https://github.com/phhusson/treble_experimentations/discussions/2542) · [Huawei-P10-Wiki](https://github.com/phhusson/treble_experimentations/wiki/Huawei-P10-and-P10-Plus)
+- **Magisk (offiziell):** [github.com/topjohnwu/Magisk/releases](https://github.com/topjohnwu/Magisk/releases)
+- **Sponsor:** [github.com/sponsors/mleem97](https://github.com/sponsors/mleem97) · PayPal: `mleem97`
+
+## Überblick
+
+**trebleManager** fährt den kompletten Huawei-P10-Root-Workflow für
+TrebleDroid/LineageOS-GSI (Android 13, `lineage_arm64_bgN`) und andere
+OS-Stände (Stock-EMUI 8/9/9.1, AOSP/Pixel/Superior-GSI, Custom-ROMs,
+Android 8–14). Erst wird der echte Geräte-State erkannt — ADB/Fastboot-Modus,
+OS-Klasse, Partitions-Layout, Firmware-Baseline — dann erst Patching + Flash:
+
+```
+original Huawei RECOVERY_RAMDISK.img
+        ↓ Magisk "Select and Patch a File" (on-device)
+magisk_patched.img
+        ↓ fastboot flash recovery_ramdisk (nach Safety-Gate + Doppel-Confirm)
+Root via Vol-Up + Power Boot-Cheat → Verify uid=0
+```
+
+Das existierende GSI (`system`/`vendor`) wird nie angefasst. `FAILED (remote:
+Command not allowed)` aus Huawei-Fastboot gilt als Huawei-Quirk, nie als
+Lock-Beweis.
+
+## Kompatibilität
+
+| Gerät | Modell | Arch | Stand |
+|---|---|---|---|
+| Huawei P10 (Testgerät) | VTR-L29 (primär, verifiziert) | arm64 | Supported |
+| Huawei P10 | VTR-L09 (verifiziert) | arm64 | Supported |
+| Huawei P10 | VTR-AL00 / VTR-TL00 (unverifiziert) | arm64 | Nur Analyze + Export (Flash blockiert) |
+| Huawei P10 Plus (sekundär, kein Testgerät) | VKY-L29 (verifiziert) | arm64 | Supported |
+| Huawei P10 Plus | VKY-L09 / VKY-AL00 / VKY-TL00 (unverifiziert) | arm64 | Nur Analyze + Export (Flash blockiert) |
+
+Unverifiziert = gleiche Kirin-960-Hypothese, aber Flash bleibt blockiert bis
+Gerätedaten eingereicht sind (siehe `device-support`-Issue-Template).
+`devices`-CLI listet alle Profile.
+
+| Host | Shell | Stand |
+|---|---|---|
+| Windows 10/11 | PowerShell 5.1 | Supported |
+| Windows 10/11 | PowerShell 7+ | Supported |
+| Linux x64 | Bash 4+ (`scripts/treble-toolkit.sh`) | Supported |
+| macOS (Bash-Port) | Bash | Geplant (nach Windows-Release) |
+
+| Geräte-OS | Erkennung | Stand |
+|---|---|---|
+| Stock-EMUI 8.0 / 9.0 / 9.1 | getprop-Klassifizierung | Supported |
+| TrebleDroid / Lineage-GSI (bgN/bvS/bgS), Android 10–14 | getprop-Klassifizierung | Supported |
+| PixelExperience / SuperiorOS / AOSP-GSI, Custom-ROMs | getprop-Klassifizierung | Supported |
+
+UI-Sprache: Englisch by default, Deutsch bei deutschem System.
+
+## Features
+
+- Auto-Gerätemodus-Erkennung (Android / Fastboot / none, keine nutzlosen Reboots)
+- OS-unabhängige Analyse: getprop-Set, `/dev/block/by-name`, `ro.boot.*`, `/proc/cmdline`, Fastboot-`getvar`-Set
+- Firmware-Baseline + Kompat-Check (Modellfamilie strikt, Submodell/Region/EMUI als WARN; Beispiel-Firmware nur Advisory, nie exklusiv)
+- Stock-Firmware-Downloader mit Progress (BITS-Resume + WebClient-Fallback) und Pflicht-`YES`-Bestätigung
+- `UPDATE.APP`-Analyse + `RECOVERY_RAMDIS(K).img`-Validierung (Size, SHA-256/512, Header-Magic, exakter Dateiname bleibt)
+- **Recovery-Export aus kompatiblen Custom-ROMs** (direkt `.img`, ROM `.zip`/`.tar`/`.tar.gz`/`.tgz` mit `boot/recovery.img`, `payload.bin` via payload-dumper-go; GSI-System-Images ehrlich abgelehnt)
+- **Kompatibilitäts-Registry** (`data/compatibility/huawei/p10/*.yaml` + generiertes `.json`): recherchierte ROM/Firmware/TWRP/Magisk-Matrix pro Variante (working / working-slim / working-with-fixes / broken / variant-dependent). TUI-Screen + `compat`-CLI zeigen Empfehlungen; `flash-system` blockt nachweislich kaputte Builds hart (z.B. Lineage 20 Light, HavocOS 3.12); Vendor- (Oreo vs Pie) + Storage-Advice (eMMC vs UFS) in Analyse
+- **Geführte ROM/GSI-Installation** (`flash-system`, TUI-Menü): Image-Checks (Size, arm64, A-only), Doppel-Bestätigung, `fastboot flash system`, eRecovery-Wipe-Anleitung — nie Auto-Wipe von userdata
+- **TWRP-Pfad** (Anleitung + geführter Flash): gerätgenaue Builds, Image-Validierung, automatisches Slot-Backup, explizite Shared-Slot-Warnung (TWRP ↔ Magisk überschreiben einander), Vol-Up-Boot, nie TWRP-userdata-Wipe
+- **Root-Methoden nach Prio** (Magisk bevorzugt): gepatchtes recovery_ramdisk → Magisk-via-TWRP → phh-su → KernelSU (nur v0.9.2), wählbar in TUI / `root-methods`-CLI
+- **Bootloader-Unlock- + Kernel/Fix-Anleitungen** direkt aus P10-Wiki (PotatoNV-USER/BL-LOCK-Flow, permissive Kernels, Speaker/APTouch-Fixes, TWRP-Regeln)
+- Echter On-Device-Magisk-Patch-Flow (nie Copy-and-Claim, gepatcht `!=` Stock per Hash erzwungen)
+- Backup vor jedem Flash (`backups/<MODEL>/recovery_ramdisk/<stamp>/` + `metadata.json` + Hashes)
+- 9-Punkt-Safety-Gate mit `DO NOT FLASH`, abgeleitetem Flash-Command, Doppel-Bestätigung
+- Huawei-Boot-Prozedur eingebaut (Vol-Up + Power, nicht persistent), Root-Verify nur bei `uid=0`
+- Voller Restore-/Unroot-Modus, Diagnose-ZIP (10 Dateien, `--anonymize`), CLI mit `--json`
+- Kein Auto-`erase/format userdata`, kein `flashing unlock`, kein Bootloader-Unlock, keine Telemetrie
+- Installiertes-ROM-Frage (Stock/supported/other, gespeichert), Patch-Basis-Regel (GSI → Stock-Recovery korrekt; Device-ROM → dessen Paket), ROM-bewusster Wizard mit sichtbaren `[SKIP]`s
+- Echte Flash-Urteile (`FLASH RESULT: OK/FAILED/UNCLEAR`, FAILED hat Veto)
+- Self-Bootstrapping Online-Runs (volles ZIP, SHA-geprüft, gecached), zentrale BAT als Einstieg
+- Rust-Core (`core/treble_core`, `gsi-root/`-Crates, `cargo test`); GSI-Analyzer + Slint-GUI (EXPERIMENTAL bis Hardware-POC)
+
+## Installation
+
+### Step 0 — Setup (frische Maschinen, einmal)
+
+`Setup-TrebleToolkit.bat` doppelklicken: fragt automatisch nach Admin (UAC),
+erlaubt Script-Ausführung, installiert ADB/fastboot (offizielle Google-
+Platform-Tools, portable) und — nur mit deiner Zustimmung — scrcpy in
+User-PATH, speichert `data/config.json`. Danach sind alle Tools global
+erreichbar. `Start-TrebleToolkit.bat` öffnet sich automatisch elevated neu
+und startet erst Setup wenn Tools fehlen. Relative Script-Aufrufe immer mit
+`.\`-Prefix (manche PowerShell-Versionen brauchen es).
+
+Linux/Bash: keine Setup-Datei nötig — der Erststart **führt dich**:
+fehlendes `adb`/`fastboot` bietet `[1]` offiziellen Download in PATH,
+`[2]` Binary wählen (Ordner wird gescannt), `[3]` jedes Binary wählen,
+`[4]` Custom-Ordner als PATH (+ Symlinks in zentrale `tools/`), dann
+scrcpy-Frage (Install-Hinweis / wählen / skippen). Gleich aus
+`curl ... | bash` (liest `/dev/tty`, null Dateien nötig).
+
+### Option A — CMD (Quick-Check)
+
+1. `p10-magisk-check-FIXED.bat` neben `adb.exe` legen
+   (z.B. `C:\Program Files (x86)\Minimal ADB and Fastboot\`).
+2. Doppelklicken (ggf. Admin mit `Y` bestätigen).
+3. Erkennt Android vs. Fastboot automatisch und schreibt
+   `%USERPROFILE%\Desktop\Huawei-P10-Magisk-Check.txt`.
+
+### Option B — PowerShell-TUI/CLI (Windows)
+
+```powershell
+cd "C:\path\to\trebleManager"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Treble-Toolkit.ps1
+```
+
+Oder Starter doppelklicken: `Start-TrebleToolkit.bat` (fragt ggf. nach
+Elevation), oder direkt von GitHub (siehe [INSTRUCTIONS.md](INSTRUCTIONS.md)).
+
+### Option B2 — Linux-Bash (gleiche Logik, keine Extras)
+
+```bash
+cd /path/to/trebleManager
+chmod +x scripts/treble-toolkit.sh
+./scripts/treble-toolkit.sh
+./scripts/treble-toolkit.sh detect --json
+./scripts/treble-toolkit.sh diagnostic --anonymize
+```
+
+Braucht nur `adb`, `fastboot` (`sudo apt install android-tools-adb
+android-tools-fastboot` auf Debian/Ubuntu). Optional: `unzip`, `curl`, `zip`
+(oder je `python3` als Fallback).
+
+### Option C — Offline-Release-ZIP (GitHub blockiert)
+
+Siehe [Download (Offline-ZIP — Step by Step)](#download-offline-zip--step-by-step):
+laden + verifizieren + entpacken, dann `Start-TrebleToolkit.bat` doppelklicken.
+
+## Instant Execute (null Dateien — ein Command pasten)
+
+Kein Download, kein ZIP: ein Command pasten, Rest automatisch. Jede Variante
+lädt das **volle Release-ZIP** (gleiches Layout wie Offline-ZIP: `scripts\`,
+`data\`-Registry, Setup, TUI), verifiziert SHA256 und startet den **zentralen
+Starter `Start-TrebleToolkit.bat`** — Online-Run ist 100 % identisch zum
+ZIP-Run. Nie stilles Beenden; jeder Fehler pausiert mit Klartext.
+
+### CMD (Windows-Eingabeaufforderung) — ein Befehl, Enter, fertig
+
+```cmd
+curl -fsSL -o "%TEMP%\Run-FromGitHub.bat" https://raw.githubusercontent.com/mleem97/trebleManager/main/Run-FromGitHub.bat && "%TEMP%\Run-FromGitHub.bat"
+```
+
+GUI statt TUI: `"...Run-FromGitHub.bat" gui` (lädt
+`gsi-root-windows-x86_64.zip`, SHA-geprüft, installiert nach
+`%LOCALAPPDATA%\gsi-root\bin`, PATH, startet GUI).
+
+(`curl.exe` ist in Windows 10/11 eingebaut. Ohne: PowerShell-Einzeiler unten
+— macht via `iwr` dasselbe.) Cached unter
+`%LOCALAPPDATA%\trebleManager\<tag>`; Ordner löschen für frischen Download.
+
+### PowerShell (Windows) — ein Befehl
+
+```powershell
+$b="$env:TEMP\Run-FromGitHub.bat"; iwr -UseBasicParsing -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/Run-FromGitHub.bat' -OutFile $b; & $b
+```
+
+GUI: `& $b gui`. Einzeiler der installiert + startet (keine BAT-Datei nötig):
+
+```powershell
+irm https://raw.githubusercontent.com/mleem97/trebleManager/main/Install-Online.ps1 | iex
+```
+
+GUI per Einzeiler: `-Gui` anhängen — `irm ... | iex` läuft Scripts ohne
+Argumente, daher für GUI `& $b gui` oder erst `Install-Online.ps1` laden:
+`powershell -File Install-Online.ps1 -Gui`.
+
+GUI: `& $b gui`. Linux mit GUI: `/tmp/run-from-github.sh gui` (lädt
+`gsi-root-linux-x86_64.tar.gz` nach `~/.local/bin`, PATH, startet GUI).
+
+Gleiches Ergebnis wie CMD-Variante (läuft inline in deiner Konsole).
+
+### PowerShell `irm | iex` (überhaupt keine Temp-Datei)
+
+```powershell
+irm https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/Treble-Toolkit.ps1 | iex
+```
+
+Das Script bootstrapt sich selbst (holt volles ZIP, SHA256-verifiziert,
+startet daraus neu). Mit CLI-Args so? Datei erst laden, dann mit
+`.\Treble-Toolkit.ps1 detect --json` aufrufen — `iex` nimmt keine Argumente.
+
+### Bash (Linux/macOS) — ein Befehl
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/run-from-github.sh -o /tmp/run-from-github.sh \
+&& chmod +x /tmp/run-from-github.sh && /tmp/run-from-github.sh
+```
+
+Cached unter `~/.local/share/trebleManager/<tag>`, verifiziert SHA256, dann
+`exec` auf `scripts/treble-toolkit.sh`. Bleibt interaktiv (liest `/dev/tty`).
+Reine Pipe-Form (ebenfalls self-bootstrapping):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/scripts/treble-toolkit.sh | bash -s -- detect --json
+```
+
+Erstlauf auf frischer Maschine: einmal `Setup-TrebleToolkit.bat` nutzen
+(Auto-UAC, Execution-Policy, installiert ADB/fastboot + optional scrcpy in
+User-PATH, speichert `data/config.json`). Der zentrale Starter bietet das
+automatisch an.
+
+### Test-Suiten online (gleicher Mechanismus, null Dateien — Dry Run Tests)
+
+```powershell
+irm https://raw.githubusercontent.com/mleem97/trebleManager/main/tests/Test-Parsers.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/tests/test-parsers.sh | bash
+```
+
+Beide Suiten bootstrappen sich (volles ZIP, SHA256-verifiziert) und laufen
+daraus — Parser, Firmware/OS-Checks, Flash-Urteile, Launcher- und
+Versions-Checks. Robuste Varianten die laut scheitern statt zu pipen
+(empfohlen bei wackeligem Netz — bei leerem Download errort `iex` kryptisch):
+
+```powershell
+$t="$env:TEMP\Test-Parsers.ps1"; iwr -UseBasicParsing -Uri 'https://raw.githubusercontent.com/mleem97/trebleManager/main/tests/Test-Parsers.ps1' -OutFile $t; powershell -NoProfile -ExecutionPolicy Bypass -File $t
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mleem97/trebleManager/main/tests/test-parsers.sh -o /tmp/test-parsers.sh && bash /tmp/test-parsers.sh
+```
+
+Hinweis: Bootstraps lösen das Release im Normalweg ohne GitHub-API auf
+(eigene Script-Version, sonst raw-`VERSION`-Datei) — die API (60
+unauthentifizierte Requests/h pro IP, User-Agent Pflicht) ist nur Fallback.
+Der ZIP-Cache heißt ein Download pro Version; Re-Runs nutzen den Cache ohne
+jedes Netz.
+
+## Download (Offline-ZIP — Step by Step)
+
+Für Maschinen ohne GitHub-Zugang (USB-Stick-Transfer).
+
+1. <https://github.com/mleem97/trebleManager/releases/latest> öffnen und
+   **beide** Dateien des obersten Releases laden:
+   `trebleManager-vX.Y.Z.zip` **+** `trebleManager-vX.Y.Z.zip.sha256`.
+2. Hash verifizieren (muss matchen, sonst löschen + neu laden):
+   - PowerShell: `(Get-FileHash .\trebleManager-vX.Y.Z.zip -Algorithm SHA256).Hash -eq ((Get-Content .\trebleManager-vX.Y.Z.zip.sha256) -split '\s+')[0]` → muss `True` printen
+   - CMD: `certutil -hashfile trebleManager-vX.Y.Z.zip SHA256` → geprinteten
+     Hash visuell mit Inhalt der `.sha256`-Datei vergleichen
+   - Linux: `sha256sum -c trebleManager-vX.Y.Z.zip.sha256` → muss `OK` printen
+3. Irgendwo entpacken (Pfad ohne Leerzeichen bevorzugt), Ordner-Layout
+   behalten (`scripts\`, `data\`, `logs\`, `backups\`):
+   - Windows Explorer: Rechtsklick → Alle extrahieren, oder PowerShell:
+     `Expand-Archive -Path .\trebleManager-vX.Y.Z.zip -DestinationPath C:\trebleManager`
+   - Linux: `unzip trebleManager-vX.Y.Z.zip -d trebleManager`
+4. **`Start-TrebleToolkit.bat` doppelklicken** — der eine zentrale Einstieg
+   (Admin-Rechte, Setup, TUI). Sonst muss nichts geöffnet werden.
+5. Optional für voll-offline Nutzung: Full-EMUI-Firmware-ZIP in
+   `data\firmware\` und Magisk-APK in `data\magisk\` vorablegen — dann ist
+   gar kein Internet mehr nötig.
+
+Read-only Quick-Check ohne Toolkit: `p10-magisk-check-FIXED.bat` neben
+`adb.exe` legen und doppelklicken.
+
+## Releases (unveränderlich)
+
+Neue Version = neues Release — publizierte Artefakte werden nie modifiziert.
+Jedes Release lebt auf eigenem Branch + Tag (Liste oben, EN-Teil).
+
+### Pre-Rust-Ära (script-only, weiter gültig)
+
+Versionen **v2.1.0 – v2.17.x** enthalten kein Rust: reines PowerShell
+5.1+/bash, kein Cargo nötig. Alles dort Dokumentierte bleibt gültig.
+
+## Orchestrator (Goals, Planner, State)
+
+Statt Commands zu memorieren, Ziel wählen (TUI-Menü oder
+`workflow --goal <id> [--json]`): `root`, `custom_rom`, `stock_rom`,
+`root_custom_rom`, `root_stock_rom`, `root_custom_rom_recovery`,
+`root_stock_rom_recovery`, `restore_original`, `full_reinstall`. Der Planner
+printet erst die geordneten Steps mit Live-Gate-Results; Ausführung mit
+persistiertem State (`logs/workflow-state.json`) und kontrolliertem Stopp bei
+Fehler (Diagnose → Restore → Abbruch). Resume via Menü-Eintrag oder CLI
+`resume`.
+
+- **Preflight** läuft zuerst: fehlende globale Tools (adb/fastboot)
+  **blockieren das Hauptmenü** mit Fix-Pfad (Setup/Install), scheitern nie
+  später still.
+- **Device-States sind explizit**: `ADB_READY`, `ADB_UNAUTHORIZED`,
+  `ADB_OFFLINE`, `ADB_MULTIPLE_DEVICES`, `FASTBOOT_READY`, … — unauthorized
+  oder offline wird nie als „abwesend" gemeldet; mehrere Geräte brauchen
+  explizite Ziel-Auswahl (`ANDROID_SERIAL`).
+- **`status [--json]`** zeigt den kompletten maschinenlesbaren State
+  (Preflight, Devices, Modus, Goal, gespeicherte Steps) für Automation.
+- `--yes` / unattended umgeht nie Prerequisites oder Safety-Gates.
+
+## Dependencies
+
+### Runtime
+
+- **ADB/Fastboot** — Minimal ADB and Fastboot oder Android-Platform-Tools
+  (PATH oder neben den Scripts). Beim Start mit Version/Pfad erkannt;
+  fehlende Tools brechen mit echtem Fehler ab, nie geraten.
+- **scrcpy (optional)** — Screen-Mirror beim Rooten
+  ([Genymobile/scrcpy](https://github.com/Genymobile/scrcpy)). Beim Start
+  erkannt, aus Tools startbar; Fehlen loggt nur INFO.
+- **USB-Treiber** — HiSuite/Kirin-Treiber, USB-Debugging am Gerät
+- **Magisk-APK** — nur offizielle Releases, nach `data/magisk/`
+- **Stock-Firmware** — Full-EMUI-9.1-Paket für `UPDATE.APP` (siehe Downloader
+  / [INSTRUCTIONS.md](INSTRUCTIONS.md))
+
+### Optionale Tools (in `data/tools/`)
+
+- `huawei-update-extractor` / `splitupdate` (UPDATE.APP-Extraktion)
+- `payload-dumper-go` (Custom-ROM-`payload.bin`-Export)
+
+### Nur Tests
+
+- Windows PowerShell 5.1+ für `tests/Test-Parsers.ps1`
+
+## Nutzung
+
+TUI ohne Args. CLI:
+
+```
+Treble-Toolkit.ps1 detect|devices|analyze|...|wizard|help [--goal <id>] [--mode safe|unattended|developer] [--json] [--yes] [--image <path>] [--firmware-file <url|path>] [--anonymize] [--no-reboot]
+```
+
+Wizard-Reihenfolge: Detect → Analyze (mit ROM-Frage) → Ziel in Alltagssprache
+→ Plan mit `[SKIP]`s → laufen. ROM-Weg zusätzlich: `export` → `flash-system`
+(gefuehrt, nur verifizierte Profile). Flash/Restore/System-Flash brauchen
+Doppel-Bestätigung (`FLASH`+`YES` / `RESTORE`+`YES`, CLI: `--yes`).
+Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [QUICKSTART.md](QUICKSTART.md),
+[FAQ.md](FAQ.md).
+
+## Repository-Layout
+
+Gleich wie oben (EN-Teil): `scripts/`, `core/`, `gsi-root/`, `tests/`,
+`data/*`, `backups/`, `logs/`, BAT-Launcher, Docs, `VERSION`, `LICENSE`.
+
+## Credits
+
+| Rolle | Contributor |
+|---|---|
+| **Codebase** | [mleem97](https://github.com/mleem97) |
+| Methoden-Referenz | [michal25](https://github.com/phhusson/treble_experimentations/discussions/2542) (P10-GSI-Guide) |
+| TrebleDroid/GSI | [phhusson](https://github.com/phhusson/treble_experimentations) |
+
+## Beitragen
+
+Siehe [CONTRIBUTING.md](CONTRIBUTING.md) für Guidelines.
+
+Entwicklung folgt `dev -> main`. Branch-Hinweis in [CONTRIBUTING.md](CONTRIBUTING.md)
+vor Pull Request beachten. Downloads erscheinen auf der GitHub-Releases-Seite;
+Dev-Stände werden bewusst nicht als stabile Releases dargestellt.
+
+## Lizenz
+
+Dieses Projekt steht unter der **Apache License 2.0**. Siehe [`LICENSE`](LICENSE).

@@ -58,3 +58,67 @@ bash tests/test-parsers.sh
 ```
 
 Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+<a id="de"></a>
+## Deutsch — Schnellstart
+
+Schnellster sicherer Weg von null zu verifiziertem Root auf Huawei P10 (VTR-L29).
+
+## 1. Check (2 Minuten, read-only)
+
+CMD: `p10-magisk-check-FIXED.bat` neben `adb.exe` legen, doppelklicken.
+Schreibt `%USERPROFILE%\Desktop\Huawei-P10-Magisk-Check.txt` — prüfen, dass
+`recovery_ramdisk` in by-name/getvar auftaucht. Nichts wird geflasht.
+
+## 2. Voll-TUI — EIN zentraler Einstieg
+
+**`Start-TrebleToolkit.bat` doppelklicken** (aus dem Release-ZIP). Regelt
+Admin-Rechte, Erst-Setup und dann die TUI — sonst muss nichts geöffnet werden.
+Noch keine Dateien? Online-Start: `Run-FromGitHub.bat` laden + doppelklicken
+(Windows) oder `run-from-github.sh` ausführen (Linux, siehe README) —
+gleiches Ergebnis. Manuelle Alternative (nur Experten):
+
+```powershell
+cd "C:\path\to\trebleManager"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Treble-Toolkit.ps1
+```
+
+Linux:
+
+```bash
+cd /path/to/trebleManager
+./scripts/treble-toolkit.sh
+```
+
+Dem Wizard folgen: **Detect → Analyze (sagt, welches System auf dem Handy
+ist) → Ziel in Alltagssprache → Plan mit sichtbaren `[SKIP]`s → laufen.**
+Stock-Weg: Firmware → Extract → Patch → Backup → Flash → Reboot+Verify.
+Custom-ROM-Weg: ROM-Paket → Recovery-Export → Patch → Backup → Flash →
+Reboot+Verify (Stock-Firmware-Steps werden geskipt — die Patch-Basis MUSS
+aus deinem ROM kommen, niemals aus Stock).
+
+## 3. Was du bereit brauchst
+
+- Full-EMUI-9.1-Firmware (für `UPDATE.APP` → TUI-Step-3-Downloader oder `data/firmware/`-Drop)
+- Magisk-APK aus [offiziellen Releases](https://github.com/topjohnwu/Magisk/releases) → `data/magisk/`
+- Der Boot-Cheat nach Flash: **Vol-Up + Power bis Huawei-Logo**, dann loslassen.
+- Root zählt nur mit `uid=0` (`su -c id`); Rechte in der Magisk-App freigeben.
+
+## 4. Wenn etwas bricht
+
+In Fastboot bleiben → TUI **Restore / Unroot** (oder CLI `restore`) flasht
+das gesicherte Original zurück. Siehe [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+
+## 5. Tests (Dry Run Tests — ohne Gerät)
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Parsers.ps1
+```
+
+```bash
+bash tests/test-parsers.sh
+```
+
+Details: [INSTRUCTIONS.md](INSTRUCTIONS.md), [CONTRIBUTING.md](CONTRIBUTING.md).

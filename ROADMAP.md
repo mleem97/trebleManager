@@ -34,18 +34,20 @@ it does not rewrite it.
 (boot, ADB, OS, SELinux, root, mounts, Wi-Fi, Bluetooth, battery, sensors)
 and writes `logs/validation-<stamp>.json`. Next: per-check remediation hints.
 
-## 4. Wizard as state machine (planned)
+## 4. Wizard as state machine (done: v2.14.0+, resolver v2.17.0)
 
-`UNKNOWN → DETECTED → ANALYZED → COMPATIBLE → BACKED_UP → IMAGE_PREPARED →
-READY_TO_FLASH → FLASHED → BOOTED → VERIFIED`, with
-`BOOT_FAILED → DIAGNOSTIC → RESTORE_REQUIRED` recovery. Persist step state so
-interrupted runs resume instead of restarting.
+ROM-aware wizard (installed-ROM question, plain-words goals, visible
+`[SKIP]`s) + target-image resolver (device → Android → system → variant →
+config). Step persistence via `logs/workflow-state.json` + resume exists
+(orchestrator P1).
 
-## 5. Firmware as a repository (planned)
+## 5. Firmware as a repository (started: v2.17.0)
 
-Per-package metadata (model, CUST, region, EMUI, Android, build, source, URL,
-SHA-256/512, extraction status, known compatibility) under `data/firmware/`,
-so inputs are reproducible artifacts, not loose downloads.
+Per-package metadata (`android`, `root_artifact`, verified `url`/`file`,
+gated firmware builds with portal pages) in
+`data/compatibility/huawei/p10/*.yaml` (+ JSON mirror); `download-rom` and
+Magisk stable.json auto-fetch resolve artifacts automatically. Remaining:
+UPDATE.APP auto-extraction, more verified direct URLs.
 
 ## 6. Core extraction (started v2.18.0, stepwise)
 
@@ -83,3 +85,79 @@ Diagnostik) ist eingefroren und bleibt gültig; PORTING.md wertet sie als
 Migrations-Basis (0 % = Script-Referenz, kein Mangel). Rust-Code (`core/`,
 `gsi-root/`) liegt ab v2.18.0 bei, strikt additiv — kein Script-Verhalten
 wurde dafür entfernt oder verändert.
+
+---
+
+<a id="deutsch"></a>
+## Deutsch — Roadmap (komplett)
+
+Ausgangspunkt: das arbeitende Toolkit in diesem Repo (TUI + CLI,
+Geräte-Profile, Kompatibilitäts-Registry, Safety-Gate, Linux-Bash-Port).
+Dieser Plan erweitert es — schreibt es nicht neu.
+
+## 0. Erledigt in v2.7.0 (Orchestrator-Fundament)
+
+- Startup-Preflight-Gate (Tool-Registry, schreibbare Dirs, explizite Device-States)
+- 8 Workflow-Goals + Planner mit Live-Gate-Results + persistenter State + Resume
+- Kontrollierter Failure-Flow (Diagnose → Restore → Abbruch), JSON-Status-API
+- CLI: `preflight|recon|status|workflow|resume|root` (+ `--goal`, `--mode`)
+- Multi-Device-Zielwahl, Unauthorized/Offline als eigene States
+
+## 1. Wo wir stehen
+
+- Wizard/CLI: Detect → Analyze (+ ROM-Frage) → Ziel in Alltagssprache →
+  Plan mit sichtbaren `[SKIP]`s → Run; dazu Resolver (Device → Android →
+  System → Variante → Config), Download/Export/Patch/Backup/Flash/Verify,
+  flash-system, TWRP (Shared-Slot), Restore, APTouch-Auto-Fix, Diagnose,
+  Compat, Root-Methoden, Devices.
+- Weiter enforcede Regeln: kein Blind-Flash, `DO NOT FLASH`-Gate, Backup vor
+  Flash, On-Device-Magisk-Patch only, `uid=0` als einziger Root-Beweis,
+  Huawei `Command not allowed` ist UNKNOWN (nie LOCKED).
+
+## 2. Run-Modes (erledigt: v2.5.0)
+
+- `safe` (Default): jeder irreversible Step wird interaktiv bestätigt.
+- `unattended` + `--yes`: bestätigt einen **voll validierten** Run automatisch.
+  Safety-Gates laufen trotzdem — `--yes` skippt nie Checks.
+- `developer`: schaltet `dump-partitions|properties|vendor|logs` für ROM-Research frei.
+
+## 3. Post-Flash-Validierung (erledigt: v2.5.0)
+
+`validate` (TUI-Tools + CLI) fährt read-only System/Hardware-Checks
+(Boot, ADB, OS, SELinux, Root, Mounts, Wi-Fi, Bluetooth, Batterie, Sensoren)
+und schreibt `logs/validation-<stamp>.json`. Nächster Schritt:
+Remediation-Hinweise pro Check.
+
+## 4. Wizard als State Machine (erledigt: v2.14.0+, Resolver v2.17.0)
+
+ROM-bewusster Wizard (Install-ROM-Frage, Ziele in Alltagssprache, sichtbare
+`[SKIP]`s) + Target-Image-Resolver (Device → Android → System → Variante →
+Config). Step-Persistenz via `logs/workflow-state.json` + Resume existiert
+(Orchestrator P1).
+
+## 5. Firmware als Repository (gestartet: v2.17.0)
+
+Pro-Paket-Metadaten (`android`, `root_artifact`, geprüfte URLs, gated
+Firmware-Builds mit Portal-Seiten) in `data/compatibility/huawei/p10/*.yaml`
+(+ JSON-Spiegel); `download-rom` und Magisk-stable.json-Auto-Fetch lösen
+Artefakte automatisch auf. Offen: UPDATE.APP-Auto-Extrakt, mehr geprüfte
+Direkt-URLs.
+
+## 6. Core-Extraktion (gestartet v2.18.0, stepwise)
+
+PowerShell bleibt Referenz-Implementierung (Direct-from-GitHub-Run muss
+laufen). `core/treble_core` hält erste pure Module mit `cargo test`-Suiten,
+`gsi-root/` wächst Richtung Analyzer/Root-Engine/GUI. PS1/Bash-Integration
+(Wrapper mit Fallback) erst wenn Module einen vollen Flow abdecken.
+CLI-Command-Namen bleiben über Migration stabil.
+
+## 7. Stehende Regeln (nie ändern)
+
+Unbekannt ist nie kompatibel. Kein automatischer Unlock/Wipe/Format, keine
+Force- oder Verity-Disable-Flags, keine fremden gepatchten Images, keine
+Fake-Erfolgs-Pfade. Neue Version = neues unveränderliches Release (siehe
+[RELEASE.md](RELEASE.md)).
+
+## 8. Pre-Rust-Ära (v2.1.0 – v2.17.x)
+
+Siehe oben (EN+DE): script-only, eingefroren, weiter gültig.
